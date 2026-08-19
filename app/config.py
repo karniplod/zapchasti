@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     # --- основное ---
     app_name: str = "Разбор·Партс"
     debug: bool = False
-    base_url: str = "https://example.ru"      # без слэша на конце, идёт в QR
+    base_url: str = "https://example.ru"  # без слэша на конце, идёт в QR
 
     # --- база ---
     database_url: str
@@ -26,15 +26,15 @@ class Settings(BaseSettings):
     db_pool_size: int = 10
 
     # --- сессии ---
-    secret_key: str                            # openssl rand -hex 32
+    secret_key: str  # openssl rand -hex 32
     session_cookie: str = "razbor_session"
-    session_ttl_hours: int = 12                # смена закончилась — вход заново
+    session_ttl_hours: int = 12  # смена закончилась — вход заново
 
     # --- файлы ---
     media_root: Path = BASE_DIR / "media"
     static_root: Path = BASE_DIR / "static"
     max_upload_mb: int = 12
-    image_max_side: int = 1600                 # больше для каталога не нужно
+    image_max_side: int = 1600  # больше для каталога не нужно
     thumb_side: int = 400
 
     # --- почта ---
@@ -46,7 +46,7 @@ class Settings(BaseSettings):
 
     # --- магазин ---
     currency: str = "₽"
-    reserve_hours: int = 48                    # сколько держим деталь под заказ
+    reserve_hours: int = 48  # сколько держим деталь под заказ
 
     @field_validator("base_url")
     @classmethod

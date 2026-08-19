@@ -39,12 +39,43 @@ COLUMN_ALIASES = {
     "years": ["годы", "годы выпуска", "years", "период"],
 }
 
-TRANSLIT = str.maketrans({
-    "а":"a","б":"b","в":"v","г":"g","д":"d","е":"e","ё":"e","ж":"zh","з":"z",
-    "и":"i","й":"y","к":"k","л":"l","м":"m","н":"n","о":"o","п":"p","р":"r",
-    "с":"s","т":"t","у":"u","ф":"f","х":"h","ц":"c","ч":"ch","ш":"sh","щ":"sch",
-    "ъ":"","ы":"y","ь":"","э":"e","ю":"yu","я":"ya",
-})
+TRANSLIT = str.maketrans(
+    {
+        "а": "a",
+        "б": "b",
+        "в": "v",
+        "г": "g",
+        "д": "d",
+        "е": "e",
+        "ё": "e",
+        "ж": "zh",
+        "з": "z",
+        "и": "i",
+        "й": "y",
+        "к": "k",
+        "л": "l",
+        "м": "m",
+        "н": "n",
+        "о": "o",
+        "п": "p",
+        "р": "r",
+        "с": "s",
+        "т": "t",
+        "у": "u",
+        "ф": "f",
+        "х": "h",
+        "ц": "c",
+        "ч": "ch",
+        "ш": "sh",
+        "щ": "sch",
+        "ъ": "",
+        "ы": "y",
+        "ь": "",
+        "э": "e",
+        "ю": "yu",
+        "я": "ya",
+    }
+)
 
 
 def slugify(value: str) -> str:
@@ -84,6 +115,7 @@ def parse_years(value: str) -> tuple[int | None, int | None]:
 # Чтение файлов
 # ------------------------------------------------------------------
 
+
 def read_rows(path: Path) -> list[dict]:
     suffix = path.suffix.lower()
     if suffix in (".xlsx", ".xlsm"):
@@ -99,7 +131,7 @@ def read_xlsx(path: Path) -> list[dict]:
     try:
         from openpyxl import load_workbook
     except ImportError:
-        raise SystemExit("Нужен openpyxl: pip install openpyxl")
+        raise SystemExit("Нужен openpyxl: pip install openpyxl") from None
 
     wb = load_workbook(path, read_only=True, data_only=True)
     sheet = wb.active
@@ -158,12 +190,16 @@ def read_xml(path: Path) -> list[dict]:
                 continue
             for gen in gens:
                 y_from, y_to = parse_years(attr(gen, "years", "year") or "")
-                out.append({
-                    "brand": brand, "model": model_name,
-                    "generation": attr(gen, "name"),
-                    "body": attr(gen, "body", "bodytype"),
-                    "year_from": y_from, "year_to": y_to,
-                })
+                out.append(
+                    {
+                        "brand": brand,
+                        "model": model_name,
+                        "generation": attr(gen, "name"),
+                        "body": attr(gen, "body", "bodytype"),
+                        "year_from": y_from,
+                        "year_to": y_to,
+                    }
+                )
     return out
 
 
@@ -197,8 +233,15 @@ def extract(row, cols: dict) -> dict:
 # Загрузка в базу
 # ------------------------------------------------------------------
 
+
 async def load(rows: list[dict], source: str, filename: str, dry_run: bool):
-    stats = {"brands": 0, "models": 0, "generations": 0, "skipped": 0, "total": len(rows)}
+    stats = {
+        "brands": 0,
+        "models": 0,
+        "generations": 0,
+        "skipped": 0,
+        "total": len(rows),
+    }
     brand_cache: dict[str, int] = {}
     model_cache: dict[tuple[int, str], int] = {}
 
@@ -227,14 +270,23 @@ async def load(rows: list[dict], source: str, filename: str, dry_run: bool):
             await session.rollback()
             print("\n[ПРОБНЫЙ ЗАПУСК] Изменения откачены, ничего не сохранено.")
         else:
-            await session.execute(text("""
+            await session.execute(
+                text("""
                 INSERT INTO import_log (source, filename, brands_new, models_new,
                                         generations_new, rows_total, rows_skipped,
                                         finished_at)
                 VALUES (:s, :f, :b, :m, :g, :t, :sk, now())
-            """), {"s": source, "f": filename, "b": stats["brands"],
-                   "m": stats["models"], "g": stats["generations"],
-                   "t": stats["total"], "sk": stats["skipped"]})
+            """),
+                {
+                    "s": source,
+                    "f": filename,
+                    "b": stats["brands"],
+                    "m": stats["models"],
+                    "g": stats["generations"],
+                    "t": stats["total"],
+                    "sk": stats["skipped"],
+                },
+            )
             await session.commit()
 
     return stats
@@ -242,14 +294,19 @@ async def load(rows: list[dict], source: str, filename: str, dry_run: bool):
 
 async def upsert_brand(session, name: str, source: str, stats) -> int:
     slug = slugify(name)
-    row = (await session.execute(text("""
+    row = (
+        await session.execute(
+            text("""
         INSERT INTO brands (name, slug, avito_name, source)
         VALUES (:n, :s, CASE WHEN :src = 'avito' THEN :n END, :src)
         ON CONFLICT (slug) DO UPDATE
             SET avito_name = COALESCE(brands.avito_name,
                     CASE WHEN :src = 'avito' THEN :n END)
         RETURNING id, (xmax = 0) AS inserted
-    """), {"n": name, "s": slug, "src": source})).first()
+    """),
+            {"n": name, "s": slug, "src": source},
+        )
+    ).first()
     if row.inserted:
         stats["brands"] += 1
     return row.id
@@ -257,14 +314,19 @@ async def upsert_brand(session, name: str, source: str, stats) -> int:
 
 async def upsert_model(session, brand_id: int, name: str, source: str, stats) -> int:
     slug = slugify(name)
-    row = (await session.execute(text("""
+    row = (
+        await session.execute(
+            text("""
         INSERT INTO models (brand_id, name, slug, avito_name, source)
         VALUES (:b, :n, :s, CASE WHEN :src = 'avito' THEN :n END, :src)
         ON CONFLICT (brand_id, slug) DO UPDATE
             SET avito_name = COALESCE(models.avito_name,
                     CASE WHEN :src = 'avito' THEN :n END)
         RETURNING id, (xmax = 0) AS inserted
-    """), {"b": brand_id, "n": name, "s": slug, "src": source})).first()
+    """),
+            {"b": brand_id, "n": name, "s": slug, "src": source},
+        )
+    ).first()
     if row.inserted:
         stats["models"] += 1
     return row.id
@@ -275,7 +337,9 @@ async def upsert_generation(session, model_id: int, row: dict, source: str, stat
     # и помечаем на проверку, чтобы строка не потерялась.
     y_from = row.get("year_from")
     needs_review = y_from is None
-    result = (await session.execute(text("""
+    result = (
+        await session.execute(
+            text("""
         INSERT INTO generations (model_id, name, body_type, year_from, year_to,
                                  avito_name, source, needs_review)
         VALUES (:m, :n, :b, COALESCE(:yf, 1900), :yt,
@@ -285,9 +349,18 @@ async def upsert_generation(session, model_id: int, row: dict, source: str, stat
                 year_to   = COALESCE(generations.year_to, EXCLUDED.year_to),
                 avito_name = COALESCE(generations.avito_name, EXCLUDED.avito_name)
         RETURNING (xmax = 0) AS inserted
-    """), {"m": model_id, "n": row["generation"], "b": row.get("body"),
-           "yf": y_from, "yt": row.get("year_to"), "src": source,
-           "rev": needs_review})).first()
+    """),
+            {
+                "m": model_id,
+                "n": row["generation"],
+                "b": row.get("body"),
+                "yf": y_from,
+                "yt": row.get("year_to"),
+                "src": source,
+                "rev": needs_review,
+            },
+        )
+    ).first()
     if result.inserted:
         stats["generations"] += 1
 
@@ -296,14 +369,21 @@ async def upsert_generation(session, model_id: int, row: dict, source: str, stat
 # CLI
 # ------------------------------------------------------------------
 
+
 async def main():
     ap = argparse.ArgumentParser(description="Импорт справочника автомобилей")
     ap.add_argument("--file", required=True, help="xlsx, csv или xml со справочником")
-    ap.add_argument("--source", default="manual",
-                    choices=["avito", "drom", "wikidata", "manual"],
-                    help="откуда файл — влияет на заполнение названий для фидов")
-    ap.add_argument("--dry-run", action="store_true",
-                    help="разобрать файл и показать итог, ничего не записывая")
+    ap.add_argument(
+        "--source",
+        default="manual",
+        choices=["avito", "drom", "wikidata", "manual"],
+        help="откуда файл — влияет на заполнение названий для фидов",
+    )
+    ap.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="разобрать файл и показать итог, ничего не записывая",
+    )
     ap.add_argument("--limit", type=int, help="обработать только первые N строк")
     args = ap.parse_args()
 
@@ -324,15 +404,16 @@ async def main():
 
     print(f"""
 Готово.
-  Обработано строк:   {stats['total']}
-  Пропущено (пусто):  {stats['skipped']}
-  Новых марок:        {stats['brands']}
-  Новых моделей:      {stats['models']}
-  Новых поколений:    {stats['generations']}
+  Обработано строк:   {stats["total"]}
+  Пропущено (пусто):  {stats["skipped"]}
+  Новых марок:        {stats["brands"]}
+  Новых моделей:      {stats["models"]}
+  Новых поколений:    {stats["generations"]}
 """)
     if stats["generations"]:
-        print("Поколения без года выпуска помечены needs_review — "
-              "проверьте их в разделе справочника.")
+        print(
+            "Поколения без года выпуска помечены needs_review — проверьте их в разделе справочника."
+        )
 
 
 if __name__ == "__main__":

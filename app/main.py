@@ -14,12 +14,13 @@ from fastapi import Depends, FastAPI, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .auth import authenticate, drop_session, issue_session, optional_user
+from .auth import authenticate, drop_session, issue_session
 from .config import settings
 from .database import check_connection, dispose, get_session
-from .routers import admin, catalog, manage, stock, dismantle, intake, reference
+from .routers import admin, catalog, dismantle, intake, manage, reference, stock
 
 logging.basicConfig(
     level=logging.DEBUG if settings.debug else logging.INFO,
@@ -72,6 +73,7 @@ app.include_router(stock.router)
 # Вход
 # ------------------------------------------------------------------
 
+
 @app.get("/login", response_class=HTMLResponse)
 async def login_form(request: Request, next: str = "/admin"):
     return templates.TemplateResponse(
@@ -92,8 +94,7 @@ async def login_submit(
         # Не уточняем, что именно неверно — логин или пароль
         return templates.TemplateResponse(
             "admin/login.html",
-            {"request": request, "next": next,
-             "error": "Неверный логин или пароль"},
+            {"request": request, "next": next, "error": "Неверный логин или пароль"},
             status_code=401,
         )
 
@@ -115,6 +116,7 @@ async def logout():
 # ------------------------------------------------------------------
 # Служебное
 # ------------------------------------------------------------------
+
 
 @app.get("/healthz")
 async def healthz():
@@ -140,6 +142,7 @@ async def robots():
 # Ошибки
 # ------------------------------------------------------------------
 
+
 @app.exception_handler(HTTPException)
 async def http_error(request: Request, exc: HTTPException):
     # API отвечает JSON, страницы — человеческой страницей
@@ -149,12 +152,37 @@ async def http_error(request: Request, exc: HTTPException):
     if exc.status_code == 401:
         return RedirectResponse(f"/login?next={request.url.path}", status_code=303)
 
-    user = await optional_user(request) if exc.status_code != 401 else None
     return templates.TemplateResponse(
         "error.html",
-        {"request": request, "code": exc.status_code,
-         "detail": exc.detail, "user": user},
+        {
+            "request": request,
+            "code": exc.status_code,
+            "detail": exc.detail,
+            "user": None,
+        },
         status_code=exc.status_code,
+    )
+
+
+@app.exception_handler(IntegrityError)
+async def integrity_error(request: Request, exc: IntegrityError):
+    """Нарушение целостности — почти всегда ссылка на несуществующую
+    запись или дубль. Пользователю нужен смысл, а не трассировка."""
+    detail = "Не удалось сохранить: данные не сходятся"
+    orig = str(getattr(exc, "orig", "")).lower()
+    if "foreign key" in orig or "fkey" in orig:
+        detail = "Выбранная запись справочника не найдена — обновите страницу"
+    elif "unique" in orig or "duplicate" in orig:
+        detail = "Такая запись уже существует"
+
+    log.warning("Целостность на %s: %s", request.url.path, exc.orig)
+
+    if request.url.path.startswith("/api/"):
+        return JSONResponse({"detail": detail}, status_code=409)
+    return templates.TemplateResponse(
+        "error.html",
+        {"request": request, "code": 409, "detail": detail, "user": None},
+        status_code=409,
     )
 
 
@@ -165,8 +193,11 @@ async def unhandled(request: Request, exc: Exception):
         return JSONResponse({"detail": "Внутренняя ошибка сервера"}, status_code=500)
     return templates.TemplateResponse(
         "error.html",
-        {"request": request, "code": 500,
-         "detail": "Что-то сломалось на нашей стороне. Мы уже знаем.",
-         "user": None},
+        {
+            "request": request,
+            "code": 500,
+            "detail": "Что-то сломалось на нашей стороне. Мы уже знаем.",
+            "user": None,
+        },
         status_code=500,
     )

@@ -34,6 +34,7 @@ log = logging.getLogger(__name__)
 # Поддержка HEIC/HEIF с айфонов
 try:
     import pillow_heif
+
     pillow_heif.register_heif_opener()
     HEIC_OK = True
 except ImportError:  # pragma: no cover
@@ -41,19 +42,22 @@ except ImportError:  # pragma: no cover
     log.warning("pillow-heif не установлен — фото с iPhone в HEIC приниматься не будут")
 
 ALLOWED_TYPES = {
-    "image/jpeg", "image/png", "image/webp",
-    "image/heic", "image/heif",
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/heic",
+    "image/heif",
 }
 
-FULL_QUALITY = 82      # выше визуально не отличить, вес растёт вдвое
+FULL_QUALITY = 82  # выше визуально не отличить, вес растёт вдвое
 THUMB_QUALITY = 76
 THUMB_SIDE = 400
 
 
 @dataclass
 class SavedImage:
-    path: str          # /media/parts/12/ab34cd.webp
-    thumb: str         # /media/parts/12/ab34cd_t.webp
+    path: str  # /media/parts/12/ab34cd.webp
+    thumb: str  # /media/parts/12/ab34cd_t.webp
     width: int
     height: int
     bytes: int
@@ -63,24 +67,22 @@ class SavedImage:
 # Проверка
 # ------------------------------------------------------------------
 
+
 async def read_and_validate(upload: UploadFile) -> bytes:
     """Читаем в память целиком: 12 МБ на файл терпимо, зато не остаётся
     мусора на диске, если файл окажется не картинкой."""
     if upload.content_type not in ALLOWED_TYPES:
-        raise HTTPException(
-            415, f"{upload.filename}: нужен JPEG, PNG, WebP или HEIC"
-        )
+        raise HTTPException(415, f"{upload.filename}: нужен JPEG, PNG, WebP или HEIC")
     if upload.content_type in ("image/heic", "image/heif") and not HEIC_OK:
         raise HTTPException(
-            415, f"{upload.filename}: формат HEIC пока не поддерживается. "
-                 "В настройках камеры iPhone выберите «Наиболее совместимый»"
+            415,
+            f"{upload.filename}: формат HEIC пока не поддерживается. "
+            "В настройках камеры iPhone выберите «Наиболее совместимый»",
         )
 
     data = await upload.read()
     if len(data) > settings.max_upload_bytes:
-        raise HTTPException(
-            413, f"{upload.filename}: больше {settings.max_upload_mb} МБ"
-        )
+        raise HTTPException(413, f"{upload.filename}: больше {settings.max_upload_mb} МБ")
     if not data:
         raise HTTPException(422, f"{upload.filename}: пустой файл")
     return data
@@ -90,13 +92,14 @@ async def read_and_validate(upload: UploadFile) -> bytes:
 # Обработка
 # ------------------------------------------------------------------
 
+
 def process(data: bytes, folder: Path, watermark: str | None = None) -> SavedImage:
     """Синхронная и довольно тяжёлая функция — вызывать через
     BackgroundTasks или run_in_threadpool, не в теле обработчика."""
     try:
         img = _open(data)
     except (UnidentifiedImageError, OSError):
-        raise HTTPException(422, "Файл повреждён или это не изображение")
+        raise HTTPException(422, "Файл повреждён или это не изображение") from None
 
     # Разворот по EXIF и одновременное избавление от метаданных:
     # exif_transpose возвращает новое изображение без ориентации,
@@ -114,8 +117,7 @@ def process(data: bytes, folder: Path, watermark: str | None = None) -> SavedIma
         else:
             img = img.convert("RGB")
 
-    img.thumbnail((settings.image_max_side, settings.image_max_side),
-                  Image.Resampling.LANCZOS)
+    img.thumbnail((settings.image_max_side, settings.image_max_side), Image.Resampling.LANCZOS)
 
     if watermark:
         img = _watermark(img, watermark)
@@ -143,8 +145,9 @@ def process(data: bytes, folder: Path, watermark: str | None = None) -> SavedIma
 
 def _open(data: bytes) -> Image.Image:
     from io import BytesIO
+
     img = Image.open(BytesIO(data))
-    img.load()          # ловим битые файлы здесь, а не при сохранении
+    img.load()  # ловим битые файлы здесь, а не при сохранении
     return img
 
 
@@ -176,8 +179,10 @@ def _watermark(img: Image.Image, text: str) -> Image.Image:
 # Использование в роутерах
 # ------------------------------------------------------------------
 
-async def save_images(uploads: list[UploadFile], folder: Path,
-                      watermark: str | None = None) -> list[SavedImage]:
+
+async def save_images(
+    uploads: list[UploadFile], folder: Path, watermark: str | None = None
+) -> list[SavedImage]:
     """Читает и обрабатывает пачку файлов. Обработка идёт в пуле потоков:
     Pillow держит GIL, и без этого один разборщик с восемью фото
     подвесит всё приложение."""
@@ -193,6 +198,7 @@ async def save_images(uploads: list[UploadFile], folder: Path,
 # ------------------------------------------------------------------
 # Пережатие того, что уже загружено
 # ------------------------------------------------------------------
+
 
 def reprocess_existing(root: Path | None = None, dry_run: bool = True) -> dict:
     """Разовый прогон по старым файлам, если что-то успели залить

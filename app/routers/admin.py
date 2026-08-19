@@ -14,11 +14,16 @@ templates = Jinja2Templates(directory="templates")
 
 
 @router.get("/admin", response_class=HTMLResponse)
-async def dashboard(request: Request,
-                    user: dict = Depends(current_user),
-                    session: AsyncSession = Depends(get_session)):
+async def dashboard(
+    request: Request,
+    user: dict = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+):
     # Одним запросом — иначе полтора десятка round-trip'ов на открытие
-    s = (await session.execute(text("""
+    s = (
+        (
+            await session.execute(
+                text("""
         SELECT
           (SELECT count(*) FROM brands)                              AS brands,
           (SELECT count(*) FROM part_categories)                     AS categories,
@@ -27,11 +32,21 @@ async def dashboard(request: Request,
           (SELECT count(*) FROM parts WHERE status = 'draft')        AS drafts,
           (SELECT count(*) FROM parts
             WHERE status = 'in_stock' AND price IS NULL)             AS no_price,
-          (SELECT count(*) FROM generations WHERE needs_review)      AS to_review,
+          (SELECT count(*) FROM generations
+            WHERE needs_review AND source = 'manual')            AS to_review,
           (SELECT count(*) FROM leads WHERE NOT processed)           AS leads
-    """))).mappings().first()
+    """)
+            )
+        )
+        .mappings()
+        .first()
+    )
 
-    active = [dict(r) for r in (await session.execute(text("""
+    active = [
+        dict(r)
+        for r in (
+            await session.execute(
+                text("""
         SELECT d.id, d.code, d.status::text AS status, d.year,
                b.name AS brand, m.name AS model, g.name AS generation,
                (SELECT count(*) FROM parts p WHERE p.donor_id = d.id) AS parts
@@ -41,9 +56,18 @@ async def dashboard(request: Request,
           JOIN brands b      ON b.id = m.brand_id
          WHERE d.status IN ('accepted', 'dismantling')
          ORDER BY d.id DESC LIMIT 8
-    """))).mappings()]
+    """)
+            )
+        ).mappings()
+    ]
 
-    return templates.TemplateResponse("admin/dashboard.html", {
-        "request": request, "user": user, "s": s, "active": active,
-        "empty": s["brands"] == 0 or s["categories"] == 0,
-    })
+    return templates.TemplateResponse(
+        "admin/dashboard.html",
+        {
+            "request": request,
+            "user": user,
+            "s": s,
+            "active": active,
+            "empty": s["brands"] == 0 or s["categories"] == 0,
+        },
+    )

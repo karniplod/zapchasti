@@ -1,0 +1,17 @@
+# Проверка и форматирование: ruff check app/ && ruff format app/
+line-length = 100
+target-version = "py311"
+
+[lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = [
+    "E501",  # длину строк держит форматер, дублировать проверку незачем
+    "B008",  # Depends(...) в аргументах — так устроен FastAPI, это не ошибка
+]
+
+[lint.per-file-ignores]
+# Импорт ради побочного эффекта: регистрация HEIC-декодера
+"app/services/images.py" = ["F401"]
+
+[format]
+quote-style = "double"

@@ -153,14 +153,7 @@ h1{margin:0 0 6px;font-size:24px;line-height:1.25;letter-spacing:-.02em}
   <div>
     <h1>{{ part.name }}</h1>
     <p class="sub">
-      {% if part.donor_code %}
-        Снята с {{ part.brand }} {{ part.model }} {{ part.generation }}{% if part.body_type %}, {{ part.body_type }}{% endif %}
-      {% elif fits %}
-        Подходит к {{ fits[0].brand }} {{ fits[0].model }}{% if fits|length > 1 %}
-          и ещё {{ fits|length - 1 }} {% if fits|length == 2 %}модели{% else %}моделям{% endif %}{% endif %}
-      {% else %}
-        Применимость уточняется
-      {% endif %}<br>
+      {{ part.brand }} {{ part.model }} {{ part.generation }}{% if part.body_type %}, {{ part.body_type }}{% endif %}<br>
       <span class="sku">{{ part.sku }}</span>
     </p>
 
@@ -208,14 +201,8 @@ h1{margin:0 0 6px;font-size:24px;line-height:1.25;letter-spacing:-.02em}
       </div>
       {% endif %}
       <div><dt>Узел</dt><dd>{{ part.category }}</dd></div>
-      {% if part.donor_code %}
       <div><dt>Снята с</dt>
         <dd>{{ part.brand }} {{ part.model }}{% if part.year %}, {{ part.year }} г.{% endif %}</dd></div>
-      {% else %}
-      <div><dt>Происхождение</dt>
-        <dd>{% if part.source == 'new' %}Новая, не была в эксплуатации
-            {% else %}Б/у, поступила отдельно от машины{% endif %}</dd></div>
-      {% endif %}
       {% if part.modification %}
       <div><dt>Модификация</dt><dd>{{ part.modification }}</dd></div>
       {% endif %}
@@ -230,21 +217,19 @@ h1{margin:0 0 6px;font-size:24px;line-height:1.25;letter-spacing:-.02em}
       {% endif %}
     </dl>
 
-    {% if part.donor_code %}
     <p class="donor">
       Все детали с этой машины —
       <a href="/catalog?donor={{ part.donor_code }}">{{ part.donor_code }}</a>.
       Берите комплектом, отправим одной посылкой.
     </p>
-    {% endif %}
   </div>
 </div>
 
 <!-- Применимость -->
 {% if fits %}
 <section class="fits">
-  <h2>{% if part.donor_code %}На какие машины встаёт{% else %}Подходит к этим машинам{% endif %}</h2>
-  <p class="hint">{% if part.oem_number %}По каталожному номеру {{ part.oem_number }} — {% endif %}{{ fits|length }}
+  <h2>На какие машины встаёт</h2>
+  <p class="hint">По каталожному номеру {{ part.oem_number }} — {{ fits|length }}
     {% if fits|length == 1 %}модель{% else %}моделей{% endif %}</p>
   <ul>
     {% for f in fits %}

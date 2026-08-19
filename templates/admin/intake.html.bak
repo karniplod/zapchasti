@@ -97,7 +97,10 @@ button{font-family:var(--sans);font-size:14px;font-weight:600;border-radius:8px;
 <body>
 <div class="wrap">
 
-{% include "admin/_nav.html" %}
+<header>
+  <h1>Приёмка автомобиля</h1>
+  <span class="code" id="nextCode">новый донор</span>
+</header>
 
 <!-- VIN ---------------------------------------------------------->
 <section class="panel">

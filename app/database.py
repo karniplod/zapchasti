@@ -16,7 +16,7 @@ engine = create_async_engine(
     echo=settings.db_echo,
     pool_size=settings.db_pool_size,
     max_overflow=5,
-    pool_pre_ping=True,      # переживает ночной обрыв соединения
+    pool_pre_ping=True,  # переживает ночной обрыв соединения
     pool_recycle=1800,
 )
 
@@ -38,6 +38,7 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 
 async def check_connection() -> bool:
     from sqlalchemy import text
+
     try:
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))

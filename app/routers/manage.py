@@ -33,10 +33,13 @@ async def parts_page(request: Request, user=Depends(current_user)):
 
 
 @router.get("/api/manage/donors")
-async def donors_list(status: str | None = None,
-                      session: AsyncSession = Depends(get_session),
-                      user=Depends(current_user)):
-    rows = await session.execute(text("""
+async def donors_list(
+    status: str | None = None,
+    session: AsyncSession = Depends(get_session),
+    user=Depends(current_user),
+):
+    rows = await session.execute(
+        text("""
         SELECT d.id, d.code, d.vin, d.year, d.color, d.status::text AS status,
                d.accepted_at, d.purchase_price,
                b.name AS brand, m.name AS model, g.name AS generation,
@@ -52,16 +55,23 @@ async def donors_list(status: str | None = None,
           JOIN brands b      ON b.id = m.brand_id
          WHERE (CAST(:st AS text) IS NULL OR d.status::text = CAST(:st AS text))
          ORDER BY d.id DESC LIMIT 200
-    """), {"st": status})
+    """),
+        {"st": status},
+    )
     return [dict(r._mapping) for r in rows]
 
 
 @router.get("/api/manage/parts")
-async def parts_list(q: str | None = None, status: str | None = None,
-                     donor_id: int | None = None, problems: bool = False,
-                     session: AsyncSession = Depends(get_session),
-                     user=Depends(current_user)):
-    rows = await session.execute(text("""
+async def parts_list(
+    q: str | None = None,
+    status: str | None = None,
+    donor_id: int | None = None,
+    problems: bool = False,
+    session: AsyncSession = Depends(get_session),
+    user=Depends(current_user),
+):
+    rows = await session.execute(
+        text("""
         SELECT p.id, p.sku, p.name, p.condition::text AS condition, p.price,
                p.status::text AS status, p.location, p.published, p.oem_number,
                p.source, c.name AS category, d.code AS donor_code,
@@ -84,7 +94,9 @@ async def parts_list(q: str | None = None, status: str | None = None,
                 OR p.status = 'draft'
                 OR NOT EXISTS (SELECT 1 FROM part_photos ph WHERE ph.part_id = p.id))
          ORDER BY p.id DESC LIMIT 300
-    """), {"q": q, "st": status, "d": donor_id, "pr": problems})
+    """),
+        {"q": q, "st": status, "d": donor_id, "pr": problems},
+    )
     return [dict(r._mapping) for r in rows]
 
 
@@ -97,11 +109,18 @@ class PartPatch(BaseModel):
 
 
 @router.patch("/api/manage/parts/{part_id}")
-async def patch_part(part_id: int, payload: PartPatch,
-                     user=Depends(require_role("manager")),
-                     session: AsyncSession = Depends(get_session)):
-    cur = (await session.execute(text(
-        "SELECT status::text AS status FROM parts WHERE id = :id"), {"id": part_id})).first()
+async def patch_part(
+    part_id: int,
+    payload: PartPatch,
+    user=Depends(require_role("manager")),
+    session: AsyncSession = Depends(get_session),
+):
+    cur = (
+        await session.execute(
+            text("SELECT status::text AS status FROM parts WHERE id = :id"),
+            {"id": part_id},
+        )
+    ).first()
     if not cur:
         raise HTTPException(404, "Деталь не найдена")
     if cur.status == "sold" and payload.status not in (None, "sold"):
@@ -109,23 +128,66 @@ async def patch_part(part_id: int, payload: PartPatch,
 
     sets, params = [], {"id": part_id}
     if payload.price is not None:
-        sets.append("price = :price"); params["price"] = payload.price
+        sets.append("price = :price")
+        params["price"] = payload.price
     if payload.condition:
         if payload.condition not in {"A", "B", "C", "D"}:
             raise HTTPException(422, "Состояние должно быть A, B, C или D")
-        sets.append("condition = CAST(:cond AS part_condition)"); params["cond"] = payload.condition
+        sets.append("condition = CAST(:cond AS part_condition)")
+        params["cond"] = payload.condition
     if payload.location is not None:
-        sets.append("location = :loc"); params["loc"] = payload.location
+        sets.append("location = :loc")
+        params["loc"] = payload.location
     if payload.status:
         if payload.status not in STATUSES:
             raise HTTPException(422, "Неизвестный статус")
-        sets.append("status = CAST(:st AS part_status)"); params["st"] = payload.status
+        sets.append("status = CAST(:st AS part_status)")
+        params["st"] = payload.status
     if payload.published is not None:
-        sets.append("published = :pub"); params["pub"] = payload.published
+        sets.append("published = :pub")
+        params["pub"] = payload.published
     if not sets:
         raise HTTPException(422, "Нечего менять")
 
-    await session.execute(text(
-        f"UPDATE parts SET {', '.join(sets)} WHERE id = :id"), params)
+    await session.execute(text(f"UPDATE parts SET {', '.join(sets)} WHERE id = :id"), params)
     await session.commit()
     return {"ok": True}
+
+
+@router.delete("/api/manage/parts/{part_id}", status_code=204)
+async def delete_part(
+    part_id: int,
+    user=Depends(require_role("manager")),
+    session: AsyncSession = Depends(get_session),
+):
+    """Удалять можно только то, что не продано: проданная деталь —
+    это история сделки, её списывают, а не стирают."""
+    row = (
+        await session.execute(
+            text("SELECT sku, status::text AS status FROM parts WHERE id = :id"),
+            {"id": part_id},
+        )
+    ).first()
+    if not row:
+        raise HTTPException(404, "Деталь не найдена")
+    if row.status == "sold":
+        raise HTTPException(409, "Проданную деталь нельзя удалить — спишите её")
+
+    in_order = (
+        await session.execute(
+            text("SELECT 1 FROM order_items WHERE part_id = :id LIMIT 1"),
+            {"id": part_id},
+        )
+    ).first()
+    if in_order:
+        raise HTTPException(409, "Деталь есть в заказе — сначала отмените заказ")
+
+    await session.execute(text("DELETE FROM parts WHERE id = :id"), {"id": part_id})
+    await session.commit()
+
+    # Фото убираем после удаления записи: если удаление не прошло,
+    # снимки останутся на месте
+    import shutil
+    from pathlib import Path as P
+
+    shutil.rmtree(P("media/parts") / str(part_id), ignore_errors=True)

@@ -1,0 +1,46 @@
+{#
+  Каркас публичной части. Страница наследует так:
+
+      {% extends "_base.html" %}
+      {% block title %}Каталог{% endblock %}
+      {% block content %} ... {% endblock %}
+
+  Стили лежат в static/site.css — правятся в одном месте.
+#}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Запчасти с разбора{% endblock %} — {{ app_name }}</title>
+<meta name="description" content="{% block description %}Б/у автозапчасти с разбора: подбор по VIN, фото каждой детали, оценка состояния.{% endblock %}">
+<link rel="stylesheet" href="/static/site.css">
+{% block head %}{% endblock %}
+</head>
+<body>
+
+<header class="site-head">
+  <div class="wrap">
+    <a class="brand" href="/">Разбор<i>·</i>Партс</a>
+    <nav class="site-nav">
+      <a href="/catalog" {% if request.url.path.startswith('/catalog') %}aria-current="page"{% endif %}>Каталог</a>
+      <a href="/delivery" {% if request.url.path == '/delivery' %}aria-current="page"{% endif %}>Доставка</a>
+      <a href="/contacts" {% if request.url.path == '/contacts' %}aria-current="page"{% endif %}>Контакты</a>
+      {% if user %}<a class="to-admin" href="/admin">Бэкенд</a>{% endif %}
+    </nav>
+  </div>
+</header>
+
+<main>{% block content %}{% endblock %}</main>
+
+<footer style="border-top:1px solid var(--line);margin-top:60px;padding:28px 0;
+               background:var(--surface)">
+  <div class="wrap hint">
+    Все детали б/у, сняты с конкретных машин. Состояние оценивает наш разборщик,
+    фото — реальные, без подмены.
+  </div>
+</footer>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

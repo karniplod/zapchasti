@@ -45,7 +45,11 @@ gap:11px;margin-bottom:24px}
 padding:12px 20px;font-weight:600;font-size:14.5px;margin-bottom:22px}
 </style></head><body>
 
-{% include "admin/_nav.html" %}
+<div class="top"><div class="wrap">
+  <span class="logo">РАЗБОР<span>·</span>ПАРТС</span>
+  <nav><a href="/intake">Приёмка</a><a href="/catalog">Каталог</a><a href="/logout">Выйти</a></nav>
+  <span class="me">{{ user.name or user.login }} · {{ user.role }}</span>
+</div></div>
 
 <div class="wrap">
 

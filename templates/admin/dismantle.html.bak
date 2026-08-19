@@ -127,37 +127,25 @@ button.ghost{background:transparent;color:var(--muted);border:1px solid var(--li
 <section class="panel">
   <p class="eyebrow">Новая деталь</p>
 
-  <div id="catBox">
-    <label for="catSearch">Что снял</label>
-    <input type="text" id="catSearch" placeholder="дверь пер, стойка, фара…"
+  <button type="button" class="shoot" id="shoot">📷 Снять деталь</button>
+  <input type="file" id="photos" accept="image/*" multiple capture="environment" hidden>
+  <div class="thumbs" id="thumbs"></div>
+
+  <div id="catBox" style="margin-top:18px">
+    <label for="catSearch">Что это за деталь</label>
+    <input type="text" id="catSearch" placeholder="дверь пер, фара, стойка…"
            autocomplete="off" spellcheck="false">
     <div class="results" id="catResults"></div>
   </div>
   <div class="picked" id="catPicked" hidden>
-    <div>
+    <div style="min-width:0">
       <div id="pickedName"></div>
       <div class="path" id="pickedPath"></div>
     </div>
     <button type="button" id="catClear" aria-label="Выбрать другую категорию">×</button>
   </div>
 
-  <div style="margin-top:14px">
-    <label for="name">Название в каталоге</label>
-    <input type="text" id="name" placeholder="Заполнится по категории">
-  </div>
-
-  <div class="row" style="margin-top:14px">
-    <div>
-      <label for="oem">Каталожный номер</label>
-      <input type="text" id="oem" placeholder="необязательно" autocomplete="off">
-    </div>
-    <div>
-      <label for="price">Цена, ₽</label>
-      <input type="number" id="price" min="0" step="50" inputmode="numeric">
-    </div>
-  </div>
-
-  <div style="margin-top:16px">
+  <div style="margin-top:18px">
     <label>Состояние</label>
     <div class="cond" id="cond">
       <button type="button" data-c="A"><b>A</b><small>отличное</small></button>
@@ -167,27 +155,34 @@ button.ghost{background:transparent;color:var(--muted);border:1px solid var(--li
     </div>
   </div>
 
-  <div style="margin-top:14px">
-    <label for="note">Дефекты</label>
-    <input type="text" id="note" placeholder="скол на кромке 2 см, потёртость">
+  <div style="margin-top:18px">
+    <label for="price">Цена, ₽</label>
+    <input type="number" id="price" min="0" step="50" inputmode="numeric">
   </div>
 
-  <div class="row" style="margin-top:14px">
-    <div>
-      <label for="loc">Место хранения</label>
-      <input type="text" id="loc" placeholder="стеллаж Б-3" autocomplete="off">
-    </div>
-    <div>
-      <label for="weight">Вес, кг</label>
-      <input type="number" id="weight" min="0" step="0.5" inputmode="decimal">
-    </div>
-  </div>
+  <button type="button" id="moreBtn" style="margin-top:16px;background:none;
+    border:0;color:var(--amber);text-decoration:underline;font-size:14px;
+    cursor:pointer;padding:0;font-family:inherit">Ещё поля</button>
 
-  <div style="margin-top:16px">
-    <label>Фото</label>
-    <button type="button" class="shoot" id="shoot">Снять деталь</button>
-    <input type="file" id="photos" accept="image/*" multiple capture="environment" hidden>
-    <div class="thumbs" id="thumbs"></div>
+  <div id="more" hidden>
+    <div style="margin-top:14px">
+      <label for="name">Название в каталоге</label>
+      <input type="text" id="name" placeholder="по умолчанию — название узла">
+    </div>
+    <div style="margin-top:14px">
+      <label for="oem">Каталожный номер</label>
+      <input type="text" id="oem" autocomplete="off">
+    </div>
+    <div style="margin-top:14px">
+      <label for="note">Дефекты</label>
+      <input type="text" id="note" placeholder="скол на кромке 2 см">
+    </div>
+    <div class="row" style="margin-top:14px">
+      <div><label for="loc">Место хранения</label>
+        <input type="text" id="loc" placeholder="стеллаж Б-3" autocomplete="off"></div>
+      <div><label for="weight">Вес, кг</label>
+        <input type="number" id="weight" min="0" step="0.5" inputmode="decimal"></div>
+    </div>
   </div>
 </section>
 
@@ -297,8 +292,11 @@ function drawThumbs(){
 
 // --- сохранение ------------------------------------------------------
 function refresh(){
-  $('save').disabled = !(category && condition && $('name').value.trim());
-  $('save').textContent = files.length ? 'Добавить деталь' : 'Добавить как черновик';
+  $('save').disabled = !(category && condition);
+  if (!category)        $('save').textContent = 'Выберите деталь';
+  else if (!condition)  $('save').textContent = 'Укажите состояние';
+  else if (!files.length) $('save').textContent = 'Добавить без фото (черновик)';
+  else                  $('save').textContent = 'Добавить деталь';
 }
 $('name').addEventListener('input', refresh);
 
@@ -307,7 +305,7 @@ $('save').onclick = async () => {
   const fd = new FormData();
   fd.append('donor_id', DONOR_ID);
   fd.append('category_id', category.id);
-  fd.append('name', $('name').value.trim());
+  fd.append('name', $('name').value.trim() || category.name);
   fd.append('condition', condition);
   ['oem','price','loc','weight'].forEach(id => {
     const map = {oem:'oem_number', price:'price', loc:'location', weight:'weight_kg'};
@@ -410,6 +408,12 @@ function toast(msg, kind = ''){
 document.addEventListener('click', e => {
   if (!e.target.closest('#catBox')) $('catResults').classList.remove('open');
 });
+
+$('moreBtn').onclick = () => {
+  const m = $('more');
+  m.hidden = !m.hidden;
+  $('moreBtn').textContent = m.hidden ? 'Ещё поля' : 'Скрыть';
+};
 
 drawThumbs();
 loadParts();

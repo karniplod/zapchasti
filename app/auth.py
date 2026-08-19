@@ -10,11 +10,9 @@
   dismantler  только разбор и печать этикеток
 """
 
-from datetime import datetime, timedelta, timezone
-
+import bcrypt
 from fastapi import Depends, HTTPException, Request, Response, status
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
-import bcrypt
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,6 +27,7 @@ ROLE_RANK = {"dismantler": 1, "manager": 2, "admin": 3}
 # ------------------------------------------------------------------
 # Пароли
 # ------------------------------------------------------------------
+
 
 def hash_password(raw: str) -> str:
     # bcrypt читает максимум 72 байта, остальное молча отбрасывает
@@ -47,14 +46,16 @@ def verify_password(raw: str, hashed: str) -> bool:
 # Куки
 # ------------------------------------------------------------------
 
+
 def issue_session(response: Response, user_id: int, role: str) -> None:
     token = signer.dumps({"uid": user_id, "role": role})
     response.set_cookie(
-        settings.session_cookie, token,
+        settings.session_cookie,
+        token,
         max_age=settings.session_ttl_hours * 3600,
-        httponly=True,                       # JS до куки не дотянется
-        secure=not settings.debug,           # только по HTTPS в проде
-        samesite="lax",                      # переживает переход с Авито
+        httponly=True,  # JS до куки не дотянется
+        secure=not settings.debug,  # только по HTTPS в проде
+        samesite="lax",  # переживает переход с Авито
         path="/",
     )
 
@@ -67,11 +68,17 @@ def drop_session(response: Response) -> None:
 # Аутентификация
 # ------------------------------------------------------------------
 
+
 async def authenticate(session: AsyncSession, login: str, password: str) -> dict | None:
-    row = (await session.execute(text("""
+    row = (
+        await session.execute(
+            text("""
         SELECT id, login, password_hash, full_name, role, is_active
           FROM users WHERE login = :login
-    """), {"login": login.strip().lower()})).first()
+    """),
+            {"login": login.strip().lower()},
+        )
+    ).first()
 
     # Хеш проверяем даже когда пользователя нет: иначе по времени ответа
     # можно перебрать существующие логины
@@ -82,14 +89,14 @@ async def authenticate(session: AsyncSession, login: str, password: str) -> dict
         return None
 
     await session.execute(
-        text("UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = :id"), {"id": row.id}
+        text("UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = :id"),
+        {"id": row.id},
     )
     await session.commit()
     return {"id": row.id, "login": row.login, "name": row.full_name, "role": row.role}
 
 
-async def current_user(request: Request,
-                       session: AsyncSession = Depends(get_session)) -> dict:
+async def current_user(request: Request, session: AsyncSession = Depends(get_session)) -> dict:
     token = request.cookies.get(settings.session_cookie)
     if not token:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Нужно войти")
@@ -97,16 +104,23 @@ async def current_user(request: Request,
     try:
         data = signer.loads(token, max_age=settings.session_ttl_hours * 3600)
     except SignatureExpired:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Смена закончилась, войдите заново")
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, "Смена закончилась, войдите заново"
+        ) from None
     except BadSignature:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Сессия недействительна")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Сессия недействительна") from None
 
     # Роль перечитываем из БД: понизили права — действует сразу,
     # не после истечения куки
-    row = (await session.execute(text("""
+    row = (
+        await session.execute(
+            text("""
         SELECT id, login, full_name, role, is_active
           FROM users WHERE id = :id
-    """), {"id": data["uid"]})).first()
+    """),
+            {"id": data["uid"]},
+        )
+    ).first()
 
     if not row or not row.is_active:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Учётная запись отключена")
@@ -114,8 +128,9 @@ async def current_user(request: Request,
     return {"id": row.id, "login": row.login, "name": row.full_name, "role": row.role}
 
 
-async def optional_user(request: Request,
-                        session: AsyncSession = Depends(get_session)) -> dict | None:
+async def optional_user(
+    request: Request, session: AsyncSession = Depends(get_session)
+) -> dict | None:
     """Для публичных страниц: показать шапку бэкенда, если сотрудник вошёл."""
     try:
         return await current_user(request, session)
@@ -139,17 +154,21 @@ def require_role(minimum: str):
 # Первый администратор
 # ------------------------------------------------------------------
 
+
 async def ensure_admin(session: AsyncSession, login: str, password: str) -> None:
     """Вызывается скриптом при развёртывании:
-       python -m app.scripts.create_admin"""
-    exists = (await session.execute(
-        text("SELECT 1 FROM users WHERE role = 'admin' LIMIT 1")
-    )).first()
+    python -m app.scripts.create_admin"""
+    exists = (
+        await session.execute(text("SELECT 1 FROM users WHERE role = 'admin' LIMIT 1"))
+    ).first()
     if exists:
         return
 
-    await session.execute(text("""
+    await session.execute(
+        text("""
         INSERT INTO users (login, password_hash, full_name, role)
         VALUES (:l, :p, 'Администратор', 'admin')
-    """), {"l": login.lower(), "p": hash_password(password)})
+    """),
+        {"l": login.lower(), "p": hash_password(password)},
+    )
     await session.commit()

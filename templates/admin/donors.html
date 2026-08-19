@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ru"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Машины</title>
+<style>
+:root{--bg:#12161c;--panel:#181d25;--panel-2:#1f2630;--line:#2b333f;--ink:#e8ecf2;
+--muted:#8794a6;--dim:#5c6878;--amber:#ffc233;--ok:#4cc38a;--warn:#ff9f2e}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.5;
+font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:900px;margin:0 auto;padding:0 16px 60px}
+.top{background:var(--panel);border-bottom:1px solid var(--line);margin-bottom:18px}
+.top .wrap{display:flex;align-items:center;gap:14px;padding:14px 16px}
+.top h1{margin:0;font-size:17px;font-weight:600}
+.top nav{margin-left:auto;display:flex;gap:14px;font-size:14px;color:var(--muted)}
+.tabs{display:flex;gap:8px;margin-bottom:16px;overflow-x:auto;padding-bottom:4px}
+.tabs button{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+padding:9px 14px;color:var(--muted);cursor:pointer;font-family:inherit;font-size:14px;white-space:nowrap}
+.tabs button.on{background:var(--amber);color:#1a1408;border-color:var(--amber);font-weight:600}
+.car{display:block;background:var(--panel);border:1px solid var(--line);border-radius:11px;
+padding:14px 16px;margin-bottom:10px}
+.car:hover{border-color:var(--dim)}
+.car .h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.car .code{font-family:ui-monospace,monospace;color:var(--amber);font-size:14px;font-weight:600}
+.car .nm{font-size:15.5px}
+.car .st{margin-left:auto;font-size:11px;padding:3px 9px;border-radius:5px;
+background:var(--panel-2);color:var(--muted)}
+.car .st.work{background:rgba(255,159,46,.15);color:var(--warn)}
+.car .meta{font-size:13px;color:var(--dim);margin-top:5px}
+.car .nums{display:flex;gap:16px;margin-top:9px;font-size:13px;flex-wrap:wrap}
+.car .nums b{color:var(--ink);font-variant-numeric:tabular-nums}
+.car .profit{color:var(--ok)}.car .loss{color:var(--muted)}
+.blank{color:var(--dim);font-size:14px;text-align:center;padding:40px 20px}
+</style></head><body>
+
+{% include "admin/_nav.html" %}
+
+<div class="wrap">
+  <div class="tabs" id="tabs">
+    <button class="on" data-s="">Все</button>
+    <button data-s="accepted">Принятые</button>
+    <button data-s="dismantling">В разборе</button>
+    <button data-s="dismantled">Разобранные</button>
+  </div>
+  <div id="list"><p class="blank">Загружаю…</p></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let status = '';
+
+$('tabs').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  status = b.dataset.s;
+  [...$('tabs').children].forEach(x => x.classList.toggle('on', x === b));
+  load();
+};
+
+const money = v => v ? Number(v).toLocaleString('ru') + ' ₽' : '—';
+
+async function load(){
+  const rows = await (await fetch('/api/manage/donors' + (status ? `?status=${status}` : ''))).json();
+  if (!rows.length){ $('list').innerHTML = '<p class="blank">Машин нет</p>'; return; }
+  $('list').innerHTML = rows.map(c => {
+    const work = c.status === 'accepted' || c.status === 'dismantling';
+    const label = {accepted:'принята',dismantling:'в разборе',
+                   dismantled:'разобрана',scrapped:'утилизирована'}[c.status] || c.status;
+    // Выручка против себестоимости — главный вопрос по каждой машине
+    const profit = c.purchase_price
+      ? (Number(c.revenue) - Number(c.purchase_price)) : null;
+    return `<a class="car" href="/donors/${c.id}/dismantle">
+      <div class="h">
+        <span class="code">${c.code}</span>
+        <span class="nm">${c.brand} ${c.model}</span>
+        <span class="st ${work?'work':''}">${label}</span>
+      </div>
+      <div class="meta">${c.generation}${c.year?', '+c.year:''}${c.color?', '+c.color:''}
+        ${c.vin?' · '+c.vin:' · без VIN'}</div>
+      <div class="nums">
+        <span>деталей <b>${c.parts}</b></span>
+        <span>продано <b>${c.sold}</b></span>
+        <span>закупка <b>${money(c.purchase_price)}</b></span>
+        <span>выручка <b>${money(c.revenue)}</b></span>
+        ${profit !== null ? `<span class="${profit>=0?'profit':'loss'}">
+          итог <b>${profit>=0?'+':''}${Number(profit).toLocaleString('ru')} ₽</b></span>` : ''}
+      </div></a>`;
+  }).join('');
+}
+load();
+</script>
+</body></html>

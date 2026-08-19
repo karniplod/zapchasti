@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ru"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Детали</title>
+<style>
+:root{--bg:#12161c;--panel:#181d25;--panel-2:#1f2630;--line:#2b333f;--ink:#e8ecf2;
+--muted:#8794a6;--dim:#5c6878;--amber:#ffc233;--ok:#4cc38a;--warn:#ff9f2e;--err:#ff5f56}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.5;
+font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:900px;margin:0 auto;padding:0 16px 60px}
+.top{background:var(--panel);border-bottom:1px solid var(--line);margin-bottom:16px}
+.top .wrap{display:flex;align-items:center;gap:14px;padding:14px 16px}
+.top h1{margin:0;font-size:17px;font-weight:600}
+.top nav{margin-left:auto;display:flex;gap:14px;font-size:14px;color:var(--muted)}
+input,select{background:var(--panel-2);border:1px solid var(--line);border-radius:9px;
+color:var(--ink);padding:11px;font-size:15px;font-family:inherit;outline:none;width:100%}
+input:focus,select:focus{border-color:var(--amber)}
+.tabs{display:flex;gap:8px;margin:12px 0 16px;overflow-x:auto;padding-bottom:4px}
+.tabs button{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+padding:9px 14px;color:var(--muted);cursor:pointer;font-family:inherit;font-size:14px;white-space:nowrap}
+.tabs button.on{background:var(--amber);color:#1a1408;border-color:var(--amber);font-weight:600}
+.p{background:var(--panel);border:1px solid var(--line);border-radius:11px;
+padding:13px 15px;margin-bottom:9px}
+.p .h{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.p .sku{font-family:ui-monospace,monospace;font-size:12.5px;color:var(--amber)}
+.p .nm{font-size:15px;flex:1;min-width:0}
+.p .meta{font-size:12.5px;color:var(--dim);margin-top:3px}
+.tag{font-size:11px;padding:2px 8px;border-radius:5px;background:var(--panel-2);color:var(--muted)}
+.tag.bad{background:rgba(255,95,86,.14);color:var(--err)}
+.tag.warn{background:rgba(255,159,46,.15);color:var(--warn)}
+.tag.ok{background:rgba(76,195,138,.14);color:var(--ok)}
+.edit{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:11px}
+.edit label{font-size:11px;color:var(--dim);display:block;margin-bottom:4px}
+.edit input,.edit select{padding:9px;font-size:14px}
+.act{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}
+.act button{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;
+padding:9px 14px;color:var(--ink);cursor:pointer;font-family:inherit;font-size:13.5px}
+.act button.save{background:var(--amber);color:#1a1408;border-color:var(--amber);font-weight:600}
+.blank{color:var(--dim);font-size:14px;text-align:center;padding:40px 20px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:24px;background:var(--panel-2);
+border:1px solid var(--line);border-radius:10px;padding:12px 18px;font-size:14px;opacity:0;
+transition:.2s;pointer-events:none;z-index:40}
+.toast.show{opacity:1}.toast.ok{border-color:rgba(76,195,138,.5)}
+.toast.err{border-color:rgba(255,95,86,.5);color:#ff9a94}
+</style></head><body>
+
+{% include "admin/_nav.html" %}
+
+<div class="wrap">
+  <input id="q" placeholder="Артикул, название или каталожный номер" autocomplete="off">
+  <div class="tabs" id="tabs">
+    <button class="on" data-f="">Все</button>
+    <button data-f="problems">Проблемные</button>
+    <button data-f="in_stock">В наличии</button>
+    <button data-f="draft">Черновики</button>
+    <button data-f="sold">Проданные</button>
+  </div>
+  <div id="list"><p class="blank">Загружаю…</p></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+// Фильтр можно задать из адреса: со сводки приходят /parts?f=problems
+let filter = new URLSearchParams(location.search).get('f') || '';
+let q = '', timer;
+
+$('tabs').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  filter = b.dataset.f;
+  [...$('tabs').children].forEach(x => x.classList.toggle('on', x === b));
+  load();
+};
+$('q').oninput = () => { clearTimeout(timer);
+  timer = setTimeout(() => { q = $('q').value.trim(); load(); }, 300); };
+
+const ST = {draft:'черновик',in_stock:'в наличии',reserved:'бронь',
+            sold:'продана',written_off:'списана'};
+
+async function load(){
+  const p = new URLSearchParams();
+  if (q) p.set('q', q);
+  if (filter === 'problems') p.set('problems', 'true');
+  else if (filter) p.set('status', filter);
+
+  const rows = await (await fetch('/api/manage/parts?' + p)).json();
+  if (!rows.length){ $('list').innerHTML = '<p class="blank">Ничего не найдено</p>'; return; }
+
+  $('list').innerHTML = rows.map(r => {
+    // Показываем именно то, что мешает детали продаваться
+    const bad = [];
+    if (!r.photos) bad.push('<span class="tag bad">нет фото</span>');
+    if (!r.price)  bad.push('<span class="tag bad">нет цены</span>');
+    if (!r.donor_code && !r.fits) bad.push('<span class="tag bad">нет применимости</span>');
+    if (!r.published && r.status === 'in_stock') bad.push('<span class="tag warn">не в каталоге</span>');
+
+    return `<div class="p" data-id="${r.id}">
+      <div class="h">
+        <span class="nm">${r.name}</span>
+        <span class="tag ${r.status==='in_stock'?'ok':''}">${ST[r.status]||r.status}</span>
+      </div>
+      <div class="meta">
+        <span class="sku">${r.sku}</span> · ${r.category} ·
+        ${r.donor_code ? r.brand+' '+r.model : 'поступила отдельно, моделей: '+r.fits}
+        ${r.oem_number ? ' · '+r.oem_number : ''}
+      </div>
+      <div style="margin-top:7px">${bad.join(' ')}</div>
+      <div class="edit">
+        <div><label>Цена, ₽</label>
+          <input type="number" class="f-price" value="${r.price ?? ''}" inputmode="numeric"></div>
+        <div><label>Состояние</label>
+          <select class="f-cond">${['A','B','C','D'].map(c =>
+            `<option ${c===r.condition?'selected':''}>${c}</option>`).join('')}</select></div>
+        <div><label>Место</label>
+          <input type="text" class="f-loc" value="${r.location ?? ''}"></div>
+        <div><label>Статус</label>
+          <select class="f-st">${Object.entries(ST).map(([k,v]) =>
+            `<option value="${k}" ${k===r.status?'selected':''}>${v}</option>`).join('')}</select></div>
+      </div>
+      <div class="act">
+        <button class="save">Сохранить</button>
+        ${r.status !== 'sold' ? `<button class="sold">Продано</button>` : ''}
+        ${r.status === 'in_stock' ? `<button class="hold">Бронь</button>` : ''}
+        ${r.status === 'reserved' ? `<button class="unhold">Снять бронь</button>` : ''}
+        <button class="pub">${r.published ? 'Убрать из каталога' : 'Показать в каталоге'}</button>
+        <button class="del" style="color:var(--err);border-color:rgba(255,95,86,.4)">Удалить</button>
+        <a class="act-link" href="/p/${r.sku}" target="_blank"
+           style="padding:9px 4px;color:var(--dim);font-size:13.5px">Карточка ↗</a>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.querySelectorAll('.p').forEach(el => {
+    const id = el.dataset.id;
+    el.querySelector('.save').onclick = () => patch(id, {
+      price: el.querySelector('.f-price').value || null,
+      condition: el.querySelector('.f-cond').value,
+      location: el.querySelector('.f-loc').value || null,
+      status: el.querySelector('.f-st').value,
+    });
+    el.querySelector('.pub').onclick = () => patch(id, {
+      published: el.querySelector('.pub').textContent.startsWith('Показать')
+    }, true);
+
+    const sold = el.querySelector('.sold');
+    if (sold) sold.onclick = () => {
+      // Продажа снимает деталь с витрины: она штучная, второй такой нет
+      if (!confirm('Отметить проданной? Деталь исчезнет из каталога.')) return;
+      patch(id, {status: 'sold', published: false}, true);
+    };
+
+    const hold = el.querySelector('.hold');
+    if (hold) hold.onclick = () => patch(id, {status: 'reserved'}, true);
+
+    const unhold = el.querySelector('.unhold');
+    if (unhold) unhold.onclick = () => patch(id, {status: 'in_stock'}, true);
+
+    el.querySelector('.del').onclick = async () => {
+      const sku = el.querySelector('.sku').textContent;
+      if (!confirm(`Удалить ${sku} без возможности восстановить?`)) return;
+      const r = await fetch(`/api/manage/parts/${id}`, {method: 'DELETE'});
+      if (r.ok){ toast('Удалено', 'ok'); load(); }
+      else { const d = await r.json(); toast(d.detail || 'Не удалось удалить', 'err'); }
+    };
+  });
+}
+
+async function patch(id, body, reload){
+  const r = await fetch(`/api/manage/parts/${id}`, {
+    method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  if (r.ok){ toast('Сохранено','ok'); if (reload) load(); }
+  else { const d = await r.json(); toast(d.detail || 'Не удалось','err'); }
+}
+
+let tt;
+function toast(m,k=''){ const el=$('toast'); el.textContent=m; el.className=`toast show ${k}`;
+  clearTimeout(tt); tt=setTimeout(()=>el.className='toast',2400); }
+
+[...$('tabs').children].forEach(b =>
+  b.classList.toggle('on', b.dataset.f === filter));
+
+load();
+</script>
+</body></html>

@@ -16,14 +16,14 @@ import shutil
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..database import get_session      # ваш штатный провайдер сессии
+from ..database import get_session  # ваш штатный провайдер сессии
 from ..vin_decoder import decode, normalize
 
 router = APIRouter(tags=["intake"])
@@ -37,6 +37,7 @@ MAX_PHOTO_BYTES = 12 * 1024 * 1024
 # ------------------------------------------------------------------
 # Схемы
 # ------------------------------------------------------------------
+
 
 class VinRequest(BaseModel):
     vin: str = Field(min_length=11, max_length=25)
@@ -73,6 +74,7 @@ class DonorCreate(BaseModel):
 # Страница
 # ------------------------------------------------------------------
 
+
 @router.get("/intake", response_class=HTMLResponse)
 async def intake_page(request: Request):
     return templates.TemplateResponse("admin/intake.html", {"request": request})
@@ -81,6 +83,7 @@ async def intake_page(request: Request):
 # ------------------------------------------------------------------
 # Декодирование VIN
 # ------------------------------------------------------------------
+
 
 async def load_wmi(session: AsyncSession) -> dict:
     rows = await session.execute(text("SELECT code, manufacturer FROM wmi"))
@@ -93,10 +96,12 @@ async def decode_vin(payload: VinRequest, session: AsyncSession = Depends(get_se
 
     # Совпадение по накопленным паттернам делает сама БД
     async def pattern_lookup(wmi: str, vds: str):
-        row = (await session.execute(
-            text("SELECT modification_id, confidence FROM match_vin_pattern(:w, :v)"),
-            {"w": wmi, "v": vds},
-        )).first()
+        row = (
+            await session.execute(
+                text("SELECT modification_id, confidence FROM match_vin_pattern(:w, :v)"),
+                {"w": wmi, "v": vds},
+            )
+        ).first()
         return (row.modification_id, row.confidence) if row else None
 
     info = decode(payload.vin, wmi_lookup=wmi_map)
@@ -112,9 +117,11 @@ async def decode_vin(payload: VinRequest, session: AsyncSession = Depends(get_se
         info.warnings.append("Модификация неизвестна — выберите вручную, паттерн запомнится")
 
     # Такой VIN уже принимали? Показать сразу, до заполнения формы.
-    duplicate = (await session.execute(
-        text("SELECT code, status FROM donors WHERE vin = :vin"), {"vin": info.vin}
-    )).first()
+    duplicate = (
+        await session.execute(
+            text("SELECT code, status FROM donors WHERE vin = :vin"), {"vin": info.vin}
+        )
+    ).first()
 
     return {
         "valid": True,
@@ -138,7 +145,9 @@ async def decode_vin(payload: VinRequest, session: AsyncSession = Depends(get_se
 async def modification_chain(session: AsyncSession, modification_id: int):
     """Развернуть модификацию в цепочку марка -> модель -> поколение, чтобы
     форма сразу выставила все четыре селекта."""
-    row = (await session.execute(text("""
+    row = (
+        await session.execute(
+            text("""
         SELECT b.id AS brand_id, b.name AS brand,
                m.id AS model_id,  m.name AS model,
                g.id AS generation_id, g.name AS generation,
@@ -150,13 +159,17 @@ async def modification_chain(session: AsyncSession, modification_id: int):
           JOIN models m      ON m.id = g.model_id
           JOIN brands b      ON b.id = m.brand_id
          WHERE mo.id = :id
-    """), {"id": modification_id})).first()
+    """),
+            {"id": modification_id},
+        )
+    ).first()
     return dict(row._mapping) if row else None
 
 
 # ------------------------------------------------------------------
 # Каскадные справочники
 # ------------------------------------------------------------------
+
 
 @router.get("/api/brands")
 async def brands(session: AsyncSession = Depends(get_session)):
@@ -175,27 +188,34 @@ async def models(brand_id: int, session: AsyncSession = Depends(get_session)):
 
 @router.get("/api/generations")
 async def generations(model_id: int, session: AsyncSession = Depends(get_session)):
-    rows = await session.execute(text("""
+    rows = await session.execute(
+        text("""
         SELECT id, name, body_type, year_from, year_to
           FROM generations WHERE model_id = :m
          ORDER BY year_from DESC
-    """), {"m": model_id})
+    """),
+        {"m": model_id},
+    )
     return [dict(r._mapping) for r in rows]
 
 
 @router.get("/api/modifications")
 async def modifications(generation_id: int, session: AsyncSession = Depends(get_session)):
-    rows = await session.execute(text("""
+    rows = await session.execute(
+        text("""
         SELECT id, engine_code, engine_volume, fuel, power_hp, transmission, drive
           FROM modifications WHERE generation_id = :g
          ORDER BY engine_volume, power_hp
-    """), {"g": generation_id})
+    """),
+        {"g": generation_id},
+    )
     return [dict(r._mapping) for r in rows]
 
 
 # ------------------------------------------------------------------
 # Создание донора
 # ------------------------------------------------------------------
+
 
 @router.post("/api/donors", status_code=201)
 async def create_donor(
@@ -204,42 +224,55 @@ async def create_donor(
     # user = Depends(current_user),   # подключите свою авторизацию
 ):
     if payload.vin:
-        dup = (await session.execute(
-            text("SELECT code FROM donors WHERE vin = :v"), {"v": payload.vin}
-        )).first()
+        dup = (
+            await session.execute(
+                text("SELECT code FROM donors WHERE vin = :v"), {"v": payload.vin}
+            )
+        ).first()
         if dup:
             raise HTTPException(409, f"VIN уже принят под номером {dup.code}")
 
-    code = (await session.execute(
-        text("SELECT 'D-' || lpad(nextval('donor_code_seq')::text, 4, '0') AS code")
-    )).scalar_one()
+    code = (
+        await session.execute(
+            text("SELECT 'D-' || lpad(nextval('donor_code_seq')::text, 4, '0') AS code")
+        )
+    ).scalar_one()
 
-    donor_id = (await session.execute(text("""
+    donor_id = (
+        await session.execute(
+            text("""
         INSERT INTO donors (code, vin, generation_id, modification_id, year, color,
                             mileage_km, plate, purchase_price, notes, vin_source)
         VALUES (:code, :vin, :gen, :mod, :year, :color,
                 :mileage, :plate, :price, :notes, :src)
         RETURNING id
-    """), {
-        "code": code,
-        "vin": payload.vin,
-        "gen": payload.generation_id,
-        "mod": payload.modification_id,
-        "year": payload.year,
-        "color": payload.color,
-        "mileage": payload.mileage_km,
-        "plate": payload.plate,
-        "price": payload.purchase_price,
-        "notes": payload.notes,
-        "src": "manual" if payload.vin else "no_vin",
-    })).scalar_one()
+    """),
+            {
+                "code": code,
+                "vin": payload.vin,
+                "gen": payload.generation_id,
+                "mod": payload.modification_id,
+                "year": payload.year,
+                "color": payload.color,
+                "mileage": payload.mileage_km,
+                "plate": payload.plate,
+                "price": payload.purchase_price,
+                "notes": payload.notes,
+                "src": "manual" if payload.vin else "no_vin",
+            },
+        )
+    ).scalar_one()
 
     # Приёмщик подтвердил модификацию — запоминаем паттерн.
     # Следующая такая же машина определится сама.
     if payload.vin and payload.modification_id:
         await session.execute(
             text("SELECT learn_vin_pattern(:w, :v, :m, NULL)"),
-            {"w": payload.vin[0:3], "v": payload.vin[3:8], "m": payload.modification_id},
+            {
+                "w": payload.vin[0:3],
+                "v": payload.vin[3:8],
+                "m": payload.modification_id,
+            },
         )
 
     await session.commit()
@@ -250,15 +283,16 @@ async def create_donor(
 # Фото осмотра
 # ------------------------------------------------------------------
 
+
 @router.post("/api/donors/{donor_id}/photos", status_code=201)
 async def upload_photos(
     donor_id: int,
     files: list[UploadFile] = File(...),
     session: AsyncSession = Depends(get_session),
 ):
-    exists = (await session.execute(
-        text("SELECT code FROM donors WHERE id = :id"), {"id": donor_id}
-    )).first()
+    exists = (
+        await session.execute(text("SELECT code FROM donors WHERE id = :id"), {"id": donor_id})
+    ).first()
     if not exists:
         raise HTTPException(404, "Донор не найден")
 
@@ -270,7 +304,9 @@ async def upload_photos(
         if upload.content_type not in ALLOWED_IMAGE_TYPES:
             raise HTTPException(415, f"{upload.filename}: только JPEG, PNG или WebP")
 
-        ext = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}[upload.content_type]
+        ext = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}[
+            upload.content_type
+        ]
         name = f"{uuid.uuid4().hex}{ext}"
         target = folder / name
 
@@ -283,10 +319,13 @@ async def upload_photos(
             raise HTTPException(413, f"{upload.filename}: больше 12 МБ")
 
         rel = f"/media/donors/{donor_id}/{name}"
-        await session.execute(text("""
+        await session.execute(
+            text("""
             INSERT INTO donor_photos (donor_id, path, sort_order)
             VALUES (:d, :p, :o)
-        """), {"d": donor_id, "p": rel, "o": order})
+        """),
+            {"d": donor_id, "p": rel, "o": order},
+        )
         saved.append(rel)
 
     await session.commit()

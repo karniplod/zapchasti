@@ -71,7 +71,10 @@ transition:.2s;pointer-events:none;z-index:40}
 .toast.err{border-color:rgba(255,95,86,.5);color:#ff9a94}
 </style></head><body>
 
-{% include "admin/_nav.html" %}
+<div class="top"><div class="wrap">
+  <h1>Приём запчасти</h1>
+  <nav><a href="/admin">← Сводка</a></nav>
+</div></div>
 
 <div class="wrap">
 

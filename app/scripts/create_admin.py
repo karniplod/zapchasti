@@ -1,6 +1,6 @@
 """Первый администратор.
 
-    python -m app.scripts.create_admin
+python -m app.scripts.create_admin
 """
 
 import asyncio

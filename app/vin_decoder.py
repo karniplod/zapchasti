@@ -21,21 +21,41 @@ from datetime import date
 # Константы стандарта ISO 3779
 # ------------------------------------------------------------------
 
-FORBIDDEN = set("IOQ")          # никогда не встречаются в VIN
+FORBIDDEN = set("IOQ")  # никогда не встречаются в VIN
 VALID_CHARS = set("0123456789ABCDEFGHJKLMNPRSTUVWXYZ")
 
 # Транслитерация для контрольной цифры (позиция 9)
 TRANSLIT = {
     **{str(d): d for d in range(10)},
-    "A": 1, "B": 2, "C": 3, "D": 4, "E": 5, "F": 6, "G": 7, "H": 8,
-    "J": 1, "K": 2, "L": 3, "M": 4, "N": 5, "P": 7, "R": 9,
-    "S": 2, "T": 3, "U": 4, "V": 5, "W": 6, "X": 7, "Y": 8, "Z": 9,
+    "A": 1,
+    "B": 2,
+    "C": 3,
+    "D": 4,
+    "E": 5,
+    "F": 6,
+    "G": 7,
+    "H": 8,
+    "J": 1,
+    "K": 2,
+    "L": 3,
+    "M": 4,
+    "N": 5,
+    "P": 7,
+    "R": 9,
+    "S": 2,
+    "T": 3,
+    "U": 4,
+    "V": 5,
+    "W": 6,
+    "X": 7,
+    "Y": 8,
+    "Z": 9,
 }
 
 WEIGHTS = [8, 7, 6, 5, 4, 3, 2, 10, 0, 9, 8, 7, 6, 5, 4, 3, 2]
 
 # Позиция 10 -> модельный год. Цикл 30 лет.
-YEAR_CODES = "ABCDEFGHJKLMNPRSTVWXY123456789"   # A=1980 ... 9=2009, далее A=2010
+YEAR_CODES = "ABCDEFGHJKLMNPRSTVWXY123456789"  # A=1980 ... 9=2009, далее A=2010
 
 # Первый символ VIN -> регион/страна (это часть стандарта, надёжно)
 COUNTRY_RANGES = [
@@ -108,6 +128,7 @@ WMI_SEED = {
 # Результат разбора
 # ------------------------------------------------------------------
 
+
 @dataclass
 class VinInfo:
     vin: str
@@ -116,8 +137,8 @@ class VinInfo:
     warnings: list = field(default_factory=list)
 
     wmi: str | None = None
-    vds: str | None = None          # позиции 4-8
-    serial: str | None = None       # позиции 12-17
+    vds: str | None = None  # позиции 4-8
+    serial: str | None = None  # позиции 12-17
     country: str | None = None
     manufacturer: str | None = None
     year: int | None = None
@@ -133,6 +154,7 @@ class VinInfo:
 # Базовые функции
 # ------------------------------------------------------------------
 
+
 def normalize(vin: str) -> str:
     """Убрать пробелы/дефисы, привести к верхнему регистру."""
     return "".join(vin.upper().split()).replace("-", "")
@@ -145,8 +167,9 @@ def check_digit(vin: str) -> str:
     return "X" if rem == 10 else str(rem)
 
 
-def decode_year(code: str, seventh_is_digit: bool | None = None,
-                today: date | None = None) -> tuple[int | None, list[int]]:
+def decode_year(
+    code: str, seventh_is_digit: bool | None = None, today: date | None = None
+) -> tuple[int | None, list[int]]:
     """
     Модельный год из позиции 10.
 
@@ -191,9 +214,8 @@ def country_of(first_char: str) -> str | None:
 # Главная функция
 # ------------------------------------------------------------------
 
-def decode(raw_vin: str,
-           wmi_lookup: dict | None = None,
-           pattern_lookup=None) -> VinInfo:
+
+def decode(raw_vin: str, wmi_lookup: dict | None = None, pattern_lookup=None) -> VinInfo:
     """
     wmi_lookup    — словарь WMI -> производитель (обычно подгружается из БД)
     pattern_lookup(wmi, vds) -> (modification_id, confidence) | None
@@ -243,9 +265,7 @@ def decode(raw_vin: str,
     seventh_is_digit = vin[6].isdigit() if vin[0] in "12345" else None
     info.year, info.year_candidates = decode_year(vin[9], seventh_is_digit)
     if len(info.year_candidates) > 1:
-        info.warnings.append(
-            "Год неоднозначен: " + " / ".join(map(str, info.year_candidates))
-        )
+        info.warnings.append("Год неоднозначен: " + " / ".join(map(str, info.year_candidates)))
 
     # --- накопленные паттерны ---
     if pattern_lookup:
@@ -253,9 +273,7 @@ def decode(raw_vin: str,
         if hit:
             info.modification_id, info.pattern_confidence = hit
         else:
-            info.warnings.append(
-                "Модификация неизвестна — выберите вручную, паттерн запомнится"
-            )
+            info.warnings.append("Модификация неизвестна — выберите вручную, паттерн запомнится")
 
     return info
 
