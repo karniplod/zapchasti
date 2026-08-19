@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .auth import authenticate, drop_session, issue_session, optional_user
 from .config import settings
 from .database import check_connection, dispose, get_session
-from .routers import admin, catalog, stock, dismantle, intake, reference
+from .routers import admin, catalog, manage, stock, dismantle, intake, reference
 
 logging.basicConfig(
     level=logging.DEBUG if settings.debug else logging.INFO,
@@ -64,6 +64,7 @@ app.include_router(intake.router)
 app.include_router(dismantle.router)
 app.include_router(reference.router)
 app.include_router(admin.router)
+app.include_router(manage.router)
 app.include_router(stock.router)
 
 
