@@ -8,16 +8,15 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import current_user, require_role
 from ..database import get_session
+from ..templating import templates
 
 router = APIRouter(tags=["manage"])
-templates = Jinja2Templates(directory="templates")
 
 STATUSES = ["draft", "in_stock", "reserved", "sold", "written_off"]
 

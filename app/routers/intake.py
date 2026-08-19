@@ -18,16 +18,15 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_session  # ваш штатный провайдер сессии
+from ..templating import templates
 from ..vin_decoder import decode, normalize
 
 router = APIRouter(tags=["intake"])
-templates = Jinja2Templates(directory="templates")
 
 MEDIA_ROOT = Path("media/donors")
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}

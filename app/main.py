@@ -13,7 +13,6 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +20,7 @@ from .auth import authenticate, drop_session, issue_session
 from .config import settings
 from .database import check_connection, dispose, get_session
 from .routers import admin, catalog, dismantle, intake, manage, reference, stock
+from .templating import templates
 
 logging.basicConfig(
     level=logging.DEBUG if settings.debug else logging.INFO,
@@ -52,7 +52,17 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-templates = Jinja2Templates(directory="templates")
+
+def _css_version() -> str:
+    """Версия стилей = время правки файла. Меняется файл — меняется
+    адрес, и браузер перестаёт отдавать старое из кэша."""
+    try:
+        return str(int((settings.static_root / "site.css").stat().st_mtime))
+    except OSError:
+        return "0"
+
+
+templates.env.globals["css_version"] = _css_version()
 templates.env.globals["app_name"] = settings.app_name
 templates.env.globals["base_url"] = settings.base_url
 

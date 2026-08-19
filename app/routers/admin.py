@@ -2,15 +2,14 @@
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import current_user
 from ..database import get_session
+from ..templating import templates
 
 router = APIRouter(tags=["admin"])
-templates = Jinja2Templates(directory="templates")
 
 
 @router.get("/admin", response_class=HTMLResponse)

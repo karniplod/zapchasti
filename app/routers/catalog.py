@@ -14,17 +14,16 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import optional_user
 from ..database import get_session
+from ..templating import templates
 from ..vin_decoder import decode
 
 router = APIRouter(tags=["catalog"])
-templates = Jinja2Templates(directory="templates")
 
 PAGE_SIZE = 24
 

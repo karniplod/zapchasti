@@ -9,15 +9,14 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import require_role
 from ..database import get_session
+from ..templating import templates
 
 router = APIRouter(tags=["stock"])
-templates = Jinja2Templates(directory="templates")
 
 SOURCES = {"purchased": "Куплена б/у", "new": "Новая"}
 CONDITIONS = {"A", "B", "C", "D"}

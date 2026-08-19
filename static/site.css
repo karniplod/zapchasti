@@ -184,19 +184,32 @@ label{display:block;font-size:var(--t-xs);color:var(--muted);margin:0 0 6px;
 .tag-card .shot{flex:0 0 auto}
 @media(min-width:641px){ .tag-card .shot{aspect-ratio:5/4} }
 
-/* ── Поля по краям ─────────────────────────────────────── */
-/* Задаём и через padding, и через safe-area: на телефонах
-   с закруглёнными углами контент иначе режется */
+/* ── Ширина страницы ───────────────────────────────────── */
+/* Ничто не шире экрана: горизонтальная прокрутка на телефоне
+   ломает всё — шапку обрезает, секции разъезжаются */
+html,body{max-width:100%;overflow-x:clip}
+
 .wrap{
-  padding-left:  max(18px, env(safe-area-inset-left));
-  padding-right: max(18px, env(safe-area-inset-right));
-}
-@media(min-width:641px){
-  .wrap{padding-left:max(28px, env(safe-area-inset-left));
-        padding-right:max(28px, env(safe-area-inset-right))}
+  width:100%;
+  max-width:min(1120px, 100%);
+  margin-inline:auto;
+  padding-inline:16px;
 }
 
-/* Ничто не должно вылезать за поля родителя */
-body{overflow-x:hidden}
-.layout,.grid,.side,.hero .wrap{max-width:100%;min-width:0}
-.grid > *{min-width:0}
+/* Шапка не должна распираться меню */
+.site-head .wrap{flex-wrap:nowrap;min-width:0}
+.site-nav{min-width:0;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none}
+.site-nav::-webkit-scrollbar{display:none}
+.site-nav a{flex:0 0 auto}
+.brand{flex:0 0 auto}
+
+/* Поле VIN — самый частый источник переполнения:
+   моноширинный шрифт с разрядкой не влезает в 360 px */
+.vinbar{max-width:100%}
+.vinbar .field{width:100%;min-width:0}
+@media(max-width:560px){
+  .field-code{font-size:16px;letter-spacing:.06em}
+}
+
+/* ВРЕМЕННО: подсветить блоки, вылезающие за экран */
+.debug-overflow *{outline:1px solid rgba(255,0,0,.3)}

@@ -20,14 +20,13 @@ from pathlib import Path
 import segno
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_session
+from ..templating import templates
 
 router = APIRouter(tags=["dismantle"])
-templates = Jinja2Templates(directory="templates")
 
 MEDIA_ROOT = Path("media/parts")
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
