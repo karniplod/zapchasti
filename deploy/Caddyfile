@@ -1,0 +1,39 @@
+razbor.example.ru {
+    encode zstd gzip
+
+    # Статику отдаёт Caddy напрямую — Python на этом только тратил бы воркеры
+    handle /media/* {
+        root * /opt/razbor
+        header Cache-Control "public, max-age=2592000, immutable"
+        file_server
+    }
+
+    handle /static/* {
+        root * /opt/razbor
+        header Cache-Control "public, max-age=604800"
+        file_server
+    }
+
+    handle {
+        reverse_proxy 127.0.0.1:8100
+    }
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    request_body {
+        max_size 60MB
+    }
+
+    log {
+        output file /var/log/caddy/razbor.log {
+            roll_size 20mb
+            roll_keep 10
+        }
+    }
+}

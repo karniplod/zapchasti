@@ -1,0 +1,155 @@
+"""Вход в бэкенд.
+
+Сессия — подписанная кука, без хранения в БД: сотрудников единицы,
+таблица сессий тут лишняя сложность. Ключ подписи меняется -> все
+разлогинены, что и нужно при утечке.
+
+Роли:
+  admin       всё
+  manager     приёмка, детали, заказы, цены
+  dismantler  только разбор и печать этикеток
+"""
+
+from datetime import datetime, timedelta, timezone
+
+from fastapi import Depends, HTTPException, Request, Response, status
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+import bcrypt
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from .config import settings
+from .database import get_session
+
+signer = URLSafeTimedSerializer(settings.secret_key, salt="razbor-session")
+
+ROLE_RANK = {"dismantler": 1, "manager": 2, "admin": 3}
+
+
+# ------------------------------------------------------------------
+# Пароли
+# ------------------------------------------------------------------
+
+def hash_password(raw: str) -> str:
+    # bcrypt читает максимум 72 байта, остальное молча отбрасывает
+    return bcrypt.hashpw(raw.encode()[:72], bcrypt.gensalt()).decode()
+
+
+def verify_password(raw: str, hashed: str) -> bool:
+    try:
+        return bcrypt.checkpw(raw.encode()[:72], hashed.encode())
+    except (ValueError, TypeError):
+        # Битый или подставной хеш — пароль просто не подошёл
+        return False
+
+
+# ------------------------------------------------------------------
+# Куки
+# ------------------------------------------------------------------
+
+def issue_session(response: Response, user_id: int, role: str) -> None:
+    token = signer.dumps({"uid": user_id, "role": role})
+    response.set_cookie(
+        settings.session_cookie, token,
+        max_age=settings.session_ttl_hours * 3600,
+        httponly=True,                       # JS до куки не дотянется
+        secure=not settings.debug,           # только по HTTPS в проде
+        samesite="lax",                      # переживает переход с Авито
+        path="/",
+    )
+
+
+def drop_session(response: Response) -> None:
+    response.delete_cookie(settings.session_cookie, path="/")
+
+
+# ------------------------------------------------------------------
+# Аутентификация
+# ------------------------------------------------------------------
+
+async def authenticate(session: AsyncSession, login: str, password: str) -> dict | None:
+    row = (await session.execute(text("""
+        SELECT id, login, password_hash, full_name, role, is_active
+          FROM users WHERE login = :login
+    """), {"login": login.strip().lower()})).first()
+
+    # Хеш проверяем даже когда пользователя нет: иначе по времени ответа
+    # можно перебрать существующие логины
+    stored = row.password_hash if row else "$2b$12$" + "x" * 53
+    ok = verify_password(password, stored)
+
+    if not row or not ok or not row.is_active:
+        return None
+
+    await session.execute(
+        text("UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = :id"), {"id": row.id}
+    )
+    await session.commit()
+    return {"id": row.id, "login": row.login, "name": row.full_name, "role": row.role}
+
+
+async def current_user(request: Request,
+                       session: AsyncSession = Depends(get_session)) -> dict:
+    token = request.cookies.get(settings.session_cookie)
+    if not token:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Нужно войти")
+
+    try:
+        data = signer.loads(token, max_age=settings.session_ttl_hours * 3600)
+    except SignatureExpired:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Смена закончилась, войдите заново")
+    except BadSignature:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Сессия недействительна")
+
+    # Роль перечитываем из БД: понизили права — действует сразу,
+    # не после истечения куки
+    row = (await session.execute(text("""
+        SELECT id, login, full_name, role, is_active
+          FROM users WHERE id = :id
+    """), {"id": data["uid"]})).first()
+
+    if not row or not row.is_active:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Учётная запись отключена")
+
+    return {"id": row.id, "login": row.login, "name": row.full_name, "role": row.role}
+
+
+async def optional_user(request: Request,
+                        session: AsyncSession = Depends(get_session)) -> dict | None:
+    """Для публичных страниц: показать шапку бэкенда, если сотрудник вошёл."""
+    try:
+        return await current_user(request, session)
+    except HTTPException:
+        return None
+
+
+def require_role(minimum: str):
+    """require_role('manager') пропустит manager и admin, но не разборщика."""
+    need = ROLE_RANK[minimum]
+
+    async def guard(user: dict = Depends(current_user)) -> dict:
+        if ROLE_RANK.get(user["role"], 0) < need:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Недостаточно прав")
+        return user
+
+    return guard
+
+
+# ------------------------------------------------------------------
+# Первый администратор
+# ------------------------------------------------------------------
+
+async def ensure_admin(session: AsyncSession, login: str, password: str) -> None:
+    """Вызывается скриптом при развёртывании:
+       python -m app.scripts.create_admin"""
+    exists = (await session.execute(
+        text("SELECT 1 FROM users WHERE role = 'admin' LIMIT 1")
+    )).first()
+    if exists:
+        return
+
+    await session.execute(text("""
+        INSERT INTO users (login, password_hash, full_name, role)
+        VALUES (:l, :p, 'Администратор', 'admin')
+    """), {"l": login.lower(), "p": hash_password(password)})
+    await session.commit()

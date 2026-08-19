@@ -1,0 +1,177 @@
+{#
+  Подключается в intake.html:
+      {% include "admin/_quickadd.html" %}
+
+  Даёт приёмщику кнопку «Нет в списке» рядом с каждым селектом.
+  Открывается модалка, поле заполняется, селект обновляется — машина
+  принимается без ожидания менеджера.
+#}
+
+<style>
+dialog.qa{border:0;border-radius:14px;padding:0;background:#181d25;color:#e8ecf2;
+  max-width:420px;width:calc(100% - 32px);box-shadow:0 24px 60px rgba(0,0,0,.55)}
+dialog.qa::backdrop{background:rgba(8,10,14,.7)}
+dialog.qa .head{padding:18px 20px 14px;border-bottom:1px solid #2b333f}
+dialog.qa h3{margin:0;font-size:17px;font-weight:600}
+dialog.qa .ctx{margin:4px 0 0;font-size:13px;color:#8794a6}
+dialog.qa .in{padding:18px 20px}
+dialog.qa label{display:block;font-size:12px;color:#8794a6;margin:0 0 5px}
+dialog.qa input,dialog.qa select{width:100%;background:#1f2630;border:1px solid #2b333f;
+  border-radius:8px;color:#e8ecf2;padding:11px;font-size:15px;font-family:inherit;outline:none}
+dialog.qa input:focus,dialog.qa select:focus{border-color:#ffc233}
+dialog.qa .row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+dialog.qa .field{margin-top:14px}
+dialog.qa .field:first-child{margin-top:0}
+dialog.qa .warn{margin-top:14px;background:rgba(255,159,46,.1);border:1px solid rgba(255,159,46,.3);
+  color:#ffc98a;border-radius:8px;padding:10px 13px;font-size:13px;display:none}
+dialog.qa .warn.show{display:block}
+dialog.qa .foot{padding:14px 20px 18px;display:flex;gap:10px}
+dialog.qa button{border:0;border-radius:9px;padding:12px 20px;font-size:14px;
+  font-weight:600;cursor:pointer;font-family:inherit}
+dialog.qa .ok{background:#ffc233;color:#1a1408;flex:1}
+dialog.qa .ok:disabled{opacity:.35;cursor:not-allowed}
+dialog.qa .no{background:transparent;color:#8794a6;border:1px solid #2b333f}
+.qa-link{background:none;border:0;color:#ffc233;font-size:12px;cursor:pointer;
+  text-decoration:underline;padding:0;font-family:inherit;margin-left:8px}
+</style>
+
+<dialog class="qa" id="qaModal">
+  <div class="head">
+    <h3 id="qaTitle">Новая запись</h3>
+    <p class="ctx" id="qaCtx"></p>
+  </div>
+
+  <div class="in">
+    <div class="field">
+      <label for="qaName" id="qaNameLabel">Название</label>
+      <input type="text" id="qaName" autocomplete="off" spellcheck="false">
+    </div>
+
+    <div id="qaGenFields" hidden>
+      <div class="field">
+        <label for="qaBody">Тип кузова</label>
+        <select id="qaBody"><option value="">—</option></select>
+      </div>
+      <div class="row">
+        <div>
+          <label for="qaFrom">Год начала выпуска</label>
+          <input type="number" id="qaFrom" min="1950" max="2035" inputmode="numeric">
+        </div>
+        <div>
+          <label for="qaTo">Год окончания</label>
+          <input type="number" id="qaTo" min="1950" max="2035" inputmode="numeric"
+                 placeholder="пусто = выпускается">
+        </div>
+      </div>
+    </div>
+
+    <div class="warn" id="qaWarn"></div>
+  </div>
+
+  <div class="foot">
+    <button class="ok" id="qaSave" disabled>Добавить</button>
+    <button class="no" id="qaCancel">Отмена</button>
+  </div>
+</dialog>
+
+<script>
+(function(){
+  const modal = document.getElementById('qaModal');
+  const name  = document.getElementById('qaName');
+  const warn  = document.getElementById('qaWarn');
+  let mode = null, parentId = null, onDone = null;
+
+  // Типы кузова подгружаем один раз
+  fetch('/api/reference/body-types').then(r => r.json()).then(list => {
+    const sel = document.getElementById('qaBody');
+    list.forEach(b => sel.add(new Option(b, b)));
+  });
+
+  const TITLES = {
+    brand:      ['Новая марка', 'Название', ''],
+    model:      ['Новая модель', 'Название модели', ''],
+    generation: ['Новое поколение', 'Обозначение кузова', 'Например: XV70, E90, B7']
+  };
+
+  /**
+   * openQuickAdd('generation', modelId, 'Toyota Camry', callback)
+   * callback получает {id, name} созданной или найденной записи
+   */
+  window.openQuickAdd = function(kind, parent, contextText, done){
+    mode = kind; parentId = parent; onDone = done;
+    const [title, label, hint] = TITLES[kind];
+    document.getElementById('qaTitle').textContent = title;
+    document.getElementById('qaNameLabel').textContent = label;
+    document.getElementById('qaCtx').textContent = contextText || hint;
+    document.getElementById('qaGenFields').hidden = kind !== 'generation';
+    name.value = ''; warn.className = 'warn';
+    document.getElementById('qaFrom').value = '';
+    document.getElementById('qaTo').value = '';
+    document.getElementById('qaSave').disabled = true;
+    modal.showModal();
+    name.focus();
+  };
+
+  function valid(){
+    if (!name.value.trim()) return false;
+    if (mode === 'generation') return !!document.getElementById('qaFrom').value;
+    return true;
+  }
+  ['qaName','qaFrom'].forEach(id =>
+    document.getElementById(id).addEventListener('input', () => {
+      document.getElementById('qaSave').disabled = !valid();
+    }));
+
+  name.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && valid()) document.getElementById('qaSave').click();
+  });
+
+  document.getElementById('qaCancel').onclick = () => modal.close();
+
+  document.getElementById('qaSave').onclick = async () => {
+    const btn = document.getElementById('qaSave');
+    btn.disabled = true;
+
+    const url = `/api/reference/${mode}s`;
+    const body = {name: name.value.trim()};
+    if (mode === 'model') body.brand_id = parentId;
+    if (mode === 'generation'){
+      body.model_id  = parentId;
+      body.body_type = document.getElementById('qaBody').value || null;
+      body.year_from = +document.getElementById('qaFrom').value;
+      const to = document.getElementById('qaTo').value;
+      body.year_to = to ? +to : null;
+    }
+
+    try {
+      const r = await fetch(url, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(body)
+      });
+      const d = await r.json();
+
+      if (!r.ok){
+        warn.textContent = d.detail || 'Не получилось сохранить';
+        warn.className = 'warn show';
+        btn.disabled = false;
+        return;
+      }
+
+      // Пересечение годов — не ошибка, но приёмщик должен это увидеть
+      if (d.warning){
+        warn.textContent = d.warning + ' Запись добавлена — при ошибке скажите менеджеру.';
+        warn.className = 'warn show';
+        setTimeout(() => { modal.close(); onDone && onDone(d); }, 3200);
+        return;
+      }
+
+      modal.close();
+      onDone && onDone(d);
+    } catch {
+      warn.textContent = 'Нет связи с сервером';
+      warn.className = 'warn show';
+      btn.disabled = false;
+    }
+  };
+})();
+</script>

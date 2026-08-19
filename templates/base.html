@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ app_name|default('Приложение') }}</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav>
+        <a href="/">Главная</a>
+        {% if user %}
+            <a href="/admin">Админка</a>
+            <a href="/logout">Выйти</a>
+        {% else %}
+            <a href="/login">Войти</a>
+        {% endif %}
+    </nav>
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

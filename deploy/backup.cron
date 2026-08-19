@@ -1,0 +1,5 @@
+# /etc/cron.d/razbor-backup
+# Фото восстановить нельзя: машина уже разобрана и продана.
+0  3 * * * razbor pg_dump razbor | gzip > /opt/backups/razbor-$(date +\%F).sql.gz
+30 3 * * 0 razbor tar czf /opt/backups/media-$(date +\%F).tar.gz /opt/razbor/media
+0  4 * * * razbor find /opt/backups -name '*.gz' -mtime +30 -delete

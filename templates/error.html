@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ code }} — {{ app_name }}</title>
+<style>
+:root{
+  --paper:#f7f6f3; --card:#fff; --line:#e2ded6; --ink:#16181c;
+  --muted:#6b7280; --amber:#e8a200;
+  --mono:ui-monospace,"SF Mono",Menlo,monospace;
+  --sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+  min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.box{max-width:440px;text-align:center}
+.code{font-family:var(--mono);font-size:52px;font-weight:700;color:var(--amber);
+  line-height:1;margin-bottom:14px;letter-spacing:-.03em}
+h1{margin:0 0 10px;font-size:21px;letter-spacing:-.02em}
+p{margin:0 0 24px;color:var(--muted);font-size:15px;line-height:1.55}
+.links{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+a{display:inline-block;text-decoration:none;border-radius:9px;padding:11px 20px;
+  font-size:14.5px;font-weight:600}
+a.main{background:var(--ink);color:#fff}
+a.alt{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="code">{{ code }}</div>
+
+  {% if code == 404 %}
+    <h1>Страница не найдена</h1>
+    <p>{{ detail }}. Возможно, деталь уже продана — такие карточки мы убираем
+       из каталога, чтобы никто не заказал то, чего нет.</p>
+  {% elif code == 403 %}
+    <h1>Нет доступа</h1>
+    <p>{{ detail }}. Если раздел нужен для работы — попросите администратора
+       поменять вашу роль.</p>
+  {% elif code >= 500 %}
+    <h1>Ошибка на нашей стороне</h1>
+    <p>{{ detail }}</p>
+  {% else %}
+    <h1>Что-то пошло не так</h1>
+    <p>{{ detail }}</p>
+  {% endif %}
+
+  <div class="links">
+    <a class="main" href="/catalog">В каталог</a>
+    {% if user %}<a class="alt" href="/admin">В бэкенд</a>{% endif %}
+  </div>
+</div>
+</body>
+</html>

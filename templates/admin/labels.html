@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Этикетки {{ donor.code }}</title>
+<style>
+/* Лист А4, сетка 3x8 = 24 этикетки 70x37 мм — самый ходовой формат
+   самоклеящихся листов. Под термопринтер поменяйте @page и .label. */
+@page{size:A4;margin:8mm 5mm}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+     background:#f4f5f7;color:#000}
+
+.toolbar{position:sticky;top:0;background:#181d25;color:#e8ecf2;padding:12px 18px;
+  display:flex;gap:12px;align-items:center;font-size:14px}
+.toolbar b{color:#ffc233;font-family:ui-monospace,monospace}
+.toolbar .grow{flex:1}
+.toolbar button{background:#ffc233;color:#1a1408;border:0;border-radius:8px;
+  padding:9px 18px;font-weight:600;font-size:14px;cursor:pointer}
+.toolbar a{color:#8794a6;font-size:13px}
+
+.sheet{width:200mm;margin:14px auto;background:#fff;padding:4mm;
+  display:grid;grid-template-columns:repeat(3,1fr);gap:0}
+
+.label{width:66mm;height:37mm;padding:3mm;display:flex;gap:3mm;align-items:center;
+  border:.2mm dashed #ccc;break-inside:avoid;page-break-inside:avoid}
+.label .qr{width:24mm;height:24mm;flex:0 0 24mm}
+.label .qr svg{width:100%;height:100%;display:block}
+.label .body{min-width:0;flex:1;display:flex;flex-direction:column;gap:1mm}
+.label .sku{font-family:ui-monospace,"SF Mono",monospace;font-size:9pt;font-weight:700;
+  letter-spacing:.02em}
+.label .name{font-size:8pt;line-height:1.2;max-height:2.6em;overflow:hidden}
+.label .cat{font-size:6.5pt;color:#666;text-transform:uppercase;letter-spacing:.05em;
+  overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.label .foot{display:flex;align-items:baseline;gap:2mm;margin-top:auto;font-size:6.5pt;color:#444}
+.label .cond{border:.4mm solid #000;border-radius:1mm;padding:0 1.4mm;
+  font-size:8pt;font-weight:700;line-height:1.4}
+.label .car{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+
+.empty{text-align:center;padding:60px 20px;color:#666}
+
+@media print{
+  .toolbar{display:none}
+  body{background:#fff}
+  .sheet{width:auto;margin:0;padding:0}
+  .label{border-color:transparent}
+}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <span>Этикетки — <b>{{ donor.code }}</b> {{ donor.brand }} {{ donor.model }}</span>
+  <span class="grow"></span>
+  <a href="?only_new=false">Печатать все, включая напечатанные</a>
+  <button id="print">Печать ({{ labels|length }})</button>
+</div>
+
+{% if labels %}
+<div class="sheet">
+  {% for l in labels %}
+  <div class="label">
+    <div class="qr">{{ l.qr|safe }}</div>
+    <div class="body">
+      <div class="sku">{{ l.sku }}</div>
+      <div class="name">{{ l.name }}</div>
+      <div class="cat">{{ l.category }}</div>
+      <div class="foot">
+        <span class="cond">{{ l.condition }}</span>
+        <span class="car">{{ donor.brand }} {{ donor.model }}{% if donor.year %} {{ donor.year }}{% endif %}</span>
+        {% if l.location %}<span>{{ l.location }}</span>{% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<p class="empty">Все этикетки уже напечатаны. Чтобы перепечатать — «Печатать все».</p>
+{% endif %}
+
+<script>
+const IDS = {{ labels | map(attribute='id') | list | tojson }};
+
+document.getElementById('print').onclick = () => window.print();
+
+// Отметку «напечатано» ставим только после реальной печати,
+// иначе после закрытого предпросмотра этикетки пропадут из очереди
+window.addEventListener('afterprint', async () => {
+  if (!IDS.length) return;
+  await fetch(`/api/donors/{{ donor.id }}/labels/printed`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ids: IDS})
+  });
+});
+</script>
+</body>
+</html>
