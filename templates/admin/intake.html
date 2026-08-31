@@ -313,8 +313,13 @@ const clearAuto = () => ['brand','model','generation','modification']
 // --- фото ----------------------------------------------------------
 let files = [];
 $('dropzone').addEventListener('click', () => $('photos').click());
-$('photos').addEventListener('change', e => {
-  files = [...e.target.files];
+$('photos').addEventListener('change', async e => {
+  // Снимки осмотра тоже квадратные: одна логика на все формы
+  files = [];
+  for (const f of e.target.files){
+    const blob = await cropImage(f);
+    if (blob) files.push(new File([blob], 'photo.jpg', {type:'image/jpeg'}));
+  }
   $('thumbs').innerHTML = '';
   files.forEach(f => {
     const img = document.createElement('img');
@@ -399,5 +404,6 @@ paintRuler('');
 fill('brand', '/api/brands', r => r.name);
 $('vin').focus();
 </script>
+{% include "admin/_cropper.html" %}
 </body>
 </html>

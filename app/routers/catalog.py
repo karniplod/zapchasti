@@ -25,7 +25,7 @@ from ..vin_decoder import decode
 
 router = APIRouter(tags=["catalog"])
 
-PAGE_SIZE = 24
+PAGE_SIZE = 10
 
 CONDITION_LABELS = {
     "A": "Отличное",
@@ -38,6 +38,89 @@ CONDITION_LABELS = {
 # ------------------------------------------------------------------
 # Страницы
 # ------------------------------------------------------------------
+
+
+@router.get("/", response_class=HTMLResponse)
+async def home(request: Request, session: AsyncSession = Depends(get_session)):
+    """Главная. Задача одна: довести до подбора по VIN."""
+    user = await optional_user(request, session)
+
+    stats = (
+        (
+            await session.execute(
+                text("""
+        SELECT
+          (SELECT count(*) FROM parts
+            WHERE status = 'in_stock' AND published)          AS parts,
+          (SELECT count(*) FROM donors
+            WHERE status IN ('dismantling', 'dismantled'))    AS cars
+    """)
+            )
+        )
+        .mappings()
+        .first()
+    )
+
+    # Свежие поступления — доказательство, что склад живой
+    fresh = [
+        dict(r)
+        for r in (
+            await session.execute(
+                text("""
+        SELECT p.sku, p.name, p.condition::text AS condition, p.price,
+               c.name AS category,
+               (SELECT pc.name FROM part_categories pc
+                 WHERE pc.id = c.parent_id) AS node,
+               b.name AS brand, m.name AS model, d.year,
+               (SELECT coalesce(thumb, path) FROM part_photos ph
+                 WHERE ph.part_id = p.id ORDER BY sort_order LIMIT 1) AS photo
+          FROM parts p
+          JOIN part_categories c  ON c.id = p.category_id
+          LEFT JOIN donors d      ON d.id = p.donor_id
+          LEFT JOIN generations g ON g.id = d.generation_id
+          LEFT JOIN models m      ON m.id = g.model_id
+          LEFT JOIN brands b      ON b.id = m.brand_id
+         WHERE p.status = 'in_stock' AND p.published
+         ORDER BY p.id DESC LIMIT 8
+    """)
+            )
+        ).mappings()
+    ]
+
+    # Машины в разборе: покупатель ищет «свою» марку в списке
+    cars = [
+        dict(r)
+        for r in (
+            await session.execute(
+                text("""
+        SELECT d.id, d.code, d.year, b.name AS brand, m.name AS model,
+               g.name AS generation,
+               (SELECT count(*) FROM parts p
+                 WHERE p.donor_id = d.id AND p.status = 'in_stock'
+                   AND p.published) AS parts,
+               (SELECT coalesce(thumb, path) FROM donor_photos dp
+                 WHERE dp.donor_id = d.id ORDER BY sort_order LIMIT 1) AS photo
+          FROM donors d
+          JOIN generations g ON g.id = d.generation_id
+          JOIN models m      ON m.id = g.model_id
+          JOIN brands b      ON b.id = m.brand_id
+         WHERE d.status IN ('dismantling', 'dismantled')
+         ORDER BY d.id DESC LIMIT 6
+    """)
+            )
+        ).mappings()
+    ]
+
+    return templates.TemplateResponse(
+        "home.html",
+        {
+            "request": request,
+            "user": user,
+            "s": stats,
+            "fresh": fresh,
+            "cars": [c for c in cars if c["parts"]],
+        },
+    )
 
 
 @router.get("/catalog", response_class=HTMLResponse)
@@ -56,6 +139,7 @@ async def part_page(sku: str, request: Request, session: AsyncSession = Depends(
         SELECT p.id, p.sku, p.name, p.oem_number, p.condition::text AS condition,
                p.condition_note, p.price, p.status::text AS status, p.weight_kg,
                c.name AS category,
+               parent.name AS node,
                d.code AS donor_code, d.year, d.color, d.mileage_km,
                b.name AS brand, m.name AS model, g.name AS generation, g.body_type,
                g.id AS generation_id,
@@ -63,6 +147,7 @@ async def part_page(sku: str, request: Request, session: AsyncSession = Depends(
                          mo.transmission, mo.drive) AS modification
           FROM parts p
           JOIN part_categories c ON c.id = p.category_id
+          LEFT JOIN part_categories parent ON parent.id = c.parent_id
           LEFT JOIN donors d          ON d.id = p.donor_id
           LEFT JOIN generations g ON g.id = d.generation_id
           LEFT JOIN models m      ON m.id = g.model_id
@@ -129,10 +214,14 @@ async def part_page(sku: str, request: Request, session: AsyncSession = Depends(
             )
         ]
 
+    # Сотруднику показываем ссылку в бэкенд, покупателю — нет
+    user = await optional_user(request, session)
+
     return templates.TemplateResponse(
         "part.html",
         {
             "request": request,
+            "user": user,
             "part": dict(part._mapping),
             "photos": photos,
             "fits": fits,
@@ -395,6 +484,10 @@ async def catalog_parts(
         text(f"""
         SELECT p.id, p.sku, p.name, p.condition::text AS condition, p.price,
                p.oem_number, c.name AS category,
+               (SELECT pc.name FROM part_categories pc
+                 WHERE pc.id = c.parent_id) AS node,
+               (SELECT pc.name FROM part_categories pc
+                 WHERE pc.id = c.parent_id) AS node,
                b.name AS brand, m.name AS model, g.name AS generation,
                d.year, d.code AS donor_code,
                (SELECT path FROM part_photos ph
@@ -447,12 +540,15 @@ async def catalog_facets(
 
     cats = await session.execute(
         text(f"""
-        SELECT c.id, c.name, count(*) AS cnt
+        SELECT coalesce(parent.id, c.id)     AS id,
+               coalesce(parent.name, c.name) AS name,
+               count(*) AS cnt
           FROM parts p
           LEFT JOIN donors d ON d.id = p.donor_id
           JOIN part_categories c ON c.id = p.category_id
+          LEFT JOIN part_categories parent ON parent.id = c.parent_id
          WHERE {where}
-         GROUP BY c.id, c.name
+         GROUP BY coalesce(parent.id, c.id), coalesce(parent.name, c.name)
          ORDER BY cnt DESC
     """),
         params,
@@ -498,4 +594,85 @@ async def unmet_demand(session: AsyncSession = Depends(get_session)):
     """Какие машины искали, но у вас их не оказалось.
     Готовый список на закупку."""
     rows = await session.execute(text("SELECT * FROM unmet_demand LIMIT 50"))
+    return [dict(r._mapping) for r in rows]
+
+
+# ------------------------------------------------------------------
+# Выбор машины по марке и модели
+# ------------------------------------------------------------------
+
+# Поколения, по которым есть что показать: детали с такой машины
+# плюс детали с проставленной применимостью
+AVAILABLE_GENERATIONS = """
+    WITH avail AS (
+        SELECT d.generation_id AS gen_id, count(*) AS cnt
+          FROM parts p JOIN donors d ON d.id = p.donor_id
+         WHERE p.status = 'in_stock' AND p.published
+         GROUP BY d.generation_id
+        UNION ALL
+        SELECT pa.generation_id, count(*)
+          FROM parts p JOIN part_applicability pa ON pa.part_id = p.id
+         WHERE p.status = 'in_stock' AND p.published
+         GROUP BY pa.generation_id
+    )
+"""
+
+
+@router.get("/api/catalog/cars")
+async def cars_brands(session: AsyncSession = Depends(get_session)):
+    """Марки, по которым есть детали в наличии."""
+    rows = await session.execute(
+        text(
+            AVAILABLE_GENERATIONS
+            + """
+        SELECT b.id, b.name, sum(a.cnt)::int AS parts
+          FROM avail a
+          JOIN generations g ON g.id = a.gen_id
+          JOIN models m      ON m.id = g.model_id
+          JOIN brands b      ON b.id = m.brand_id
+         GROUP BY b.id, b.name
+         ORDER BY b.name
+    """
+        )
+    )
+    return [dict(r._mapping) for r in rows]
+
+
+@router.get("/api/catalog/cars/models")
+async def cars_models(brand_id: int, session: AsyncSession = Depends(get_session)):
+    rows = await session.execute(
+        text(
+            AVAILABLE_GENERATIONS
+            + """
+        SELECT m.id, m.name, sum(a.cnt)::int AS parts
+          FROM avail a
+          JOIN generations g ON g.id = a.gen_id
+          JOIN models m      ON m.id = g.model_id
+         WHERE m.brand_id = :b
+         GROUP BY m.id, m.name
+         ORDER BY m.name
+    """
+        ),
+        {"b": brand_id},
+    )
+    return [dict(r._mapping) for r in rows]
+
+
+@router.get("/api/catalog/cars/generations")
+async def cars_generations(model_id: int, session: AsyncSession = Depends(get_session)):
+    rows = await session.execute(
+        text(
+            AVAILABLE_GENERATIONS
+            + """
+        SELECT g.id, g.name, g.body_type, g.year_from, g.year_to,
+               sum(a.cnt)::int AS parts
+          FROM avail a
+          JOIN generations g ON g.id = a.gen_id
+         WHERE g.model_id = :m
+         GROUP BY g.id, g.name, g.body_type, g.year_from, g.year_to
+         ORDER BY g.year_from DESC
+    """
+        ),
+        {"m": model_id},
+    )
     return [dict(r._mapping) for r in rows]

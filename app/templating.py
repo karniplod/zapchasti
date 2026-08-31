@@ -19,6 +19,8 @@ def _css_version() -> str:
         return "0"
 
 
-templates.env.globals["css_version"] = _css_version()
+# Функция, а не значение: в шаблоне вызывается при каждой отрисовке,
+# поэтому правка CSS видна без перезапуска
+templates.env.globals["css_version"] = _css_version
 templates.env.globals["app_name"] = settings.app_name
 templates.env.globals["base_url"] = settings.base_url

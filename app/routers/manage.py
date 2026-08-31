@@ -13,6 +13,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import current_user, require_role
+from ..config import settings
 from ..database import get_session
 from ..templating import templates
 
@@ -73,7 +74,10 @@ async def parts_list(
         text("""
         SELECT p.id, p.sku, p.name, p.condition::text AS condition, p.price,
                p.status::text AS status, p.location, p.published, p.oem_number,
-               p.source, c.name AS category, d.code AS donor_code,
+               p.source, c.name AS category,
+               (SELECT pc.name FROM part_categories pc
+                 WHERE pc.id = c.parent_id) AS node,
+               d.code AS donor_code,
                b.name AS brand, m.name AS model,
                (SELECT count(*) FROM part_photos ph WHERE ph.part_id = p.id) AS photos,
                (SELECT count(*) FROM part_applicability pa WHERE pa.part_id = p.id) AS fits
@@ -190,3 +194,199 @@ async def delete_part(
     from pathlib import Path as P
 
     shutil.rmtree(P("media/parts") / str(part_id), ignore_errors=True)
+
+
+# ------------------------------------------------------------------
+# Фото деталей и машин
+# ------------------------------------------------------------------
+
+import shutil
+from pathlib import Path as _P
+
+from fastapi import File, UploadFile
+
+from ..services.images import save_images
+
+
+@router.get("/api/manage/parts/{part_id}/photos")
+async def part_photos(
+    part_id: int, user=Depends(current_user), session: AsyncSession = Depends(get_session)
+):
+    rows = await session.execute(
+        text("""
+        SELECT id, path, coalesce(thumb, path) AS thumb, sort_order
+          FROM part_photos WHERE part_id = :p ORDER BY sort_order, id
+    """),
+        {"p": part_id},
+    )
+    return [dict(r._mapping) for r in rows]
+
+
+@router.post("/api/manage/parts/{part_id}/photos", status_code=201)
+async def add_part_photos(
+    part_id: int,
+    files: list[UploadFile] = File(...),
+    user=Depends(require_role("manager")),
+    session: AsyncSession = Depends(get_session),
+):
+    exists = (
+        await session.execute(text("SELECT 1 FROM parts WHERE id = :id"), {"id": part_id})
+    ).first()
+    if not exists:
+        raise HTTPException(404, "Деталь не найдена")
+
+    start = (
+        await session.execute(
+            text("SELECT coalesce(max(sort_order), -1) + 1 FROM part_photos WHERE part_id = :p"),
+            {"p": part_id},
+        )
+    ).scalar_one()
+
+    images = await save_images(files, settings.media_root / "parts" / str(part_id))
+    saved = []
+    for i, img in enumerate(images):
+        await session.execute(
+            text("""
+            INSERT INTO part_photos (part_id, path, thumb, width, height, sort_order)
+            VALUES (:p, :path, :thumb, :w, :h, :o)
+        """),
+            {
+                "p": part_id,
+                "path": img.path,
+                "thumb": img.thumb,
+                "w": img.width,
+                "h": img.height,
+                "o": start + i,
+            },
+        )
+        saved.append(img.path)
+
+    # Появилось фото — деталь больше не черновик
+    await session.execute(
+        text("""
+        UPDATE parts SET status = 'in_stock'
+         WHERE id = :id AND status = 'draft'
+    """),
+        {"id": part_id},
+    )
+
+    await session.commit()
+    return {"photos": saved}
+
+
+@router.delete("/api/manage/photos/{photo_id}", status_code=204)
+async def delete_photo(
+    photo_id: int,
+    user=Depends(require_role("manager")),
+    session: AsyncSession = Depends(get_session),
+):
+    """Удаляем запись, потом файл: если запись не удалилась,
+    снимок останется на месте, а не потеряется."""
+    row = (
+        await session.execute(
+            text("""
+        SELECT part_id, path FROM part_photos WHERE id = :id
+    """),
+            {"id": photo_id},
+        )
+    ).first()
+    if not row:
+        raise HTTPException(404, "Фото не найдено")
+
+    await session.execute(text("DELETE FROM part_photos WHERE id = :id"), {"id": photo_id})
+
+    left = (
+        await session.execute(
+            text("SELECT count(*) FROM part_photos WHERE part_id = :p"), {"p": row.part_id}
+        )
+    ).scalar_one()
+
+    # Без фото деталь нельзя показывать покупателю
+    if left == 0:
+        await session.execute(
+            text("""
+            UPDATE parts SET published = false WHERE id = :p
+        """),
+            {"p": row.part_id},
+        )
+
+    await session.commit()
+
+    # path хранится как /media/parts/42/имя.webp — отрезаем префикс
+    for suffix in ("", "_t"):
+        rel = row.path.removeprefix("/media/")
+        f = settings.media_root / _P(rel).with_stem(_P(rel).stem + suffix)
+        f.unlink(missing_ok=True)
+
+
+@router.get("/api/manage/donors/{donor_id}/photos")
+async def donor_photos(
+    donor_id: int, user=Depends(current_user), session: AsyncSession = Depends(get_session)
+):
+    rows = await session.execute(
+        text("""
+        SELECT id, path, coalesce(thumb, path) AS thumb, sort_order
+          FROM donor_photos WHERE donor_id = :d ORDER BY sort_order, id
+    """),
+        {"d": donor_id},
+    )
+    return [dict(r._mapping) for r in rows]
+
+
+@router.post("/api/manage/donors/{donor_id}/photos", status_code=201)
+async def add_donor_photos(
+    donor_id: int,
+    files: list[UploadFile] = File(...),
+    user=Depends(require_role("manager")),
+    session: AsyncSession = Depends(get_session),
+):
+    start = (
+        await session.execute(
+            text("SELECT coalesce(max(sort_order), -1) + 1 FROM donor_photos WHERE donor_id = :d"),
+            {"d": donor_id},
+        )
+    ).scalar_one()
+
+    images = await save_images(files, settings.media_root / "donors" / str(donor_id))
+    for i, img in enumerate(images):
+        await session.execute(
+            text("""
+            INSERT INTO donor_photos (donor_id, path, thumb, width, height, sort_order)
+            VALUES (:d, :path, :thumb, :w, :h, :o)
+        """),
+            {
+                "d": donor_id,
+                "path": img.path,
+                "thumb": img.thumb,
+                "w": img.width,
+                "h": img.height,
+                "o": start + i,
+            },
+        )
+
+    await session.commit()
+    return {"count": len(images)}
+
+
+@router.delete("/api/manage/donor-photos/{photo_id}", status_code=204)
+async def delete_donor_photo(
+    photo_id: int,
+    user=Depends(require_role("manager")),
+    session: AsyncSession = Depends(get_session),
+):
+    row = (
+        await session.execute(
+            text("SELECT path FROM donor_photos WHERE id = :id"), {"id": photo_id}
+        )
+    ).first()
+    if not row:
+        raise HTTPException(404, "Фото не найдено")
+
+    await session.execute(text("DELETE FROM donor_photos WHERE id = :id"), {"id": photo_id})
+    await session.commit()
+
+    # path хранится как /media/parts/42/имя.webp — отрезаем префикс
+    for suffix in ("", "_t"):
+        rel = row.path.removeprefix("/media/")
+        f = settings.media_root / _P(rel).with_stem(_P(rel).stem + suffix)
+        f.unlink(missing_ok=True)

@@ -1,0 +1,185 @@
+{#
+  Кадрирование снимка в квадрат. Подключается перед закрывающим </body>:
+      {% include "admin/_cropper.html" %}
+
+  Использование из формы:
+      cropImage(file).then(blob => ...)   // blob — квадратный JPEG
+
+  Зачем: снимает разборщик системной камерой (вспышка, фокус),
+  а кадр выбирает сам — машина не знает, что на фото главное.
+#}
+<style>
+dialog.crop{border:0;padding:0;background:#0d1116;color:#e8ecf2;
+  width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;margin:0}
+dialog.crop::backdrop{background:#000}
+.crop-wrap{position:fixed;inset:0;display:flex;flex-direction:column}
+.crop-stage{flex:1;position:relative;overflow:hidden;touch-action:none;
+  background:#0d1116}
+.crop-stage canvas{position:absolute;inset:0;width:100%;height:100%}
+/* Затемнение вне рамки: видно, что попадёт в карточку */
+.crop-mask{position:absolute;pointer-events:none;
+  box-shadow:0 0 0 9999px rgba(13,17,22,.72)}
+.crop-mask::after{content:"";position:absolute;inset:0;
+  border:2px solid #ffc233}
+.crop-bar{padding:14px 16px calc(14px + env(safe-area-inset-bottom));
+  display:flex;gap:10px;align-items:center;background:#12161c;
+  border-top:1px solid #2b333f}
+.crop-bar .hint{flex:1;font-size:13px;color:#8794a6;line-height:1.35}
+.crop-bar button{border:0;border-radius:9px;padding:13px 20px;font-size:15px;
+  font-weight:600;cursor:pointer;font-family:inherit}
+.crop-ok{background:#ffc233;color:#1a1408}
+.crop-no{background:transparent;color:#8794a6;border:1px solid #2b333f}
+</style>
+
+<dialog class="crop" id="cropDlg">
+  <div class="crop-wrap">
+    <div class="crop-stage" id="cropStage">
+      <canvas id="cropCanvas"></canvas>
+      <div class="crop-mask" id="cropMask"></div>
+    </div>
+    <div class="crop-bar">
+      <span class="hint">Двигайте снимок, щипком меняйте масштаб</span>
+      <button class="crop-no" id="cropCancel">Отмена</button>
+      <button class="crop-ok" id="cropOk">Готово</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+(function(){
+  const dlg = document.getElementById('cropDlg');
+  const cv = document.getElementById('cropCanvas');
+  const stage = document.getElementById('cropStage');
+  const mask = document.getElementById('cropMask');
+  const ctx = cv.getContext('2d');
+
+  const OUT = 1200;            // сторона итогового квадрата
+  let img, scale, minScale, ox, oy, box, resolve;
+
+  // Квадрат рамки — по меньшей стороне области просмотра
+  function layout(){
+    const w = stage.clientWidth, h = stage.clientHeight;
+    cv.width = w * devicePixelRatio;
+    cv.height = h * devicePixelRatio;
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+
+    const side = Math.min(w, h) - 32;
+    box = {x:(w - side)/2, y:(h - side)/2, side};
+    // inset сбрасываем первым: иначе он затрёт left/top,
+    // и рамка уедет в левый верхний угол
+    mask.style.inset = 'auto';
+    mask.style.left = box.x + 'px';
+    mask.style.top = box.y + 'px';
+    mask.style.width = box.side + 'px';
+    mask.style.height = box.side + 'px';
+  }
+
+  function fit(){
+    // Снимок закрывает рамку целиком при любом соотношении сторон
+    minScale = Math.max(box.side / img.width, box.side / img.height);
+    scale = minScale;
+    ox = box.x + (box.side - img.width * scale) / 2;
+    oy = box.y + (box.side - img.height * scale) / 2;
+  }
+
+  function clamp(){
+    scale = Math.max(minScale, Math.min(scale, minScale * 6));
+    const w = img.width * scale, h = img.height * scale;
+    // Рамка не должна выходить за края снимка
+    ox = Math.min(box.x, Math.max(box.x + box.side - w, ox));
+    oy = Math.min(box.y, Math.max(box.y + box.side - h, oy));
+  }
+
+  function draw(){
+    clamp();
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.drawImage(img, ox, oy, img.width * scale, img.height * scale);
+  }
+
+  // --- жесты ---
+  let pts = new Map(), startDist = 0, startScale = 1, last = null;
+
+  stage.addEventListener('pointerdown', e => {
+    stage.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId, {x:e.clientX, y:e.clientY});
+    if (pts.size === 2){
+      const [a, b] = [...pts.values()];
+      startDist = Math.hypot(a.x - b.x, a.y - b.y);
+      startScale = scale;
+    }
+    last = {x:e.clientX, y:e.clientY};
+  });
+
+  stage.addEventListener('pointermove', e => {
+    if (!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, {x:e.clientX, y:e.clientY});
+
+    if (pts.size === 2){
+      const [a, b] = [...pts.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      const mid = {x:(a.x + b.x)/2 - stage.getBoundingClientRect().left,
+                   y:(a.y + b.y)/2 - stage.getBoundingClientRect().top};
+      const prev = scale;
+      scale = startScale * (d / startDist);
+      clamp();
+      // Масштабируем вокруг точки между пальцами, а не вокруг угла
+      ox = mid.x - (mid.x - ox) * (scale / prev);
+      oy = mid.y - (mid.y - oy) * (scale / prev);
+      draw();
+      return;
+    }
+
+    if (last){
+      ox += e.clientX - last.x;
+      oy += e.clientY - last.y;
+      last = {x:e.clientX, y:e.clientY};
+      draw();
+    }
+  });
+
+  const up = e => { pts.delete(e.pointerId); last = null; };
+  stage.addEventListener('pointerup', up);
+  stage.addEventListener('pointercancel', up);
+
+  document.getElementById('cropCancel').onclick = () => {
+    dlg.close(); resolve && resolve(null);
+  };
+
+  document.getElementById('cropOk').onclick = () => {
+    const out = document.createElement('canvas');
+    out.width = out.height = OUT;
+    const octx = out.getContext('2d');
+    octx.fillStyle = '#fff';
+    octx.fillRect(0, 0, OUT, OUT);
+
+    // Переводим экранные координаты рамки в координаты снимка
+    const k = OUT / box.side;
+    octx.drawImage(img,
+      (ox - box.x) * k, (oy - box.y) * k,
+      img.width * scale * k, img.height * scale * k);
+
+    out.toBlob(blob => { dlg.close(); resolve && resolve(blob); },
+               'image/jpeg', 0.92);
+  };
+
+  /** Открыть кадрирование. Возвращает Promise<Blob|null> */
+  window.cropImage = function(file){
+    return new Promise(res => {
+      resolve = res;
+      const url = URL.createObjectURL(file);
+      img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        dlg.showModal();
+        requestAnimationFrame(() => { layout(); fit(); draw(); });
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); res(null); };
+      img.src = url;
+    });
+  };
+
+  window.addEventListener('resize', () => {
+    if (dlg.open){ layout(); clamp(); draw(); }
+  });
+})();
+</script>

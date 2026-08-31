@@ -221,6 +221,13 @@ $('catSearch').addEventListener('input', e => {
 });
 $('catSearch').addEventListener('focus', () => searchCats($('catSearch').value.trim()));
 
+
+// Путь до родителя: имя узла и так в заголовке строки
+function parentPath(path){
+  const parts = (path || '').split(' / ');
+  return parts.length > 1 ? parts.slice(0, -1).join(' / ') : '';
+}
+
 async function searchCats(q){
   const rows = await (await fetch('/api/part-categories' + (q ? `?q=${encodeURIComponent(q)}` : ''))).json();
   const box = $('catResults');
@@ -228,7 +235,7 @@ async function searchCats(q){
   rows.forEach(r => {
     const b = document.createElement('button');
     b.type = 'button';
-    b.innerHTML = `${r.name}<span class="path">${r.path}</span>`;
+    b.innerHTML = `${r.name}<span class="path">${parentPath(r.path)}</span>`;
     b.onclick = () => pick(r);
     box.appendChild(b);
   });
@@ -240,7 +247,7 @@ function pick(r){
   $('catBox').hidden = true;
   $('catPicked').hidden = false;
   $('pickedName').textContent = r.name;
-  $('pickedPath').textContent = r.path;
+  $('pickedPath').textContent = parentPath(r.path);
   if (!$('name').value) $('name').value = r.name;
   $('catResults').classList.remove('open');
   refresh();
@@ -266,8 +273,12 @@ $('cond').addEventListener('click', e => {
 
 // --- фото ------------------------------------------------------------
 $('shoot').onclick = () => $('photos').click();
-$('photos').addEventListener('change', e => {
-  files = files.concat([...e.target.files]);
+$('photos').addEventListener('change', async e => {
+  // Кадрируем по одному: разборщик сам решает, что войдёт в карточку
+  for (const f of e.target.files){
+    const blob = await cropImage(f);
+    if (blob) files.push(new File([blob], 'photo.jpg', {type:'image/jpeg'}));
+  }
   e.target.value = '';
   drawThumbs();
   refresh();
@@ -420,5 +431,6 @@ $('moreBtn').onclick = () => {
 drawThumbs();
 loadParts();
 </script>
+{% include "admin/_cropper.html" %}
 </body>
 </html>

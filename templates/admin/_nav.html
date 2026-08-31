@@ -25,8 +25,13 @@
 </style>
 
 <div class="nav"><div class="in">
-  <a class="logo" href="/admin" style="padding:0">РАЗБОР<span>·</span>ПАРТС</a>
-  <ul>
+  <a class="logo" href="/admin" style="padding:0;display:flex;align-items:center;gap:8px">
+    <img src="/static/logo.png" alt="" width="26" height="26" onerror="this.remove()">
+    <span>АВТО<span>·</span>ДОНОР</span>
+  </a>
+  <button class="burger" aria-label="Меню" aria-expanded="false"
+          aria-controls="adminNav"><span></span></button>
+  <ul id="adminNav">
     <li><a href="/admin"     data-p="/admin">Сводка</a></li>
     <li><a href="/donors"    data-p="/donors">Машины</a></li>
     <li><a href="/parts"     data-p="/parts">Детали</a></li>
@@ -34,8 +39,24 @@
     <li><a href="/stock/new" data-p="/stock/new">Принять запчасть</a></li>
     <li><a href="/catalog"   data-p="/catalog">Витрина</a></li>
   </ul>
-  {% if user %}<span class="me">{{ user.name or user.login }} ·
-    {{ user.role }} · <a href="/logout">выйти</a></span>{% endif %}
+  {% if user %}
+  <div class="acct">
+    <button class="acct-btn" id="acctBtn" aria-expanded="false" aria-controls="acctMenu">
+      {{ user.name or user.login }}
+      <svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"
+        stroke="currentColor" stroke-width="1.6" fill="none"/></svg>
+    </button>
+    <div class="acct-menu" id="acctMenu" hidden>
+      <div class="acct-who">
+        <b>{{ user.name or user.login }}</b>
+        <span>{{ {'admin':'Администратор','manager':'Менеджер',
+                  'dismantler':'Разборщик'}.get(user.role, user.role) }}</span>
+        {% if user.name %}<span class="acct-login">{{ user.login }}</span>{% endif %}
+      </div>
+      <a href="/logout" class="acct-out">Выйти</a>
+    </div>
+  </div>
+  {% endif %}
 </div></div>
 
 <script>
@@ -50,5 +71,48 @@
     }
   });
   if (best) best.classList.add('on');
+})();
+</script>
+
+<script>
+(function(){
+  // Одно поведение на витрине и в бэкенде: кнопка переключает список
+  const burger = document.querySelector('.burger');
+  const menu = document.querySelector('.site-nav') || document.querySelector('.nav ul');
+  if (!burger || !menu) return;
+
+  const mobile = () => window.matchMedia('(max-width:760px)').matches;
+  const setOpen = open => {
+    menu.hidden = mobile() ? !open : false;
+    burger.setAttribute('aria-expanded', String(open));
+  };
+
+  setOpen(false);
+  burger.onclick = () => setOpen(menu.hidden);
+
+  // Меню закрывается по выбору пункта и при возврате к широкому экрану
+  menu.addEventListener('click', e => { if (e.target.tagName === 'A') setOpen(false); });
+  window.addEventListener('resize', () => { if (!mobile()) setOpen(false); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') setOpen(false); });
+})();
+</script>
+
+<script>
+(function(){
+  const btn = document.getElementById('acctBtn');
+  const menu = document.getElementById('acctMenu');
+  if (!btn || !menu) return;
+
+  const setOpen = open => {
+    menu.hidden = !open;
+    btn.setAttribute('aria-expanded', String(open));
+  };
+  setOpen(false);
+
+  btn.onclick = e => { e.stopPropagation(); setOpen(menu.hidden); };
+  // Закрывается по клику мимо и по Escape — иначе висит поверх работы
+  document.addEventListener('click', () => setOpen(false));
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') setOpen(false); });
+  menu.addEventListener('click', e => e.stopPropagation());
 })();
 </script>

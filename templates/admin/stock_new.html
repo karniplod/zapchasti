@@ -160,8 +160,12 @@ let category=null, condition=null, files=[], fits=[];
 
 // --- фото ---
 $('shoot').onclick = () => $('photos').click();
-$('photos').onchange = e => {
-  files = files.concat([...e.target.files]); e.target.value='';
+$('photos').onchange = async e => {
+  for (const f of e.target.files){
+    const blob = await cropImage(f);
+    if (blob) files.push(new File([blob], 'photo.jpg', {type:'image/jpeg'}));
+  }
+  e.target.value='';
   $('thumbs').innerHTML='';
   files.forEach(f=>{const i=document.createElement('img');i.src=URL.createObjectURL(f);
     i.onload=()=>URL.revokeObjectURL(i.src);$('thumbs').appendChild(i);});
@@ -175,16 +179,23 @@ $('catSearch').oninput = e => { clearTimeout(t);
   t=setTimeout(()=>searchCats(e.target.value.trim()),250); };
 $('catSearch').onfocus = () => searchCats($('catSearch').value.trim());
 
+
+// Путь до родителя: имя узла и так стоит в заголовке строки
+function parentPath(path){
+  const parts = (path || '').split(' / ');
+  return parts.length > 1 ? parts.slice(0, -1).join(' / ') : '';
+}
+
 async function searchCats(q){
   const rows = await (await fetch('/api/part-categories'+(q?`?q=${encodeURIComponent(q)}`:''))).json();
   const box=$('catResults'); box.innerHTML='';
   rows.forEach(r=>{const b=document.createElement('button');b.type='button';
-    b.innerHTML=`${r.name}<span class="path">${r.path}</span>`;
+    b.innerHTML=`${r.name}<span class="path">${parentPath(r.path)}</span>`;
     b.onclick=()=>pick(r); box.appendChild(b);});
   box.classList.toggle('open', rows.length>0);
 }
 function pick(r){ category=r; $('catBox').hidden=true; $('catPicked').hidden=false;
-  $('pickedName').textContent=r.name; $('pickedPath').textContent=r.path;
+  $('pickedName').textContent=r.name; $('pickedPath').textContent=parentPath(r.path);
   $('catResults').classList.remove('open'); refresh(); }
 $('catClear').onclick=()=>{category=null;$('catBox').hidden=false;$('catPicked').hidden=true;
   $('catSearch').value='';refresh();};
@@ -281,4 +292,5 @@ document.addEventListener('click',e=>{ if(!e.target.closest('#catBox'))
 fill('brand','/api/brands',r=>r.name);
 drawFits(); refresh();
 </script>
+{% include "admin/_cropper.html" %}
 </body></html>

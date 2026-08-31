@@ -67,11 +67,38 @@
       <button class="btn btn-primary" id="vinGo" disabled>Подобрать</button>
     </div>
 
-    <p class="alt">VIN под рукой нет?
-      <button id="byModel">Выбрать машину по марке и модели</button></p>
+    <div class="alt">
+      <span>VIN под рукой нет?</span>
+      <button class="btn btn-ghost btn-sm" id="byModel"
+              aria-expanded="false" aria-controls="picker">
+        Выбрать по марке и модели
+      </button>
+    </div>
+
+    <div class="picker" id="picker" hidden>
+      <div class="picker-row">
+        <div><label for="pBrand">Марка</label>
+          <select id="pBrand" class="field"></select></div>
+        <div><label for="pModel">Модель</label>
+          <select id="pModel" class="field" disabled></select></div>
+      </div>
+      <div style="margin-top:12px"><label for="pGen">Поколение</label>
+        <select id="pGen" class="field" disabled></select></div>
+      <div class="picker-actions">
+        <button class="btn btn-primary" id="pGo" disabled>Показать детали</button>
+        <button class="btn btn-ghost" id="pReset">Сбросить</button>
+      </div>
+      <p class="hint" style="margin:10px 0 0">Показаны только машины,
+         по которым у нас есть детали в наличии.</p>
+    </div>
 
     <div id="resolved"></div>
   </div>
+</section>
+
+<section class="wrap fresh" id="fresh" hidden>
+  <p class="eyebrow">Свежие поступления</p>
+  <div class="grid" id="freshGrid"></div>
 </section>
 
 <div class="wrap layout">
@@ -185,7 +212,80 @@ function showResolution(d){
   openCatalog();
 }
 
-$('byModel').onclick = () => { state.generation_id = null; openCatalog(); };
+// Выбор машины из справочника — запасной путь для тех, у кого нет VIN
+$('byModel').onclick = async () => {
+  const box = $('picker');
+  box.hidden = !box.hidden;
+  $('byModel').setAttribute('aria-expanded', String(!box.hidden));
+  $('byModel').textContent = box.hidden
+    ? 'Выбрать по марке и модели' : 'Свернуть';
+  if (box.hidden) return;
+  if ($('pBrand').options.length) return;
+
+  const brands = await (await fetch('/api/catalog/cars')).json();
+  if (!brands.length){
+    box.innerHTML = '<p class="hint">Пока нет ни одной машины с деталями в наличии.</p>';
+    return;
+  }
+  $('pBrand').innerHTML = '<option value="">Выберите марку</option>';
+  brands.forEach(b => $('pBrand').add(new Option(`${b.name} · ${b.parts}`, b.id)));
+};
+
+$('pBrand').onchange = async e => {
+  reset$('pModel'); reset$('pGen');
+  if (!e.target.value) return checkGo();
+  const rows = await (await fetch(`/api/catalog/cars/models?brand_id=${e.target.value}`)).json();
+  rows.forEach(r => $('pModel').add(new Option(`${r.name} · ${r.parts}`, r.id)));
+  $('pModel').disabled = false;
+  checkGo();
+};
+
+$('pModel').onchange = async e => {
+  reset$('pGen');
+  if (!e.target.value) return checkGo();
+  const rows = await (await fetch(`/api/catalog/cars/generations?model_id=${e.target.value}`)).json();
+  rows.forEach(r => $('pGen').add(new Option(
+    `${r.name}${r.body_type ? ', '+r.body_type : ''} (${r.year_from}–${r.year_to || 'н.в.'}) · ${r.parts}`,
+    r.id)));
+  $('pGen').disabled = false;
+  // Поколение одно — выбираем сразу, не заставляя тыкать
+  if (rows.length === 1) $('pGen').selectedIndex = 1;
+  checkGo();
+};
+
+$('pGen').onchange = checkGo;
+
+// Сброс подбора: показываем весь склад целиком
+$('pReset').onclick = () => {
+  state.generation_id = null;
+  state.modification_id = null;
+  $('pBrand').selectedIndex = 0;
+  reset$('pModel'); reset$('pGen');
+  checkGo();
+  $('resolved').innerHTML = '';
+  $('vin').value = '';
+  $('vinGo').disabled = true;
+  openCatalog();
+};
+function checkGo(){ $('pGo').disabled = !$('pGen').value; }
+
+function reset$(id){
+  const el = $(id);
+  el.innerHTML = '<option value="">—</option>';
+  el.disabled = true;
+}
+
+$('pGo').onclick = () => {
+  state.generation_id = +$('pGen').value;
+  state.modification_id = null;
+  const car = `${$('pBrand').selectedOptions[0].text.split(' · ')[0]} `
+            + `${$('pModel').selectedOptions[0].text.split(' · ')[0]}`;
+  $('resolved').innerHTML = `<div class="notice notice-accent">
+    <h3 style="margin:0">${car}</h3>
+    <span class="hint">Показаны детали для выбранной машины</span></div>`;
+  $('picker').hidden = true;
+  openCatalog();
+};
 
 function openCatalog(){
   $('side').hidden = false;
@@ -261,7 +361,13 @@ async function loadParts(){
     $('pager').innerHTML = ''; return;
   }
 
-  $('grid').innerHTML = d.items.map(i => {
+  $('grid').innerHTML = d.items.map(card).join('');
+  renderPager(d);
+}
+
+// Одна карточка — одна разметка на весь каталог
+function card(i){
+  {
     // Откуда деталь: с машины или поступила отдельно
     const fit = i.brand ? `${i.brand} ${i.model}${i.year ? ', '+i.year : ''}`
       : i.fits_first ? `${i.fits_first}${i.fits_count > 1 ? ' и ещё '+(i.fits_count-1) : ''}`
@@ -277,11 +383,9 @@ async function loadParts(){
         <span class="name">${i.name}</span>
         <span class="fit">${fit}</span>
         <span class="price">${i.price ? Number(i.price).toLocaleString('ru')+' ₽'
-                                      : 'по запросу'}<small>${i.category}</small></span>
+                                      : 'по запросу'}<small>${i.node || ''}</small></span>
       </div></a>`;
-  }).join('');
-
-  renderPager(d);
+  }
 }
 
 function renderPager(d){
@@ -307,6 +411,29 @@ const plural = (n,one,few,many) => {
   return many;
 };
 
-$('vin').focus();
+// Свежие поступления: человек видит товар сразу, а не пустой экран
+async function loadFresh(){
+  try {
+    const d = await (await fetch('/api/catalog/parts?sort=new&page=1')).json();
+    if (!d.items.length) return;
+    $('freshGrid').innerHTML = d.items.slice(0, 3).map(card).join('');
+    $('fresh').hidden = false;
+  } catch { /* каталог ниже всё равно загрузится */ }
+}
+
+// При подборе по машине свежие убираем: они мешают увидеть результат
+const _openCatalog = openCatalog;
+openCatalog = function(){ $('fresh').hidden = true; _openCatalog(); };
+
+loadFresh();
+// VIN может прийти с главной — сразу подбираем
+const fromHome = new URLSearchParams(location.search).get('vin');
+if (fromHome){
+  $('vin').value = fromHome;
+  $('vinGo').disabled = fromHome.length !== 17;
+  findByVin();
+} else {
+  $('vin').focus();
+}
 </script>
 {% endblock %}

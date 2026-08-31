@@ -14,15 +14,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Запчасти с разбора{% endblock %} — {{ app_name }}</title>
 <meta name="description" content="{% block description %}Б/у автозапчасти с разбора: подбор по VIN, фото каждой детали, оценка состояния.{% endblock %}">
-<link rel="stylesheet" href="/static/site.css?v={{ css_version }}">
+<link rel="stylesheet" href="/static/site.css?v={{ css_version() }}">
 {% block head %}{% endblock %}
 </head>
 <body>
 
 <header class="site-head">
   <div class="wrap">
-    <a class="brand" href="/">Разбор<i>·</i>Партс</a>
-    <nav class="site-nav">
+    <a class="brand" href="/">
+      <img src="/static/logo.png" alt="" width="34" height="34" onerror="this.remove()">
+      <span>Авто<i>·</i>Донор</span>
+    </a>
+    <button class="burger" aria-label="Меню" aria-expanded="false"
+            aria-controls="siteNav"><span></span></button>
+    <nav class="site-nav" id="siteNav">
       <a href="/catalog" {% if request.url.path.startswith('/catalog') %}aria-current="page"{% endif %}>Каталог</a>
       <a href="/delivery" {% if request.url.path == '/delivery' %}aria-current="page"{% endif %}>Доставка</a>
       <a href="/contacts" {% if request.url.path == '/contacts' %}aria-current="page"{% endif %}>Контакты</a>
@@ -30,6 +35,30 @@
     </nav>
   </div>
 </header>
+
+<script>
+(function(){
+  // Одно поведение на витрине и в бэкенде: кнопка переключает список
+  const burger = document.querySelector('.burger');
+  const menu = document.querySelector('.site-nav') || document.querySelector('.nav ul');
+  if (!burger || !menu) return;
+
+  const mobile = () => window.matchMedia('(max-width:760px)').matches;
+  const setOpen = open => {
+    menu.hidden = mobile() ? !open : false;
+    burger.setAttribute('aria-expanded', String(open));
+  };
+
+  setOpen(false);
+  burger.onclick = () => setOpen(menu.hidden);
+
+  // Меню закрывается по выбору пункта и при возврате к широкому экрану
+  menu.addEventListener('click', e => { if (e.target.tagName === 'A') setOpen(false); });
+  window.addEventListener('resize', () => { if (!mobile()) setOpen(false); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') setOpen(false); });
+})();
+</script>
+
 
 <main>{% block content %}{% endblock %}</main>
 

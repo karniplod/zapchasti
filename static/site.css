@@ -108,7 +108,7 @@ label{display:block;font-size:var(--t-xs);color:var(--muted);margin:0 0 6px;
   background-image:radial-gradient(circle at 3px 3px,var(--bg) 2px,transparent 2px);
   background-size:11px 6px;z-index:2}
 
-.tag-card .shot{aspect-ratio:4/3;background:var(--surface-2);position:relative}
+.tag-card .shot{background:var(--surface-2);position:relative}
 .tag-card .shot img{width:100%;height:100%;object-fit:cover}
 .tag-card .shot .none{display:flex;align-items:center;justify-content:center;
   height:100%;color:var(--dim);font-size:var(--t-sm)}
@@ -181,8 +181,6 @@ label{display:block;font-size:var(--t-xs);color:var(--muted);margin:0 0 6px;
 /* Ровные ряды карточек */
 .grid{grid-auto-rows:1fr}
 .tag-card{height:100%}
-.tag-card .shot{flex:0 0 auto}
-@media(min-width:641px){ .tag-card .shot{aspect-ratio:5/4} }
 
 /* ── Ширина страницы ───────────────────────────────────── */
 /* Ничто не шире экрана: горизонтальная прокрутка на телефоне
@@ -213,3 +211,279 @@ html,body{max-width:100%;overflow-x:clip}
 
 /* ВРЕМЕННО: подсветить блоки, вылезающие за экран */
 .debug-overflow *{outline:1px solid rgba(255,0,0,.3)}
+
+/* ── Поля во второй половине страницы ──────────────────── */
+/* Первый экран лежит в .hero .wrap и поля получает.
+   Каталог ниже — в .layout, и на узком экране терял их */
+.layout{
+  padding-inline:16px;
+  width:100%;
+  max-width:min(1120px, 100%);
+  margin-inline:auto;
+}
+/* Обёртка вокруг .layout поля больше не задаёт — иначе удвоятся */
+.wrap.layout{padding-inline:16px}
+
+/* Сетка карточек и поля ввода не выходят за эти границы */
+.layout .grid,
+.layout main,
+.layout .side{max-width:100%;min-width:0}
+
+@media(min-width:641px){
+  .layout{padding-inline:28px}
+}
+
+/* ── Выбор машины из справочника ───────────────────────── */
+.picker{background:var(--surface-2);border:1px solid var(--line);
+  border-radius:var(--r);padding:18px;margin-top:14px;max-width:620px}
+.picker-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:520px){.picker-row{grid-template-columns:1fr}}
+.picker select:disabled{opacity:.5}
+
+/* ── Выбор машины: карточка, а не серый прямоугольник ──── */
+.picker{
+  background:var(--surface);
+  border:1px solid var(--line-2);
+  border-radius:var(--r);
+  padding:20px;
+  margin-top:16px;
+  max-width:620px;
+  box-shadow:var(--shadow);
+  animation:picker-in .18s ease-out
+}
+@keyframes picker-in{
+  from{opacity:0;transform:translateY(-6px)}
+  to{opacity:1;transform:none}
+}
+@media(prefers-reduced-motion:reduce){.picker{animation:none}}
+
+/* Заголовок блока — тем же языком, что и остальные секции */
+.picker::before{
+  content:"Марка и модель";
+  display:block;
+  font-family:var(--display);
+  font-size:var(--t-xs);
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--dim);
+  margin-bottom:14px
+}
+
+.picker-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:520px){.picker-row{grid-template-columns:1fr}}
+
+/* Селекты выглядят как поля ввода, а не как системные виджеты */
+.picker select{
+  width:100%;
+  appearance:none;
+  background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%235B6672' stroke-width='2' fill='none'/%3E%3C/svg%3E") no-repeat right 14px center;
+  padding-right:36px;
+  cursor:pointer
+}
+.picker select:disabled{opacity:.45;cursor:not-allowed;background-color:var(--surface-2)}
+
+/* Ссылка-переключатель: видно, что блок открыт */
+
+/* ── Строка «VIN под рукой нет?» ────────────────────────── */
+.alt{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  margin:16px 0 0;font-size:var(--t-sm);color:var(--muted)}
+/* Кнопка тут второстепенная: главный путь — VIN */
+.btn-sm{padding:9px 16px;font-size:var(--t-sm)}
+.alt .btn-ghost[aria-expanded="true"]{border-color:var(--accent);color:var(--accent)}
+
+@media(max-width:520px){
+  .alt{flex-direction:column;align-items:stretch;gap:8px}
+  .alt .btn{width:100%}
+}
+
+/* ── Кнопка выбора машины ──────────────────────────────── */
+/* Раньше .alt button делал из неё ссылку — сбрасываем всё явно */
+.alt .btn,
+.alt button.btn-ghost{
+  background:var(--surface);
+  color:var(--ink);
+  border:1px solid var(--line-2);
+  border-radius:var(--r);
+  padding:11px 18px;
+  font-family:var(--body);
+  font-size:var(--t-sm);
+  font-weight:600;
+  text-decoration:none;
+  cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+  gap:8px
+}
+.alt .btn:hover{border-color:var(--ink)}
+.alt .btn[aria-expanded="true"]{border-color:var(--accent);color:var(--accent)}
+
+/* Значок раскрытия — понятно, что кнопка что-то открывает */
+.alt .btn::after{
+  content:"";
+  width:8px;height:8px;
+  border-right:2px solid currentColor;
+  border-bottom:2px solid currentColor;
+  transform:rotate(45deg) translate(-2px,-2px);
+  transition:transform .15s
+}
+.alt .btn[aria-expanded="true"]::after{
+  transform:rotate(-135deg) translate(-2px,-2px)
+}
+
+/* ── Свежие поступления ────────────────────────────────── */
+.fresh{padding-top:26px}
+.fresh .grid{grid-template-columns:repeat(auto-fill,minmax(216px,1fr))}
+@media(min-width:641px){
+  /* Ровно три в ряд: это витрина, а не выдача */
+  .fresh .grid{grid-template-columns:repeat(3,1fr)}
+}
+@media(max-width:640px){
+  .fresh{padding-top:20px}
+  .fresh .grid{grid-template-columns:repeat(auto-fill,minmax(158px,1fr))}
+}
+
+/* ── Мобильное меню ────────────────────────────────────── */
+.burger{display:none;width:42px;height:42px;padding:0;flex:0 0 42px;
+  background:none;border:1px solid var(--line-2);border-radius:9px;
+  cursor:pointer;position:relative;margin-left:auto}
+.burger span,.burger::before,.burger::after{
+  content:"";position:absolute;left:11px;right:11px;height:2px;
+  background:currentColor;transition:transform .18s,opacity .12s}
+.burger span{top:20px}
+.burger::before{top:13px}
+.burger::after{top:27px}
+/* Крестик при открытом меню */
+.burger[aria-expanded="true"] span{opacity:0}
+.burger[aria-expanded="true"]::before{transform:translateY(7px) rotate(45deg)}
+.burger[aria-expanded="true"]::after{transform:translateY(-7px) rotate(-45deg)}
+
+@media(max-width:760px){
+  .burger{display:block}
+
+  /* Меню разворачивается под шапкой на всю ширину */
+  .site-nav,.nav ul{
+    position:absolute;left:0;right:0;top:100%;
+    flex-direction:column;align-items:stretch;gap:0;
+    background:var(--surface);border-bottom:1px solid var(--line);
+    padding:8px 16px 14px;margin:0;
+    box-shadow:0 12px 24px rgba(18,22,27,.08);
+    overflow:visible;max-height:none}
+  .site-nav[hidden],.nav ul[hidden]{display:none}
+
+  .site-nav a,.nav a{padding:13px 4px;border-bottom:1px solid var(--line);
+    font-size:var(--t-md)}
+  .site-nav a:last-child,.nav li:last-child a{border-bottom:0}
+  .site-nav .to-admin{margin:10px 0 0;text-align:center;border-radius:9px}
+
+  .site-head,.nav{position:sticky;top:0}
+  .site-head .wrap,.nav .in{position:relative;flex-wrap:nowrap}
+}
+
+/* Тёмная шапка бэкенда: свои цвета */
+.nav .burger{border-color:var(--line);color:var(--ink)}
+@media(max-width:760px){
+  .nav ul{background:var(--panel);border-color:var(--line);
+    box-shadow:0 12px 24px rgba(0,0,0,.4)}
+  .nav a{border-bottom-color:var(--line)}
+  .nav .me{width:auto;order:0}
+}
+
+/* ── Квадратные снимки ─────────────────────────────────── */
+/* Единый формат: карточки в ряду одной высоты, а вертикальные
+   снимки с телефона перестают вытягивать сетку */
+.tag-card .shot{aspect-ratio:1/1}
+@media(min-width:641px){.tag-card .shot{aspect-ratio:1/1}}
+
+/* Деталь вписывается в кадр целиком, а не обрезается по краям:
+   у запчастей важна форма, а не красивый кроп */
+.tag-card .shot img{object-fit:contain;background:var(--surface-2);padding:6px}
+
+/* Галерея на карточке детали — тоже квадрат */
+.shots .big{aspect-ratio:1/1}
+.shots .big img{object-fit:contain;background:var(--surface-2);padding:10px}
+
+/* ── Квадрат через отступ, а не aspect-ratio ───────────── */
+/* Приём старый, но работает везде: высота блока задаётся
+   процентом от его же ширины через padding-top */
+.tag-card .shot{
+  aspect-ratio:auto;
+  height:0;
+  padding-top:100%;
+  position:relative;
+  overflow:hidden
+}
+.tag-card .shot img,
+.tag-card .shot .none{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%
+}
+.tag-card .grade{z-index:3}
+
+.shots .big{
+  aspect-ratio:auto;
+  height:0;
+  padding-top:100%;
+  position:relative;
+  overflow:hidden
+}
+.shots .big img,
+.shots .big .none{position:absolute;inset:0;width:100%;height:100%}
+
+/* ── Снимок вплотную к краям карточки ──────────────────── */
+/* Отступ и белая подложка больше не нужны: кадрирование
+   уже приводит снимки к квадрату */
+.tag-card .shot img{padding:0;background:none;object-fit:cover}
+.tag-card{border-radius:var(--r)}
+.tag-card .shot{border-radius:var(--r) var(--r) 0 0}
+
+/* Перфорация лежала поверх снимка — теперь она ни к чему */
+.tag-card::before{display:none}
+
+/* Галерея на карточке детали — тем же правилом */
+.shots .big img{padding:0;background:none;object-fit:cover}
+
+/* Действия в блоке выбора машины */
+.picker-actions{display:flex;gap:10px;margin-top:14px}
+.picker-actions .btn-primary{flex:1}
+.picker-actions .btn-ghost{flex:0 0 auto}
+@media(max-width:520px){
+  .picker-actions{flex-direction:column}
+  .picker-actions .btn{width:100%}
+}
+
+/* Логотип рядом с названием */
+.brand{display:flex;align-items:center;gap:9px}
+.brand img{width:34px;height:34px;object-fit:contain;flex:0 0 34px}
+@media(max-width:560px){.brand img{width:28px;height:28px;flex-basis:28px}}
+
+/* ── Меню пользователя в бэкенде ───────────────────────── */
+.acct{position:relative;flex:0 0 auto}
+.acct-btn{display:flex;align-items:center;gap:6px;background:none;
+  border:1px solid var(--line);border-radius:8px;padding:7px 11px;
+  color:var(--muted);font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
+.acct-btn:hover{color:var(--ink);border-color:var(--dim)}
+.acct-btn svg{width:9px;height:6px;transition:transform .15s}
+.acct-btn[aria-expanded="true"]{color:var(--ink);border-color:var(--amber)}
+.acct-btn[aria-expanded="true"] svg{transform:rotate(180deg)}
+
+.acct-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:50;
+  min-width:190px;background:var(--panel-2);border:1px solid var(--line);
+  border-radius:10px;box-shadow:0 12px 28px rgba(0,0,0,.45);overflow:hidden}
+.acct-who{padding:13px 15px;border-bottom:1px solid var(--line);
+  display:flex;flex-direction:column;gap:2px}
+.acct-who b{font-size:14px;font-weight:600}
+.acct-who span{font-size:12px;color:var(--muted)}
+.acct-who .acct-login{font-family:var(--mono);font-size:11px;color:var(--dim)}
+.acct-out{display:block;padding:12px 15px;font-size:14px;color:var(--ink)}
+.acct-out:hover{background:rgba(255,95,86,.12);color:var(--err)}
+
+@media(max-width:760px){
+  /* В свёрнутой шапке кнопка стоит рядом с бургером */
+  .acct{order:2;margin-left:auto}
+  .nav .burger{margin-left:8px}
+}
+
+/* Атрибут hidden сильнее display у .acct-menu */
+.acct-menu[hidden]{display:none}

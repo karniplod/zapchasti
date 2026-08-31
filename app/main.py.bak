@@ -27,8 +27,6 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 log = logging.getLogger("razbor")
-# Pillow при первом импорте перечисляет все свои плагины — в лог это не нужно
-logging.getLogger("PIL").setLevel(logging.INFO)
 
 
 @asynccontextmanager
@@ -55,6 +53,18 @@ app = FastAPI(
 )
 
 
+def _css_version() -> str:
+    """Версия стилей = время правки файла. Меняется файл — меняется
+    адрес, и браузер перестаёт отдавать старое из кэша."""
+    try:
+        return str(int((settings.static_root / "site.css").stat().st_mtime))
+    except OSError:
+        return "0"
+
+
+templates.env.globals["css_version"] = _css_version()
+templates.env.globals["app_name"] = settings.app_name
+templates.env.globals["base_url"] = settings.base_url
 
 # Дублируют Caddy: нужны при локальной разработке без прокси
 app.mount("/static", StaticFiles(directory=settings.static_root), name="static")

@@ -44,29 +44,6 @@ border:1px solid var(--line);border-radius:10px;padding:12px 18px;font-size:14px
 transition:.2s;pointer-events:none;z-index:40}
 .toast.show{opacity:1}.toast.ok{border-color:rgba(76,195,138,.5)}
 .toast.err{border-color:rgba(255,95,86,.5);color:#ff9a94}
-
-.photos{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px;align-items:center}
-.photos .ph{margin:0;position:relative;width:64px;height:64px}
-.photos .ph img{width:100%;height:100%;object-fit:cover;border-radius:8px;
-  border:1px solid var(--line)}
-.photos .ph-del{position:absolute;top:-6px;right:-6px;width:22px;height:22px;
-  border-radius:50%;background:var(--err);color:#fff;border:0;font-size:14px;
-  line-height:1;cursor:pointer;padding:0}
-.photos .ph-none{display:flex;flex-direction:column;align-items:center;
-  justify-content:center;gap:4px;width:64px;height:64px;border-radius:8px;
-  border:1px dashed rgba(255,159,46,.5);color:var(--warn);font-size:9px;
-  text-align:center}
-.photos .ph-none svg{width:22px;height:22px}
-.photos .ph-add{display:flex;align-items:center;justify-content:center;
-  width:64px;height:64px;border-radius:8px;border:1px dashed var(--line);
-  color:var(--muted);font-size:24px;cursor:pointer}
-.photos .ph-add:hover{border-color:var(--amber);color:var(--amber)}
-
-.photos .ph-cam{display:flex;align-items:center;justify-content:center;
-  width:64px;height:64px;border-radius:8px;border:1px solid var(--amber);
-  color:var(--amber);cursor:pointer}
-.photos .ph-cam:hover{background:rgba(255,194,51,.1)}
-.photos .ph-cam svg{width:26px;height:26px}
 </style></head><body>
 
 {% include "admin/_nav.html" %}
@@ -131,7 +108,6 @@ async function load(){
         ${r.oem_number ? ' · '+r.oem_number : ''}
       </div>
       <div style="margin-top:7px">${bad.join(' ')}</div>
-      <div class="photos" data-part="${r.id}"></div>
       <div class="edit">
         <div><label>Цена, ₽</label>
           <input type="number" class="f-price" value="${r.price ?? ''}" inputmode="numeric"></div>
@@ -158,8 +134,6 @@ async function load(){
       </div>
     </div>`;
   }).join('');
-
-  document.querySelectorAll('.photos').forEach(loadPhotos);
 
   document.querySelectorAll('.p').forEach(el => {
     const id = el.dataset.id;
@@ -197,67 +171,6 @@ async function load(){
   });
 }
 
-
-// ── Фото детали ──────────────────────────────────────────
-// Заглушка вместо снимка: без фото деталь не продаётся,
-// и это должно быть видно с первого взгляда
-const NOPHOTO = `<svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
-  <rect x="4" y="10" width="40" height="30" rx="3" stroke="currentColor"
-        stroke-width="2.5"/>
-  <circle cx="16" cy="21" r="3.5" stroke="currentColor" stroke-width="2.5"/>
-  <path d="M8 34l10-9 7 6 6-5 9 8" stroke="currentColor" stroke-width="2.5"
-        stroke-linejoin="round"/>
-  <path d="M6 6l36 36" stroke="currentColor" stroke-width="2.5"/>
-</svg><span>нет фото</span>`;
-
-async function loadPhotos(box){
-  const id = box.dataset.part;
-  const rows = await (await fetch(`/api/manage/parts/${id}/photos`)).json();
-
-  box.innerHTML = rows.map(ph => `
-    <figure class="ph">
-      <img src="${ph.thumb}" alt="" loading="lazy">
-      <button class="ph-del" data-photo="${ph.id}" aria-label="Удалить фото">×</button>
-    </figure>`).join('')
-    + (rows.length ? '' : `<div class="ph-none">${NOPHOTO}</div>`)
-    + `<label class="ph-cam" title="Снять камерой">
-         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-           <path d="M3 8a2 2 0 012-2h2.5l1.2-2h6.6l1.2 2H20a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"
-                 stroke="currentColor" stroke-width="2"/>
-           <circle cx="12.5" cy="12.5" r="3.5" stroke="currentColor" stroke-width="2"/>
-         </svg>
-         <input type="file" accept="image/*" capture="environment" hidden>
-       </label>`
-    + `<label class="ph-add" title="Выбрать из галереи">+<input type="file"
-         accept="image/*" multiple hidden></label>`;
-
-  box.querySelectorAll('.ph-del').forEach(b => b.onclick = async () => {
-    if (!confirm('Удалить это фото?')) return;
-    const r = await fetch(`/api/manage/photos/${b.dataset.photo}`, {method:'DELETE'});
-    if (r.ok){ toast('Фото удалено', 'ok'); loadPhotos(box); load(); }
-    else toast('Не удалось удалить', 'err');
-  });
-
-  const upload = async e => {
-    const fd = new FormData();
-    for (const f of e.target.files){
-      // Тот же квадрат, что и при приёмке
-      const blob = typeof cropImage === 'function' ? await cropImage(f) : f;
-      if (blob) fd.append('files', new File([blob], 'photo.jpg', {type:'image/jpeg'}));
-    }
-    e.target.value = '';
-    if (!fd.has('files')) return;
-
-    const r = await fetch(`/api/manage/parts/${id}/photos`, {method:'POST', body: fd});
-    if (r.ok){ toast('Фото добавлено', 'ok'); loadPhotos(box); load(); }
-    else { const d = await r.json().catch(()=>({})); toast(d.detail || 'Не удалось', 'err'); }
-  };
-
-  // capture="environment" открывает камеру, его отсутствие — галерею
-  box.querySelector('.ph-cam input').onchange = upload;
-  box.querySelector('.ph-add input').onchange = upload;
-}
-
 async function patch(id, body, reload){
   const r = await fetch(`/api/manage/parts/${id}`, {
     method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
@@ -274,5 +187,4 @@ function toast(m,k=''){ const el=$('toast'); el.textContent=m; el.className=`toa
 
 load();
 </script>
-{% include "admin/_cropper.html" %}
 </body></html>

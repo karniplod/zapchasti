@@ -1,0 +1,170 @@
+{% extends "_base.html" %}
+{% block title %}Запчасти с разбора{% endblock %}
+{% block description %}Б/у автозапчасти с разбора: подбор по VIN, фото каждой детали, честная оценка состояния.{% endblock %}
+
+{% block head %}
+<style>
+.hero{background:var(--surface);border-bottom:1px solid var(--line);padding:52px 0 44px}
+.hero h1{font-size:var(--t-3xl);margin:0 0 12px;max-width:16ch}
+.hero .lead{margin:0 0 26px}
+.vinbar{display:flex;gap:10px;max-width:620px}
+.vinbar .field{flex:1;min-width:0}
+.vinbar .field.bad{border-color:var(--err)}
+@media(max-width:560px){.vinbar{flex-direction:column}.vinbar .btn{width:100%}}
+
+/* Цифры склада — не украшение, а ответ на «а есть ли у вас что-то» */
+.figures{display:flex;gap:28px;margin-top:26px;flex-wrap:wrap}
+.figures div{display:flex;align-items:baseline;gap:8px}
+.figures b{font-family:var(--display);font-size:var(--t-2xl);font-weight:600;
+  font-variant-numeric:tabular-nums;line-height:1}
+.figures span{font-size:var(--t-sm);color:var(--muted)}
+
+section.block{padding:40px 0}
+section.block .head{display:flex;align-items:baseline;gap:14px;margin-bottom:18px}
+section.block .head a{margin-left:auto;font-size:var(--t-sm);color:var(--accent);
+  text-decoration:underline}
+
+/* Машины на разборе */
+.cars{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
+.car{display:flex;gap:12px;align-items:center;background:var(--surface);
+  border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;
+  transition:border-color .13s}
+.car:hover{border-color:var(--line-2)}
+.car .pic{width:56px;height:56px;flex:0 0 56px;border-radius:8px;overflow:hidden;
+  background:var(--surface-2)}
+.car .pic img{width:100%;height:100%;object-fit:cover}
+.car .nm{font-size:var(--t-md);line-height:1.25}
+.car .sub{font-size:var(--t-xs);color:var(--muted);margin-top:2px}
+.car .cnt{margin-left:auto;font-family:var(--mono);font-size:var(--t-xs);
+  color:var(--dim);white-space:nowrap}
+
+/* Как это работает — три шага, порядок здесь несёт смысл */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+@media(max-width:700px){.steps{grid-template-columns:1fr;gap:14px}}
+.step{background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--r);padding:20px}
+.step .n{font-family:var(--display);font-size:var(--t-xs);letter-spacing:.16em;
+  color:var(--accent);font-weight:600;margin-bottom:8px}
+.step h3{font-size:var(--t-md);margin:0 0 6px;text-transform:none}
+.step p{margin:0;font-size:var(--t-sm);color:var(--muted);line-height:1.5}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<section class="hero">
+  <div class="wrap">
+    <h1>Запчасти с разбора под ваш VIN</h1>
+    <p class="lead">Введите VIN — покажем только те детали, что встанут
+       на вашу машину. Каждая снята с конкретного автомобиля, сфотографирована
+       и оценена по состоянию.</p>
+
+    <div class="vinbar">
+      <input id="vin" class="field field-code" maxlength="17" spellcheck="false"
+             autocomplete="off" placeholder="XTA210740X1234567" aria-label="VIN автомобиля">
+      <button class="btn btn-primary" id="vinGo" disabled>Подобрать</button>
+    </div>
+
+    <div class="figures">
+      <div><b>{{ s.parts }}</b><span>деталей в наличии</span></div>
+      <div><b>{{ s.cars }}</b><span>машин разобрано</span></div>
+    </div>
+  </div>
+</section>
+
+{% if fresh %}
+<section class="block">
+  <div class="wrap">
+    <div class="head">
+      <h2>Свежие поступления</h2>
+      <a href="/catalog">Весь каталог</a>
+    </div>
+    <div class="grid">
+      {% for i in fresh %}
+      <a class="tag-card" href="/p/{{ i.sku }}">
+        <div class="shot">
+          {% if i.photo %}<img src="{{ i.photo }}" alt="{{ i.name }}" loading="lazy">
+          {% else %}<div class="none">фото готовится</div>{% endif %}
+          <span class="grade" data-g="{{ i.condition }}">{{ i.condition }}</span>
+        </div>
+        <div class="body">
+          <span class="sku">{{ i.sku }}</span>
+          <span class="name">{{ i.name }}</span>
+          <span class="fit">{% if i.brand %}{{ i.brand }} {{ i.model }}{% if i.year %}, {{ i.year }}{% endif %}
+            {% else %}поступила отдельно{% endif %}</span>
+          <span class="price">{% if i.price %}{{ "{:,.0f}".format(i.price).replace(",", " ") }} ₽
+            {% else %}по запросу{% endif %}<small>{{ i.node or '' }}</small></span>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+{% if cars %}
+<section class="block" style="background:var(--surface-2)">
+  <div class="wrap">
+    <div class="head"><h2>Машины на разборе</h2></div>
+    <div class="cars">
+      {% for c in cars %}
+      <a class="car" href="/catalog?donor={{ c.code }}">
+        <div class="pic">{% if c.photo %}<img src="{{ c.photo }}" alt="" loading="lazy">{% endif %}</div>
+        <div>
+          <div class="nm">{{ c.brand }} {{ c.model }}</div>
+          <div class="sub">{{ c.generation }}{% if c.year %}, {{ c.year }}{% endif %}</div>
+        </div>
+        <span class="cnt">{{ c.parts }} дет.</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<section class="block">
+  <div class="wrap">
+    <div class="head"><h2>Как это работает</h2></div>
+    <div class="steps">
+      <div class="step">
+        <div class="n">Шаг 1</div>
+        <h3>Находите деталь</h3>
+        <p>По VIN, по марке и модели или по каталожному номеру.
+           Подбор показывает только то, что подходит вашей машине.</p>
+      </div>
+      <div class="step">
+        <div class="n">Шаг 2</div>
+        <h3>Сверяете номер</h3>
+        <p>На фото видно реальное состояние, в карточке — каталожный номер.
+           Сравните его со своей деталью, чтобы не ошибиться с комплектацией.</p>
+      </div>
+      <div class="step">
+        <div class="n">Шаг 3</div>
+        <h3>Забираете или получаете</h3>
+        <p>Самовывоз со склада или отправка. Детали с одной машины
+           уходят одной посылкой.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const $ = id => document.getElementById(id);
+
+$('vin').addEventListener('input', e => {
+  const v = e.target.value.toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g,'');
+  e.target.value = v;
+  $('vinGo').disabled = v.length !== 17;
+});
+$('vin').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !$('vinGo').disabled) go();
+});
+$('vinGo').onclick = go;
+
+// Разбор VIN живёт в каталоге — туда и ведём, чтобы не дублировать логику
+function go(){ location.href = '/catalog?vin=' + encodeURIComponent($('vin').value); }
+</script>
+{% endblock %}
