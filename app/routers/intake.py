@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..auth import current_user
+from ..auth import current_user, require_role
 from ..database import get_session  # ваш штатный провайдер сессии
 from ..templating import templates
 from ..vin_decoder import decode, normalize
@@ -223,7 +223,7 @@ async def modifications(generation_id: int, session: AsyncSession = Depends(get_
 async def create_donor(
     payload: DonorCreate,
     session: AsyncSession = Depends(get_session),
-    # user = Depends(current_user),   # подключите свою авторизацию
+    user=Depends(require_role("manager")),
 ):
     if payload.vin:
         dup = (
@@ -291,6 +291,7 @@ async def upload_photos(
     donor_id: int,
     files: list[UploadFile] = File(...),
     session: AsyncSession = Depends(get_session),
+    user=Depends(require_role("manager")),
 ):
     exists = (
         await session.execute(text("SELECT code FROM donors WHERE id = :id"), {"id": donor_id})
