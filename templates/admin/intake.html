@@ -75,6 +75,10 @@ input[type=text],input[type=number],select,textarea{
   color:var(--ink);padding:9px 11px;font-size:14px;font-family:var(--sans);outline:none}
 input:focus,select:focus,textarea:focus{border-color:var(--amber)}
 select:disabled{opacity:.4}
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button{filter:invert(.85);opacity:.5}
+input[type=number]:hover::-webkit-inner-spin-button,
+input[type=number]:focus::-webkit-inner-spin-button{opacity:.85}
 textarea{resize:vertical;min-height:64px}
 .auto{border-color:rgba(76,195,138,.45)!important}
 

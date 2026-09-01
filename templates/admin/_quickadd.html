@@ -19,6 +19,10 @@ dialog.qa label{display:block;font-size:12px;color:#8794a6;margin:0 0 5px}
 dialog.qa input,dialog.qa select{width:100%;background:#1f2630;border:1px solid #2b333f;
   border-radius:8px;color:#e8ecf2;padding:11px;font-size:15px;font-family:inherit;outline:none}
 dialog.qa input:focus,dialog.qa select:focus{border-color:#ffc233}
+dialog.qa input[type=number]::-webkit-inner-spin-button,
+dialog.qa input[type=number]::-webkit-outer-spin-button{filter:invert(.85);opacity:.5}
+dialog.qa input[type=number]:hover::-webkit-inner-spin-button,
+dialog.qa input[type=number]:focus::-webkit-inner-spin-button{opacity:.85}
 dialog.qa .row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
 dialog.qa .field{margin-top:14px}
 dialog.qa .field:first-child{margin-top:0}
