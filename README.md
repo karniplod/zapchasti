@@ -1,9 +1,8 @@
-
 # Авторазбор — каталог б/у автозапчастей
 
 Приёмка машин, разбор на детали, склад и публичный каталог с подбором по VIN.
 
-Стек: FastAPI + PostgreSQL + Jinja2, Caddy как реверс-прокси.
+Стек: FastAPI + PostgreSQL (asyncpg) + Jinja2, Caddy как реверс-прокси в проде.
 
 ---
 
@@ -14,29 +13,44 @@ razbor/
 ├── app/
 │   ├── config.py            настройки из .env
 │   ├── database.py          подключение к PostgreSQL
-│   ├── auth.py              вход сотрудников, роли
-│   ├── main.py              сборка приложения
-│   ├── vin_decoder.py       свой VIN-декодер
+│   ├── auth.py               вход сотрудников, роли, сессии
+│   ├── main.py               сборка приложения
+│   ├── vin_decoder.py        свой VIN-декодер
+│   ├── templating.py         общий движок шаблонов
 │   ├── routers/
-│   │   ├── intake.py        приёмка авто
-│   │   ├── dismantle.py     разбор, этикетки с QR
-│   │   ├── catalog.py       каталог, VIN-поиск покупателя
-│   │   └── reference.py     справочник, добавление на бегу
+│   │   ├── admin.py          сводка бэкенда после логина
+│   │   ├── intake.py         приёмка авто
+│   │   ├── dismantle.py      разбор, этикетки с QR
+│   │   ├── stock.py          приём запчастей отдельно от авто
+│   │   ├── manage.py         список машин, таблица деталей, правки
+│   │   ├── catalog.py        публичный каталог, VIN-поиск покупателя
+│   │   └── reference.py      справочник, добавление на бегу
 │   ├── services/
-│   │   └── images.py        ресайз, webp, миниатюры
+│   │   └── images.py         ресайз, webp, миниатюры
 │   └── scripts/
-│       ├── create_admin.py       первый администратор
-│       └── import_catalog.py     импорт справочника из файла
+│       ├── create_admin.py        первый администратор
+│       ├── seed_categories.py     дерево категорий запчастей
+│       ├── import_cars_base.py    импорт марок/моделей из api.cars-base.ru
+│       ├── import_catalog.py      импорт справочника из файла (Авито)
+│       ├── import_cross.py        выборочный импорт кроссов TecDoc
+│       ├── nodes.py               сопоставление узлов кроссов с деревом категорий
+│       └── set_nodes.py           проставить узлы категориям склада
 ├── templates/
-│   ├── catalog.html         каталог
-│   ├── part.html            карточка детали
-│   ├── error.html           404 / 403 / 500
+│   ├── base.html, _base.html   общая раскладка
+│   ├── home.html                главная
+│   ├── catalog.html             каталог
+│   ├── part.html                карточка детали
+│   ├── error.html               404 / 403 / 500
 │   └── admin/
-│       ├── login.html       вход
-│       ├── intake.html      форма приёмки
-│       ├── dismantle.html   рабочее место разборщика
-│       ├── labels.html      печать этикеток
-│       └── _quickadd.html   модалка добавления модели
+│       ├── login.html           вход
+│       ├── dashboard.html       сводка
+│       ├── intake.html          форма приёмки
+│       ├── dismantle.html       рабочее место разборщика
+│       ├── stock_new.html       приём отдельной детали
+│       ├── donors.html          список машин
+│       ├── parts.html           таблица деталей
+│       ├── labels.html          печать этикеток
+│       ├── _nav.html, _cropper.html, _quickadd.html   общие фрагменты
 ├── sql/                     схема и миграции
 ├── deploy/                  systemd, Caddyfile, cron
 ├── docs/                    развёртывание, карта проекта
@@ -46,7 +60,7 @@ razbor/
 
 ---
 
-## Установка
+## Установка на сервере (прод)
 
 ```bash
 # 1. Разложить на сервере
@@ -98,10 +112,61 @@ sudo cp deploy/backup.cron /etc/cron.d/razbor-backup
 
 ---
 
+## Локальная разработка (Windows)
+
+```powershell
+# 1. Окружение
+python -m venv venv
+./venv/Scripts/pip install -r requirements.txt
+
+# 2. PostgreSQL (если ещё не установлен)
+winget install --id PostgreSQL.PostgreSQL.17
+
+# 3. Роль и база
+psql -U postgres -c "CREATE USER razbor WITH PASSWORD 'секрет';"
+psql -U postgres -c "CREATE DATABASE razbor OWNER razbor;"
+
+psql -U razbor -d razbor -f sql/schema.sql
+psql -U razbor -d razbor -f sql/vin_patterns.sql
+psql -U razbor -d razbor -f sql/vin_queries.sql
+psql -U razbor -d razbor -f sql/catalog_mapping.sql
+psql -U razbor -d razbor -f sql/00_migrations.sql
+
+# 4. Настройки
+cp .env.example .env
+# DATABASE_URL=postgresql://razbor:секрет@localhost:5432/razbor
+# SECRET_KEY — любая случайная строка, для дев-режима BASE_URL=http://localhost:8100
+
+# 5. Администратор
+./venv/Scripts/python -m app.scripts.create_admin
+
+# 6. Запуск
+./venv/Scripts/python -m uvicorn app.main:app --host 127.0.0.1 --port 8100 --reload
+```
+
+Проверка: `curl http://127.0.0.1:8100/healthz` должен вернуть `{"db":true}`.
+
+> На Windows `create_admin.py` читает пароль через `getpass`, который
+> обращается напрямую к консоли — если запускаете скрипт из инструмента,
+> не пробрасывающего реальный терминал (не консоль cmd/PowerShell), ввод
+> зависнет. Запускайте из обычного терминала, либо вызовите
+> `app.auth.ensure_admin(session, login, password)` напрямую.
+
+---
+
 ## Первые шаги после установки
 
 **1. Справочник автомобилей.** Пока он пуст, форма приёмки открывается,
-но выбирать в ней нечего.
+но выбирать в ней нечего. Быстрее всего накатить `cars-base.json`
+(марки и модели без поколений):
+
+```bash
+./venv/bin/python -m app.scripts.import_cars_base --file cars-base.json --dry-run
+```
+
+Для полного соответствия площадкам объявлений используйте официальный
+справочник Авито Автозагрузки через `import_catalog.py` — тогда названия
+марок совпадут с площадкой и выгрузка пойдёт без ручного сопоставления:
 
 ```bash
 ./venv/bin/python -m app.scripts.import_catalog \
@@ -109,11 +174,15 @@ sudo cp deploy/backup.cron /etc/cron.d/razbor-backup
 ```
 
 Сначала всегда с `--dry-run` — покажет, что распозналось, и откатит.
-Файл берите официальный: справочник Авито Автозагрузки. Тогда названия
-марок совпадут с площадкой и выгрузка пойдёт без ручного сопоставления.
 
-**2. Дерево категорий запчастей.** Заполняется вручную под ваш профиль:
-кузовной разборке нужны одни узлы, моторной другие.
+**2. Дерево категорий запчастей.**
+
+```bash
+./venv/bin/python -m app.scripts.seed_categories
+```
+
+Заполняется под ваш профиль: кузовной разборке нужны одни узлы, моторной
+другие.
 
 **3. Одна машина целиком.** Примите и разберите её полностью до того,
 как писать корзину. Живой разбор за час покажет, каких категорий не хватает
@@ -158,13 +227,8 @@ sudo cp deploy/backup.cron /etc/cron.d/razbor-backup
 
 1. Корзина и оформление заказа с резервом детали
 2. Онлайн-оплата
-3. Админка: список машин, таблица деталей, заказы
-4. Выгрузка на Авито и Дром
-5. Главная страница, ЧПУ-разделы, sitemap
-6. Alembic-миграции
+3. Выгрузка на Авито и Дром
+4. Главная страница, ЧПУ-разделы, sitemap
+5. Alembic-миграции
 
 Подробнее — в `docs/structure.md`.
-=======
-# zapchasti
-crm + site
-
