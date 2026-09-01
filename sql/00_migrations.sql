@@ -23,3 +23,9 @@ ALTER TABLE donor_photos
     ADD COLUMN IF NOT EXISTS thumb  text,
     ADD COLUMN IF NOT EXISTS width  int,
     ADD COLUMN IF NOT EXISTS height int;
+
+-- Раздел категории на площадке (Авито: «Двигатель», «Система охлаждения»...).
+-- Своё дерево остаётся для склада — тут только куда её разместить в фиде.
+-- NULL — площадка делит это на несколько своих разделов вне «Для автомобилей»
+-- (Мультимедиа/Колёса/Прочее/Климат), однозначного соответствия нет.
+ALTER TABLE part_categories ADD COLUMN IF NOT EXISTS avito_category text;

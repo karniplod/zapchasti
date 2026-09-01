@@ -277,6 +277,56 @@ TREE = {
     ],
 }
 
+# ------------------------------------------------------------------
+# Соответствие категориям Авито (раздел «Транспорт → Запчасти и
+# аксессуары → Запчасти → Для автомобилей»). Своё дерево — для склада
+# и остаётся как есть; это только пометка, в какой раздел фида Авито
+# положить объявление, когда дойдём до выгрузки.
+#
+# Источник — шаблоны XML, скачанные с avito.ru/autoload/documentation
+# /templates 01.09.2026: 13 категорий под «Для автомобилей» (плюс
+# отдельный тип объявления «Автомобиль на запчасти» — это не раздел
+# запчастей, а отдельный вид объявления, сюда не отображаем).
+#
+# Четыре наших раздела не имеют однозначного соответствия: у Авито
+# «Мультимедиа»/«Колёса»/«Климат»/бытовые мелочи из «Прочее» либо
+# разложены по СОСЕДНИМ с «Для автомобилей» категориям верхнего уровня
+# («Аудио- и видеотехника», «Шины, диски и колёса», «Аксессуары»,
+# «Инструменты», «Багажники и фаркопы», «Противоугонные устройства»),
+# либо не выделены отдельно вовсе. Насильно приписывать их одному
+# разделу не стали — оставили пустыми до проверки по полному дереву
+# категорий Авито.
+AVITO_TOP = {
+    "Кузов": "Кузов",
+    "Оптика": "Автосвет",
+    "Стёкла и зеркала": "Стёкла",  # зеркала сюда попадают неточно — см. примечание выше
+    "Двигатель": "Двигатель",
+    "Трансмиссия": "Трансмиссия и привод",
+    "Ходовая часть": "Подвеска",
+    "Рулевое управление": "Рулевое управление",
+    "Тормозная система": "Тормозная система",
+    "Выхлопная система": "Топливная и выхлопная системы",
+    "Топливная система": "Топливная и выхлопная системы",
+    "Салон": "Салон",
+    "Электрика": "Электрооборудование",
+    "Климат и отопление": None,
+    "Мультимедиа": None,
+    "Колёса": None,
+    "Прочее": None,
+}
+
+# Точечные исключения: Авито выделяет эти узлы в собственные разделы,
+# хотя на складе они у нас лежат в другом разделе дерева.
+AVITO_CHILD_OVERRIDE = {
+    "Радиатор охлаждения": "Система охлаждения",
+    "Радиатор кондиционера": "Система охлаждения",
+    "Радиатор печки": "Система охлаждения",
+    "Вентилятор охлаждения": "Система охлаждения",
+    "Помпа": "Система охлаждения",
+    "Расширительный бачок": "Система охлаждения",
+    "Аккумулятор": "Аккумуляторы",
+}
+
 
 async def seed(dry_run: bool):
     st = {"p": 0, "c": 0, "skip": 0}
@@ -285,23 +335,28 @@ async def seed(dry_run: bool):
             row = (
                 await s.execute(
                     text("""
-                INSERT INTO part_categories (parent_id, name, slug, sort_order)
-                VALUES (NULL, :n, :s, :o)
-                ON CONFLICT (slug) DO UPDATE SET name = part_categories.name
+                INSERT INTO part_categories (parent_id, name, slug, sort_order, avito_category)
+                VALUES (NULL, :n, :s, :o, :av)
+                ON CONFLICT (slug) DO UPDATE
+                    SET name = part_categories.name,
+                        avito_category = COALESCE(part_categories.avito_category, EXCLUDED.avito_category)
                 RETURNING id, (xmax = 0) AS ins
             """),
-                    {"n": parent, "s": slugify(parent), "o": i},
+                    {"n": parent, "s": slugify(parent), "o": i, "av": AVITO_TOP.get(parent)},
                 )
             ).first()
             if row.ins:
                 st["p"] += 1
             for o, child in enumerate(children):
+                av_child = AVITO_CHILD_OVERRIDE.get(child, AVITO_TOP.get(parent))
                 r = (
                     await s.execute(
                         text("""
-                    INSERT INTO part_categories (parent_id, name, slug, sort_order)
-                    VALUES (:p, :n, :s, :o)
-                    ON CONFLICT (slug) DO UPDATE SET name = part_categories.name
+                    INSERT INTO part_categories (parent_id, name, slug, sort_order, avito_category)
+                    VALUES (:p, :n, :s, :o, :av)
+                    ON CONFLICT (slug) DO UPDATE
+                        SET name = part_categories.name,
+                            avito_category = COALESCE(part_categories.avito_category, EXCLUDED.avito_category)
                     RETURNING (xmax = 0) AS ins
                 """),
                         {
@@ -309,6 +364,7 @@ async def seed(dry_run: bool):
                             "n": child,
                             "s": slugify(f"{parent}-{child}"),
                             "o": o,
+                            "av": av_child,
                         },
                     )
                 ).first()
