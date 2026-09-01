@@ -1,5 +1,5 @@
 [Unit]
-Description=Razbor — каталог авторазбора
+Description=Razbor — каталог автодонора
 After=network.target postgresql.service
 Requires=postgresql.service
 

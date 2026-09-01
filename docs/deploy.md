@@ -74,7 +74,7 @@ psql -U razbor -d razbor -c "ALTER TABLE users ADD COLUMN last_login_at timestam
 
 ```ini
 [Unit]
-Description=Razbor — каталог авторазбора
+Description=Razbor — каталог автодонора
 After=network.target postgresql.service
 Requires=postgresql.service
 
