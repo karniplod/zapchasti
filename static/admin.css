@@ -39,6 +39,27 @@ input:focus,select:focus,textarea:focus{border-color:var(--amber)}
 select:disabled{opacity:.4}
 textarea{resize:vertical;min-height:64px}
 
+/* Раскрытый список <select> — нативный элемент ОС, красим хотя бы
+   под тёмную тему на все браузеры... */
+select{color-scheme:dark}
+
+/* ...а там, где браузер уже умеет кастомизировать сам попап
+   (Chrome/Edge/Safari 135+), красим его один в один под сайт —
+   для остальных браузеров этот блок просто не применяется */
+@supports (appearance: base-select) {
+  select, ::picker(select) { appearance: base-select }
+
+  ::picker(select){
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:4px;box-shadow:0 12px 24px rgba(0,0,0,.4)
+  }
+  select option{
+    padding:9px 12px;border-radius:7px;color:var(--ink);font-size:14px
+  }
+  select option:hover,select option:focus{background:var(--panel-2)}
+  select option:checked{background:rgba(255,194,51,.16);color:var(--ink)}
+}
+
 /* Нативный спиннер number-полей — белые системные стрелки режут
    тёмную тему, поэтому инвертированы и притушены */
 input[type=number]::-webkit-inner-spin-button,
