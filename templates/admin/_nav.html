@@ -1,76 +1,11 @@
 {#
-  Общая шапка админки. Подключается первой строкой внутри <body>:
+  Общая шапка админки. Подключается первой строкой внутри <body>,
+  на странице, загрузившей static/admin.css (там весь вид шапки):
       {% include "admin/_nav.html" %}
 
   Активный пункт подсвечивается по адресу страницы — переменных
   передавать не нужно.
 #}
-<style>
-.nav{background:var(--panel);border-bottom:1px solid var(--line);margin-bottom:18px;
-  position:sticky;top:0;z-index:30}
-.nav .in{max-width:900px;margin:0 auto;padding:12px 16px;
-  display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-.nav .logo{font-weight:700;font-size:15px;letter-spacing:-.01em;white-space:nowrap}
-.nav .logo span{color:var(--amber)}
-.nav ul{list-style:none;display:flex;gap:4px;margin:0;padding:0;
-  overflow-x:auto;flex:1;min-width:0}
-.nav a{display:block;padding:7px 11px;border-radius:7px;font-size:14px;
-  color:var(--muted);text-decoration:none;white-space:nowrap}
-.nav a:hover{color:var(--ink);background:var(--panel-2)}
-.nav a.on{color:var(--ink);background:var(--panel-2);font-weight:600;
-  box-shadow:inset 0 -2px 0 var(--amber)}
-.nav .me{font-size:12px;color:var(--dim);white-space:nowrap}
-.nav .me a{display:inline;padding:0;color:var(--dim);text-decoration:underline}
-@media(max-width:560px){.nav .logo{font-size:14px}.nav .me{width:100%;order:3}}
-
-/* Бургер — только мобильное меню, на широком экране скрыт */
-.nav .burger{display:none;width:38px;height:38px;padding:0;flex:0 0 38px;
-  background:none;border:1px solid var(--line);border-radius:8px;
-  color:var(--ink);cursor:pointer;position:relative}
-.nav .burger span,.nav .burger::before,.nav .burger::after{
-  content:"";position:absolute;left:10px;right:10px;height:2px;
-  background:currentColor;transition:transform .18s,opacity .12s}
-.nav .burger span{top:18px}
-.nav .burger::before{top:11px}
-.nav .burger::after{top:25px}
-.nav .burger[aria-expanded="true"] span{opacity:0}
-.nav .burger[aria-expanded="true"]::before{transform:translateY(7px) rotate(45deg)}
-.nav .burger[aria-expanded="true"]::after{transform:translateY(-7px) rotate(-45deg)}
-@media(max-width:760px){
-  .nav .burger{display:block;margin-left:auto}
-  .nav ul{position:absolute;left:0;right:0;top:100%;
-    flex-direction:column;align-items:stretch;gap:0;
-    background:var(--panel);border-bottom:1px solid var(--line);
-    padding:8px 16px 14px;box-shadow:0 12px 24px rgba(0,0,0,.4)}
-  .nav ul[hidden]{display:none}
-  .nav a{padding:12px 4px;border-bottom:1px solid var(--line)}
-  .nav li:last-child a{border-bottom:0}
-  .nav .in{position:relative;flex-wrap:nowrap}
-}
-
-/* Меню аккаунта */
-.nav .acct{position:relative;flex:0 0 auto;margin-left:auto}
-.nav .acct-btn{display:flex;align-items:center;gap:6px;background:none;
-  border:1px solid var(--line);border-radius:8px;padding:7px 10px;
-  color:var(--muted);font-size:13px;cursor:pointer}
-.nav .acct-btn:hover{color:var(--ink);border-color:var(--dim)}
-.nav .acct-btn svg{width:9px;height:6px;flex:0 0 auto;display:block;
-  transition:transform .15s}
-.nav .acct-btn[aria-expanded="true"]{color:var(--ink);border-color:var(--amber)}
-.nav .acct-btn[aria-expanded="true"] svg{transform:rotate(180deg)}
-.nav .acct-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:50;
-  min-width:180px;background:var(--panel);border:1px solid var(--line);
-  border-radius:10px;overflow:hidden;box-shadow:0 12px 24px rgba(0,0,0,.4)}
-.nav .acct-menu[hidden]{display:none}
-.nav .acct-who{padding:12px 14px;border-bottom:1px solid var(--line)}
-.nav .acct-who b{font-size:14px;font-weight:600;display:block}
-.nav .acct-who span{font-size:12px;color:var(--muted);display:block}
-.nav .acct-who .acct-login{font-family:ui-monospace,monospace;font-size:11px;
-  color:var(--dim)}
-.nav .acct-out{display:block;padding:11px 14px;font-size:14px;color:var(--ink)}
-.nav .acct-out:hover{background:rgba(255,95,86,.12);color:var(--err,#ff5f56)}
-</style>
-
 <div class="nav"><div class="in">
   <a class="logo" href="/admin" style="padding:0;display:flex;align-items:center;gap:8px">
     <img src="/static/logo.png" alt="" width="26" height="26" onerror="this.remove()">
