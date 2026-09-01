@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..auth import current_user
 from ..database import get_session  # ваш штатный провайдер сессии
 from ..templating import templates
 from ..vin_decoder import decode, normalize
@@ -75,8 +76,10 @@ class DonorCreate(BaseModel):
 
 
 @router.get("/intake", response_class=HTMLResponse)
-async def intake_page(request: Request):
-    return templates.TemplateResponse("admin/intake.html", {"request": request})
+async def intake_page(request: Request, user=Depends(current_user)):
+    return templates.TemplateResponse(
+        "admin/intake.html", {"request": request, "user": user}
+    )
 
 
 # ------------------------------------------------------------------
