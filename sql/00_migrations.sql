@@ -33,11 +33,21 @@ ALTER TABLE part_categories ADD COLUMN IF NOT EXISTS avito_category text;
 -- Число дверей — влияет на применимость обшивки, стёкол, замков
 ALTER TABLE modifications ADD COLUMN IF NOT EXISTS doors smallint;
 
--- Внешний ключ индекс не создаёт, а импорт проверяет дубли модификаций
--- запросом по generation_id. Без индекса это полный скан таблицы на
--- каждую строку файла — импорт замедляется квадратично.
-CREATE INDEX IF NOT EXISTS modifications_generation_id_idx
-    ON modifications (generation_id);
+-- Естественный ключ модификации: своего ID у внешних источников мы не
+-- храним, поэтому «та же самая» модификация определяется набором
+-- характеристик. Уникальный индекс позволяет импорту вставлять через
+-- ON CONFLICT вместо отдельного SELECT на каждую строку файла.
+--
+-- NULLS NOT DISTINCT (PostgreSQL 15+) обязателен: без него две строки
+-- с engine_code IS NULL считались бы разными и дубли бы прошли.
+--
+-- Первым столбцом идёт generation_id, поэтому индекс заодно обслуживает
+-- поиск по одному generation_id (внешний ключ своего индекса не создаёт).
+CREATE UNIQUE INDEX IF NOT EXISTS modifications_natural_key_idx
+    ON modifications (generation_id, engine_code, transmission, drive, power_hp)
+    NULLS NOT DISTINCT;
+
+DROP INDEX IF EXISTS modifications_generation_id_idx;
 
 -- Комплектация (трим): «Комфорт», «Люкс»... У одной модификации их
 -- может быть несколько, названия и состав — только свои, никакого
