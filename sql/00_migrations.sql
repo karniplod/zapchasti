@@ -59,3 +59,9 @@ CREATE TABLE IF NOT EXISTS complectations (
     sort_order      smallint NOT NULL DEFAULT 0,
     UNIQUE (modification_id, name)
 );
+
+-- Комплектация принятой машины. Не обязательна: у многих модификаций
+-- её в справочнике нет, а приёмщик не всегда может определить трим
+-- по кузову — тогда поле остаётся пустым.
+ALTER TABLE donors ADD COLUMN IF NOT EXISTS complectation_id int
+    REFERENCES complectations(id);

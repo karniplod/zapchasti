@@ -14,6 +14,7 @@
 
 import shutil
 import uuid
+from datetime import date
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
@@ -47,11 +48,15 @@ class DonorCreate(BaseModel):
     vin: str | None = None
     generation_id: int
     modification_id: int | None = None
+    complectation_id: int | None = None
     year: int | None = None
     color: str | None = None
     mileage_km: int | None = None
     plate: str | None = None
     purchase_price: float | None = None
+    # Пусто = сегодня. Машину нередко заводят в системе через день-два
+    # после того, как она реально приехала
+    accepted_at: date | None = None
     notes: str | None = None
 
     @field_validator("vin")
@@ -205,11 +210,26 @@ async def generations(model_id: int, session: AsyncSession = Depends(get_session
 async def modifications(generation_id: int, session: AsyncSession = Depends(get_session)):
     rows = await session.execute(
         text("""
-        SELECT id, engine_code, engine_volume, fuel, power_hp, transmission, drive
+        SELECT id, engine_code, engine_volume, fuel, power_hp, transmission, drive, doors
           FROM modifications WHERE generation_id = :g
          ORDER BY engine_volume, power_hp
     """),
         {"g": generation_id},
+    )
+    return [dict(r._mapping) for r in rows]
+
+
+@router.get("/api/complectations")
+async def complectations(modification_id: int, session: AsyncSession = Depends(get_session)):
+    """Список пуст, если в справочнике комплектаций для этой модификации
+    нет — форма тогда просто не показывает поле."""
+    rows = await session.execute(
+        text("""
+        SELECT id, name FROM complectations
+         WHERE modification_id = :m
+         ORDER BY sort_order, name
+    """),
+        {"m": modification_id},
     )
     return [dict(r._mapping) for r in rows]
 
@@ -243,10 +263,11 @@ async def create_donor(
     donor_id = (
         await session.execute(
             text("""
-        INSERT INTO donors (code, vin, generation_id, modification_id, year, color,
-                            mileage_km, plate, purchase_price, notes, vin_source)
-        VALUES (:code, :vin, :gen, :mod, :year, :color,
-                :mileage, :plate, :price, :notes, :src)
+        INSERT INTO donors (code, vin, generation_id, modification_id, complectation_id,
+                            year, color, mileage_km, plate, purchase_price,
+                            accepted_at, notes, vin_source)
+        VALUES (:code, :vin, :gen, :mod, :compl, :year, :color,
+                :mileage, :plate, :price, COALESCE(:accepted, CURRENT_DATE), :notes, :src)
         RETURNING id
     """),
             {
@@ -254,6 +275,8 @@ async def create_donor(
                 "vin": payload.vin,
                 "gen": payload.generation_id,
                 "mod": payload.modification_id,
+                "compl": payload.complectation_id,
+                "accepted": payload.accepted_at,
                 "year": payload.year,
                 "color": payload.color,
                 "mileage": payload.mileage_km,

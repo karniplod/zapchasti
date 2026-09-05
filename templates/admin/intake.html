@@ -101,6 +101,12 @@ header .code{font-family:var(--mono);font-size:13px;color:var(--amber)}
     <div><label for="generation">Поколение</label><select id="generation" disabled></select></div>
     <div><label for="modification">Модификация</label><select id="modification" disabled></select></div>
   </div>
+  <!-- Комплектация есть в справочнике не у всех модификаций — блок
+       показывается только когда там реально что-то нашлось -->
+  <div id="complectationBox" style="margin-top:14px" hidden>
+    <label for="complectation">Комплектация</label>
+    <select id="complectation"></select>
+  </div>
 </section>
 
 <!-- Состояние ---------------------------------------------------->
@@ -112,6 +118,7 @@ header .code{font-family:var(--mono);font-size:13px;color:var(--amber)}
     <div><label for="mileage">Пробег, км</label><input type="number" id="mileage" min="0"></div>
     <div><label for="plate">Госномер</label><input type="text" id="plate"></div>
     <div><label for="price">Цена закупки, ₽</label><input type="number" id="price" min="0" step="100"></div>
+    <div><label for="acceptedAt">Дата приёмки</label><input type="date" id="acceptedAt"></div>
   </div>
   <div style="margin-top:14px">
     <label for="notes-field">Заметки приёмщика</label>
@@ -246,7 +253,16 @@ async function fill(sel, url, format, keep){
 }
 
 const fmtGen = g => `${g.name}${g.body_type ? ', ' + g.body_type : ''} (${g.year_from}–${g.year_to || 'н.в.'})`;
-const fmtMod = m => [m.engine_volume && m.engine_volume + ' л', m.engine_code, m.power_hp && m.power_hp + ' л.с.', m.transmission, m.drive].filter(Boolean).join(' · ');
+const fmtMod = m => [m.engine_volume && m.engine_volume + ' л', m.engine_code, m.power_hp && m.power_hp + ' л.с.', m.transmission, m.drive, m.doors && m.doors + ' дв.'].filter(Boolean).join(' · ');
+
+// Комплектации есть далеко не у всех модификаций: если справочник пуст,
+// поле не показываем, чтобы не мозолило глаза пустым списком
+async function loadComplectations(modificationId){
+  const box = $('complectationBox');
+  if (!modificationId){ box.hidden = true; $('complectation').innerHTML = ''; return; }
+  await fill('complectation', `/api/complectations?modification_id=${modificationId}`, r => r.name);
+  box.hidden = $('complectation').options.length <= 1;
+}
 
 async function applyChain(c){
   await fill('model', `/api/models?brand_id=${c.brand_id}`, r => r.name, c.model_id);
@@ -254,6 +270,7 @@ async function applyChain(c){
   await fill('modification', `/api/modifications?generation_id=${c.generation_id}`, fmtMod, c.modification_id);
   $('brand').value = c.brand_id;
   ['brand','model','generation','modification'].forEach(id => $(id).classList.add('auto'));
+  await loadComplectations(c.modification_id);
   refreshSave();
 }
 
@@ -261,20 +278,26 @@ $('brand').addEventListener('change', async e => {
   clearAuto();
   await fill('model', e.target.value ? `/api/models?brand_id=${e.target.value}` : null, r => r.name);
   await fill('generation', null); await fill('modification', null);
+  await loadComplectations(null);
   refreshSave();
 });
 $('model').addEventListener('change', async e => {
   clearAuto();
   await fill('generation', e.target.value ? `/api/generations?model_id=${e.target.value}` : null, fmtGen);
   await fill('modification', null);
+  await loadComplectations(null);
   refreshSave();
 });
 $('generation').addEventListener('change', async e => {
   clearAuto();
   await fill('modification', e.target.value ? `/api/modifications?generation_id=${e.target.value}` : null, fmtMod);
+  await loadComplectations(null);
   refreshSave();
 });
-$('modification').addEventListener('change', refreshSave);
+$('modification').addEventListener('change', async e => {
+  await loadComplectations(e.target.value || null);
+  refreshSave();
+});
 
 const clearAuto = () => ['brand','model','generation','modification']
   .forEach(id => $(id).classList.remove('auto'));
@@ -318,11 +341,13 @@ $('save').addEventListener('click', async () => {
     vin: $('noVin').checked ? null : $('vin').value,
     generation_id: +$('generation').value,
     modification_id: $('modification').value ? +$('modification').value : null,
+    complectation_id: $('complectation').value ? +$('complectation').value : null,
     year: $('year').value ? +$('year').value : null,
     color: $('color').value || null,
     mileage_km: $('mileage').value ? +$('mileage').value : null,
     plate: $('plate').value || null,
     purchase_price: $('price').value ? +$('price').value : null,
+    accepted_at: $('acceptedAt').value || null,
     notes: $('notes-field').value || null
   };
   try {
@@ -358,8 +383,11 @@ $('save').addEventListener('click', async () => {
 function resetForm(){
   $('vin').value = ''; $('vin').disabled = false; $('noVin').checked = false;
   paintRuler(''); $('readout').innerHTML = ''; $('notes').innerHTML = '';
+  // Дату приёмки намеренно не сбрасываем: партию машин заводят одним
+  // заходом и обычно одной датой
   ['year','color','mileage','plate','price','notes-field'].forEach(id => $(id).value = '');
   ['model','generation','modification'].forEach(id => { $(id).innerHTML=''; $(id).disabled = true; });
+  $('complectation').innerHTML = ''; $('complectationBox').hidden = true;
   $('brand').value = ''; clearAuto();
   files = []; $('photos').value = ''; $('thumbs').innerHTML = '';
   $('dropzone').textContent = 'Снять или выбрать фото — четыре угла, салон, подкапотное';
