@@ -41,6 +41,7 @@ import argparse
 import asyncio
 import re
 import sys
+import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -76,6 +77,60 @@ def to_num(v):
         return float(v) if v not in (None, "") else None
     except ValueError:
         return None
+
+
+def human_time(seconds: float) -> str:
+    seconds = int(max(seconds, 0))
+    h, rem = divmod(seconds, 3600)
+    m, s = divmod(rem, 60)
+    return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
+
+
+class Progress:
+    """Прогресс по объёму прочитанного файла, а не по числу строк:
+    сколько всего записей внутри — заранее неизвестно, а размер известен.
+
+    Печатает не чаще раза в `every` секунд, иначе на большом файле сам
+    вывод начинает заметно тормозить импорт."""
+
+    def __init__(self, total_bytes: int, every: float = 2.0, enabled: bool = True):
+        self.total = total_bytes
+        self.every = every
+        self.enabled = enabled
+        self.started = time.monotonic()
+        self.last_print = 0.0
+        self.pos = 0
+        self.records = 0
+        # \r работает в живом терминале; при перенаправлении в файл нужен перенос
+        self.inline = sys.stdout.isatty()
+
+    def update(self, pos: int, records: int, force: bool = False):
+        self.pos, self.records = pos, records
+        now = time.monotonic()
+        if not self.enabled or (not force and now - self.last_print < self.every):
+            return
+        self.last_print = now
+
+        elapsed = now - self.started
+        share = (self.pos / self.total) if self.total else 0
+        rate = self.records / elapsed if elapsed > 0 else 0
+        eta = (elapsed / share - elapsed) if share > 0.001 else 0
+
+        line = (
+            f"  {share * 100:5.1f}%  |  модификаций: {self.records:>9,}"
+            f"  |  {rate:>7,.0f}/сек"
+            f"  |  прошло {human_time(elapsed)}"
+            f"  |  осталось ~{human_time(eta)}"
+        ).replace(",", " ")
+
+        if self.inline:
+            print(f"\r{line}", end="", flush=True)
+        else:
+            print(line, flush=True)
+
+    def done(self):
+        if self.enabled and self.inline:
+            print()
 
 
 async def upsert_brand(session, name: str, cache: dict) -> int:
@@ -166,89 +221,111 @@ async def upsert_modification(session, generation_id: int, mod: dict) -> tuple[i
     return row.id, row.inserted
 
 
-async def load(path: Path, dry_run: bool):
+async def load(path: Path, dry_run: bool, batch_size: int = 1000, show_progress: bool = True):
+    """batch_size — через сколько модификаций фиксировать транзакцию.
+    0 (и всегда при --dry-run) — одна транзакция на весь файл.
+
+    Порционные коммиты нужны на больших файлах: одна транзакция на
+    миллион строк держит блокировки часами, раздувает WAL и при обрыве
+    теряет всю работу. Скрипт идемпотентен, поэтому после обрыва его
+    можно просто запустить заново — уже залитое пропустится."""
     stats = {"brands": 0, "models": 0, "generations": 0, "modifications": 0, "complectations": 0}
     brand_cache, model_cache, gen_cache = {}, {}, {}
+    since_commit = 0
+
+    total_bytes = path.stat().st_size
+    progress = Progress(total_bytes, enabled=show_progress)
 
     async with SessionFactory() as session:
-        # iterparse — файлы такого рода бывают большими, целиком в память не грузим
-        context = ET.iterparse(path, events=("end",))
-        for _, elem in context:
-            if elem.tag != "Make":
-                continue
-
-            brand_name = elem.get("name")
-            if not brand_name:
-                elem.clear()
-                continue
-            brand_id = await upsert_brand(session, brand_name, brand_cache)
-
-            for model_el in elem.findall("Model"):
-                model_name = model_el.get("name")
-                if not model_name:
+        # Файл открываем сами: по f.tell() видно, сколько уже прочитано,
+        # и из этого считается процент. iterparse не грузит файл целиком.
+        with path.open("rb") as fh:
+            context = ET.iterparse(fh, events=("end",))
+            for _, elem in context:
+                if elem.tag != "Make":
                     continue
-                model_id = await upsert_model(session, brand_id, model_name, model_cache)
 
-                for gen_el in model_el.findall("Generation"):
-                    gen_name = gen_el.get("name") or "Все годы"
+                brand_name = elem.get("name")
+                if not brand_name:
+                    elem.clear()
+                    continue
+                brand_id = await upsert_brand(session, brand_name, brand_cache)
 
-                    def field(tag):
-                        node = None
-                        for mod_el in gen_el.findall("Modification"):
-                            node = mod_el.find(tag)
-                            if node is not None:
-                                break
-                        return node.text if node is not None else None
+                for model_el in elem.findall("Model"):
+                    model_name = model_el.get("name")
+                    if not model_name:
+                        continue
+                    model_id = await upsert_model(session, brand_id, model_name, model_cache)
 
-                    year_from = to_int(field("YearFrom"))
-                    year_to = to_int(field("YearTo"))
-                    body_type = field("BodyType")
+                    for gen_el in model_el.findall("Generation"):
+                        gen_name = gen_el.get("name") or "Все годы"
 
-                    generation_id = await upsert_generation(
-                        session, model_id, gen_name, body_type, year_from, year_to, gen_cache
-                    )
+                        def field(tag, _gen=gen_el):
+                            for mod_el in _gen.findall("Modification"):
+                                node = mod_el.find(tag)
+                                if node is not None:
+                                    return node.text
+                            return None
 
-                    for mod_el in gen_el.findall("Modification"):
-                        engine_code = mod_el.findtext("EngineCode")
-                        engine_volume = to_num(mod_el.findtext("EngineSize"))
-                        fuel = mod_el.findtext("FuelType")
-                        power_hp = to_int(mod_el.findtext("Power"))
-                        transmission = mod_el.findtext("Transmission")
-                        drive = mod_el.findtext("DriveType")
-                        doors = to_int(mod_el.findtext("Doors"))
-
-                        mod_id, inserted = await upsert_modification(
+                        generation_id = await upsert_generation(
                             session,
-                            generation_id,
-                            {
-                                "ec": engine_code, "ev": engine_volume, "fu": fuel,
-                                "ph": power_hp, "tr": transmission, "dr": drive, "do": doors,
-                            },
+                            model_id,
+                            gen_name,
+                            field("BodyType"),
+                            to_int(field("YearFrom")),
+                            to_int(field("YearTo")),
+                            gen_cache,
                         )
-                        if inserted:
-                            stats["modifications"] += 1
 
-                        comps = mod_el.find("Complectations")
-                        if comps is not None:
-                            for o, c_el in enumerate(comps.findall("Complectation")):
-                                c_name = c_el.get("name")
-                                if not c_name:
-                                    continue
-                                r = (
-                                    await session.execute(
-                                        text("""
-                                    INSERT INTO complectations (modification_id, name, sort_order)
-                                    VALUES (:m, :n, :o)
-                                    ON CONFLICT (modification_id, name) DO NOTHING
-                                    RETURNING id
-                                """),
-                                        {"m": mod_id, "n": c_name, "o": o},
-                                    )
-                                ).first()
-                                if r:
-                                    stats["complectations"] += 1
+                        for mod_el in gen_el.findall("Modification"):
+                            mod_id, inserted = await upsert_modification(
+                                session,
+                                generation_id,
+                                {
+                                    "ec": mod_el.findtext("EngineCode"),
+                                    "ev": to_num(mod_el.findtext("EngineSize")),
+                                    "fu": mod_el.findtext("FuelType"),
+                                    "ph": to_int(mod_el.findtext("Power")),
+                                    "tr": mod_el.findtext("Transmission"),
+                                    "dr": mod_el.findtext("DriveType"),
+                                    "do": to_int(mod_el.findtext("Doors")),
+                                },
+                            )
+                            if inserted:
+                                stats["modifications"] += 1
+                            since_commit += 1
 
-            elem.clear()
+                            comps = mod_el.find("Complectations")
+                            if comps is not None:
+                                for o, c_el in enumerate(comps.findall("Complectation")):
+                                    c_name = c_el.get("name")
+                                    if not c_name:
+                                        continue
+                                    r = (
+                                        await session.execute(
+                                            text("""
+                                        INSERT INTO complectations (modification_id, name, sort_order)
+                                        VALUES (:m, :n, :o)
+                                        ON CONFLICT (modification_id, name) DO NOTHING
+                                        RETURNING id
+                                    """),
+                                            {"m": mod_id, "n": c_name, "o": o},
+                                        )
+                                    ).first()
+                                    if r:
+                                        stats["complectations"] += 1
+
+                elem.clear()
+
+                # Марка целиком разобрана — удобная точка, чтобы показать
+                # прогресс и при необходимости зафиксировать порцию
+                progress.update(fh.tell(), stats["modifications"])
+                if not dry_run and batch_size and since_commit >= batch_size:
+                    await session.commit()
+                    since_commit = 0
+
+            progress.update(fh.tell(), stats["modifications"], force=True)
+            progress.done()
 
         stats["brands"] = len(brand_cache)
         stats["models"] = len(model_cache)
@@ -256,7 +333,7 @@ async def load(path: Path, dry_run: bool):
 
         if dry_run:
             await session.rollback()
-            print("\n[ПРОБНЫЙ ЗАПУСК] Изменения откачены, ничего не сохранено.")
+            print("[ПРОБНЫЙ ЗАПУСК] Изменения откачены, ничего не сохранено.")
         else:
             await session.commit()
 
@@ -267,14 +344,22 @@ async def main():
     ap = argparse.ArgumentParser(description="Импорт модификаций и комплектаций из XML")
     ap.add_argument("--file", required=True, help="XML со структурой Make/Model/Generation/Modification")
     ap.add_argument("--dry-run", action="store_true", help="разобрать файл, ничего не записывая")
+    ap.add_argument(
+        "--batch-size",
+        type=int,
+        default=1000,
+        help="через сколько модификаций фиксировать транзакцию; 0 — одна на весь файл (по умолчанию 1000)",
+    )
+    ap.add_argument("--quiet", action="store_true", help="без строки прогресса")
     args = ap.parse_args()
 
     path = Path(args.file)
     if not path.exists():
         sys.exit(f"Файл не найден: {path}")
 
-    print(f"Читаю {path.name}…")
-    stats = await load(path, args.dry_run)
+    size_mb = path.stat().st_size / 1024 / 1024
+    print(f"Читаю {path.name} ({size_mb:,.1f} МБ)…".replace(",", " "))
+    stats = await load(path, args.dry_run, batch_size=args.batch_size, show_progress=not args.quiet)
 
     print(f"""
 Готово.
