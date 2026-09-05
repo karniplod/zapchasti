@@ -23,6 +23,7 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..auth import require_role
 from ..database import get_session
 from ..templating import templates
 
@@ -44,7 +45,10 @@ CONDITIONS = {"A", "B", "C", "D"}
 
 @router.get("/donors/{donor_id}/dismantle", response_class=HTMLResponse)
 async def dismantle_page(
-    donor_id: int, request: Request, session: AsyncSession = Depends(get_session)
+    donor_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+    user=Depends(require_role("dismantler")),
 ):
     donor = await fetch_donor(session, donor_id)
     if not donor:
@@ -73,7 +77,11 @@ async def fetch_donor(session: AsyncSession, donor_id: int):
 
 
 @router.get("/api/donors/{donor_id}")
-async def donor_info(donor_id: int, session: AsyncSession = Depends(get_session)):
+async def donor_info(
+    donor_id: int,
+    session: AsyncSession = Depends(get_session),
+    user=Depends(require_role("dismantler")),
+):
     donor = await fetch_donor(session, donor_id)
     if not donor:
         raise HTTPException(404, "Донор не найден")
@@ -86,7 +94,11 @@ async def donor_info(donor_id: int, session: AsyncSession = Depends(get_session)
 
 
 @router.get("/api/part-categories")
-async def part_categories(q: str | None = None, session: AsyncSession = Depends(get_session)):
+async def part_categories(
+    q: str | None = None,
+    session: AsyncSession = Depends(get_session),
+    user=Depends(require_role("dismantler")),
+):
     """Плоский список конечных категорий с полным путём.
     Разборщику нужен поиск, а не раскрывающееся дерево — быстрее набрать
     «дверь пер» чем кликать три уровня."""
@@ -147,6 +159,7 @@ async def create_part(
     weight_kg: Decimal | None = Form(None),
     files: list[UploadFile] = File(default=[]),
     session: AsyncSession = Depends(get_session),
+    user=Depends(require_role("dismantler")),
 ):
     if condition not in CONDITIONS:
         raise HTTPException(422, "Состояние должно быть A, B, C или D")
@@ -237,7 +250,11 @@ async def create_part(
 
 
 @router.get("/api/donors/{donor_id}/parts")
-async def donor_parts(donor_id: int, session: AsyncSession = Depends(get_session)):
+async def donor_parts(
+    donor_id: int,
+    session: AsyncSession = Depends(get_session),
+    user=Depends(require_role("dismantler")),
+):
     rows = await session.execute(
         text("""
         SELECT p.id, p.sku, p.name, p.condition::text, p.price, p.status::text,
@@ -254,7 +271,11 @@ async def donor_parts(donor_id: int, session: AsyncSession = Depends(get_session
 
 
 @router.delete("/api/parts/{part_id}", status_code=204)
-async def delete_part(part_id: int, session: AsyncSession = Depends(get_session)):
+async def delete_part(
+    part_id: int,
+    session: AsyncSession = Depends(get_session),
+    user=Depends(require_role("dismantler")),
+):
     """Удалять можно только то, что ещё не продано."""
     row = (
         await session.execute(
@@ -288,6 +309,7 @@ async def print_labels(
     request: Request,
     only_new: bool = True,
     session: AsyncSession = Depends(get_session),
+    user=Depends(require_role("dismantler")),
 ):
     """Страница для печати. only_new=True — только детали без напечатанной
     этикетки, чтобы не переводить лист заново после добавления пяти штук."""
@@ -323,7 +345,12 @@ async def print_labels(
 
 
 @router.post("/api/donors/{donor_id}/labels/printed", status_code=204)
-async def mark_printed(donor_id: int, payload: dict, session: AsyncSession = Depends(get_session)):
+async def mark_printed(
+    donor_id: int,
+    payload: dict,
+    session: AsyncSession = Depends(get_session),
+    user=Depends(require_role("dismantler")),
+):
     """Вызывается после window.print(). Требует:
     ALTER TABLE parts ADD COLUMN label_printed_at timestamptz;"""
     ids = payload.get("ids") or []
@@ -345,7 +372,11 @@ async def mark_printed(donor_id: int, payload: dict, session: AsyncSession = Dep
 
 
 @router.post("/api/donors/{donor_id}/finish")
-async def finish_donor(donor_id: int, session: AsyncSession = Depends(get_session)):
+async def finish_donor(
+    donor_id: int,
+    session: AsyncSession = Depends(get_session),
+    user=Depends(require_role("dismantler")),
+):
     """Закрыть разбор. Черновики без фото придётся дофотографировать —
     иначе они навсегда останутся невидимыми в каталоге."""
     drafts = (
