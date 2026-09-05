@@ -33,6 +33,12 @@ ALTER TABLE part_categories ADD COLUMN IF NOT EXISTS avito_category text;
 -- Число дверей — влияет на применимость обшивки, стёкол, замков
 ALTER TABLE modifications ADD COLUMN IF NOT EXISTS doors smallint;
 
+-- Внешний ключ индекс не создаёт, а импорт проверяет дубли модификаций
+-- запросом по generation_id. Без индекса это полный скан таблицы на
+-- каждую строку файла — импорт замедляется квадратично.
+CREATE INDEX IF NOT EXISTS modifications_generation_id_idx
+    ON modifications (generation_id);
+
 -- Комплектация (трим): «Комфорт», «Люкс»... У одной модификации их
 -- может быть несколько, названия и состав — только свои, никакого
 -- внешнего справочника тут нет.
