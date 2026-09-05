@@ -61,6 +61,12 @@ header .code{font-family:var(--mono);font-size:13px;color:var(--amber)}
 .bar{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 26%);
      padding:22px 0 6px;display:flex;gap:12px;align-items:center}
 .status{font-size:13px;color:var(--muted)}
+
+/* Незаполненное обязательное поле. Через outline, а не border —
+   рамка не занимает места и ничего не сдвигает при появлении */
+.need{outline:1px dashed rgba(255,194,51,.6);outline-offset:6px;border-radius:8px}
+.need-tag{color:var(--amber);font-size:11px;letter-spacing:.04em;
+  text-transform:uppercase;font-weight:600;margin-left:8px}
 </style>
 </head>
 <body>
@@ -70,7 +76,7 @@ header .code{font-family:var(--mono);font-size:13px;color:var(--amber)}
 
 <!-- VIN ---------------------------------------------------------->
 <section class="panel">
-  <p class="eyebrow">Идентификация</p>
+  <p class="eyebrow">Идентификация<span class="need-tag" id="needVin" hidden>нужно заполнить</span></p>
   <input id="vin" class="vin-input" maxlength="17" spellcheck="false"
          autocomplete="off" placeholder="VIN — 17 символов">
 
@@ -98,7 +104,8 @@ header .code{font-family:var(--mono);font-size:13px;color:var(--amber)}
   <div class="grid">
     <div><label for="brand">Марка</label><select id="brand"></select></div>
     <div><label for="model">Модель</label><select id="model" disabled></select></div>
-    <div><label for="generation">Поколение</label><select id="generation" disabled></select></div>
+    <div><label for="generation">Поколение<span class="need-tag" id="needGen" hidden>нужно</span></label>
+      <select id="generation" disabled></select></div>
     <div><label for="modification">Модификация</label><select id="modification" disabled></select></div>
   </div>
   <!-- Комплектация есть в справочнике не у всех модификаций — блок
@@ -330,9 +337,21 @@ $('noVin').addEventListener('change', e => {
   refreshSave();
 });
 
+// Кнопка молча гасла, и приёмщик не понимал, чего от него хотят.
+// Подсвечиваем незаполненное и пишем прямо на кнопке, что осталось
 function refreshSave(){
   const vinOk = $('noVin').checked || (decoded && decoded.valid);
-  $('save').disabled = !(vinOk && $('generation').value);
+  const genOk = !!$('generation').value;
+
+  $('vin').classList.toggle('need', !vinOk);
+  $('needVin').hidden = vinOk;
+  $('generation').classList.toggle('need', !genOk);
+  $('needGen').hidden = genOk;
+
+  $('save').disabled = !(vinOk && genOk);
+  if (!vinOk)       $('save').textContent = 'Введите VIN или отметьте, что его нет';
+  else if (!genOk)  $('save').textContent = 'Выберите модель и поколение';
+  else              $('save').textContent = 'Принять автомобиль';
 }
 
 $('save').addEventListener('click', async () => {

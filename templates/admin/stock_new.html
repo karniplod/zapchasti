@@ -20,6 +20,12 @@ border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-ins
 .primary{padding:14px 20px;flex:1}
 .ghost{padding:14px 16px}
 .toast{bottom:92px}
+
+/* Незаполненное обязательное поле. Через outline, а не border —
+   рамка не занимает места и ничего не сдвигает при появлении */
+.need{outline:1px dashed rgba(255,194,51,.6);outline-offset:6px;border-radius:8px}
+.need-tag{color:var(--amber);font-size:11px;letter-spacing:.04em;
+  text-transform:uppercase;font-weight:600;margin-left:8px}
 </style></head><body>
 
 {% include "admin/_nav.html" %}
@@ -44,7 +50,7 @@ border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-ins
   <div class="thumbs" id="thumbs"></div>
 
   <div id="catBox" style="margin-top:18px">
-    <label for="catSearch">Что это за деталь</label>
+    <label for="catSearch">Что это за деталь<span class="need-tag" id="needCat" hidden>нужно заполнить</span></label>
     <input type="text" id="catSearch" placeholder="дверь пер, фара, стойка…" autocomplete="off">
     <div class="results" id="catResults"></div>
   </div>
@@ -56,7 +62,7 @@ border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-ins
   </div>
 
   <div style="margin-top:18px">
-    <label>Состояние</label>
+    <label>Состояние<span class="need-tag" id="needCond" hidden>нужно заполнить</span></label>
     <div class="cond" id="cond">
       <button type="button" data-c="A"><b>A</b><small>отличное</small></button>
       <button type="button" data-c="B"><b>B</b><small>рабочее</small></button>
@@ -88,7 +94,7 @@ border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-ins
 </section>
 
 <section class="panel" id="fitsPanel">
-  <p class="eyebrow">К каким машинам подходит</p>
+  <p class="eyebrow">К каким машинам подходит<span class="need-tag" id="needFits" hidden>нужно заполнить</span></p>
   <p class="hint">Деталь снята не с нашей машины, поэтому применимость нужно
      указать вручную — иначе покупатель её не найдёт ни по одному фильтру.</p>
 
@@ -221,8 +227,21 @@ function applyDonorMode(){
 $('donor').onchange = applyDonorMode;
 
 // --- сохранение ---
+// Текста на кнопке мало: он говорит, чего не хватает, но не показывает
+// где это на странице. Поэтому незаполненное обязательное поле ещё и
+// обводится, с пометкой у заголовка
+function markNeed(el, tagId, needed){
+  el.classList.toggle('need', needed);
+  $(tagId).hidden = !needed;
+}
+
 function refresh(){
   const fitsOk = fromDonor() || fits.length > 0;
+
+  markNeed($('catBox'), 'needCat', !category);
+  markNeed($('cond'), 'needCond', !condition);
+  markNeed($('fitsPanel'), 'needFits', !fitsOk && !fromDonor());
+
   $('save').disabled = !(category && condition && fitsOk);
   if (!category)        $('save').textContent='Выберите деталь';
   else if (!condition)  $('save').textContent='Укажите состояние';
