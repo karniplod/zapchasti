@@ -29,3 +29,17 @@ ALTER TABLE donor_photos
 -- NULL — площадка делит это на несколько своих разделов вне «Для автомобилей»
 -- (Мультимедиа/Колёса/Прочее/Климат), однозначного соответствия нет.
 ALTER TABLE part_categories ADD COLUMN IF NOT EXISTS avito_category text;
+
+-- Число дверей — влияет на применимость обшивки, стёкол, замков
+ALTER TABLE modifications ADD COLUMN IF NOT EXISTS doors smallint;
+
+-- Комплектация (трим): «Комфорт», «Люкс»... У одной модификации их
+-- может быть несколько, названия и состав — только свои, никакого
+-- внешнего справочника тут нет.
+CREATE TABLE IF NOT EXISTS complectations (
+    id              serial PRIMARY KEY,
+    modification_id int NOT NULL REFERENCES modifications(id) ON DELETE CASCADE,
+    name            text NOT NULL,
+    sort_order      smallint NOT NULL DEFAULT 0,
+    UNIQUE (modification_id, name)
+);
