@@ -313,17 +313,22 @@ async def seed(dry_run: bool):
     ids: dict[tuple[str, ...], int] = {}
 
     async with SessionFactory() as s:
-        for order, (path, _) in enumerate(walk(TREE)):
+        for order, (path, children) in enumerate(walk(TREE)):
             parent_id = ids.get(path[:-1])
+            # Пустой список — ветка «на будущее» (Прицепы, Для мототехники).
+            # None — настоящая конечная категория, в неё кладут детали.
+            placeholder = children == []
             row = (
                 await s.execute(
                     text("""
-                INSERT INTO part_categories (parent_id, name, slug, sort_order, avito_category)
-                VALUES (:p, :n, :s, :o, :av)
+                INSERT INTO part_categories
+                    (parent_id, name, slug, sort_order, avito_category, is_placeholder)
+                VALUES (:p, :n, :s, :o, :av, :ph)
                 ON CONFLICT (slug) DO UPDATE
                     SET name = part_categories.name,
                         avito_category = COALESCE(part_categories.avito_category,
-                                                  EXCLUDED.avito_category)
+                                                  EXCLUDED.avito_category),
+                        is_placeholder = EXCLUDED.is_placeholder
                 RETURNING id, (xmax = 0) AS ins
             """),
                     {
@@ -334,6 +339,7 @@ async def seed(dry_run: bool):
                         "s": slugify("-".join(path)),
                         "o": order,
                         "av": avito_section(path),
+                        "ph": placeholder,
                     },
                 )
             ).first()

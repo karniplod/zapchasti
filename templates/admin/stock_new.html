@@ -116,7 +116,7 @@ border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-ins
 </div>
 
 <div class="bar"><div class="inner">
-  <button class="primary" id="save" disabled>Выберите деталь</button>
+  <button class="primary" id="save">Выберите деталь</button>
   <button class="ghost" id="reset">Очистить</button>
 </div></div>
 
@@ -235,6 +235,14 @@ function markNeed(el, tagId, needed){
   $(tagId).hidden = !needed;
 }
 
+// Первое незаполненное поле — к нему прокручиваем по нажатию кнопки
+function firstMissing(){
+  if (!category)  return $('catSearch');
+  if (!condition) return $('cond');
+  if (!(fromDonor() || fits.length)) return $('donor');
+  return null;
+}
+
 function refresh(){
   const fitsOk = fromDonor() || fits.length > 0;
 
@@ -242,7 +250,8 @@ function refresh(){
   markNeed($('cond'), 'needCond', !condition);
   markNeed($('fitsPanel'), 'needFits', !fitsOk && !fromDonor());
 
-  $('save').disabled = !(category && condition && fitsOk);
+  // Кнопку намеренно не гасим: серая кнопка не объясняет, чего ждёт.
+  // Нажатие с незаполненным полем прокручивает к нему
   if (!category)        $('save').textContent='Выберите деталь';
   else if (!condition)  $('save').textContent='Укажите состояние';
   else if (!fitsOk)     $('save').textContent='Укажите машину или к чему подходит';
@@ -251,6 +260,14 @@ function refresh(){
 }
 
 $('save').onclick = async () => {
+  const miss = firstMissing();
+  if (miss){
+    miss.scrollIntoView({behavior:'smooth', block:'center'});
+    if (miss.focus) miss.focus();
+    toast($('save').textContent);
+    return;
+  }
+
   $('save').disabled=true;
   const fd=new FormData();
   fd.append('category_id',category.id);

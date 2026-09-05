@@ -75,3 +75,10 @@ ALTER TABLE parts ADD COLUMN IF NOT EXISTS source text;
 -- Свой артикул для деталей без машины: P-0001. У снятых с донора
 -- артикул другой — номер машины плюс счётчик (D-0042-0137).
 CREATE SEQUENCE IF NOT EXISTS standalone_part_seq START 1;
+
+-- Ветка дерева, оставленная под будущее наполнение (Прицепы,
+-- Для мототехники, Масла и автохимия). Детей у неё нет, поэтому
+-- в подборе категории она выглядела как обычная конечная категория —
+-- разборщик мог положить деталь в «GPS-навигаторы».
+ALTER TABLE part_categories
+    ADD COLUMN IF NOT EXISTS is_placeholder boolean NOT NULL DEFAULT false;

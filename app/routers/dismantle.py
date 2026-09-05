@@ -101,7 +101,11 @@ async def part_categories(q: str | None = None, session: AsyncSession = Depends(
         )
         SELECT t.id, t.name, t.path
           FROM tree t
+          JOIN part_categories pc ON pc.id = t.id
          WHERE NOT EXISTS (SELECT 1 FROM part_categories c WHERE c.parent_id = t.id)
+           -- Ветки, оставленные под будущее наполнение, детей не имеют
+           -- и без этого попадали бы в подбор как обычные категории
+           AND NOT pc.is_placeholder
            AND (CAST(:q AS text) IS NULL OR t.path ILIKE '%' || CAST(:q AS text) || '%')
          ORDER BY t.path
          LIMIT 60
