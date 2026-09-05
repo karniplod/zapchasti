@@ -106,7 +106,8 @@ header .code{font-family:var(--mono);font-size:13px;color:var(--amber)}
     <div><label for="model">Модель</label><select id="model" disabled></select></div>
     <div><label for="generation">Поколение<span class="need-tag" id="needGen" hidden>нужно</span></label>
       <select id="generation" disabled></select></div>
-    <div><label for="modification">Модификация</label><select id="modification" disabled></select></div>
+    <div><label for="modification">Модификация<span class="need-tag" id="needMod" hidden>нужно</span></label>
+      <select id="modification" disabled></select></div>
   </div>
   <!-- Комплектация есть в справочнике не у всех модификаций — блок
        показывается только когда там реально что-то нашлось -->
@@ -342,15 +343,20 @@ $('noVin').addEventListener('change', e => {
 function refreshSave(){
   const vinOk = $('noVin').checked || (decoded && decoded.valid);
   const genOk = !!$('generation').value;
+  const modOk = !!$('modification').value;
 
   $('vin').classList.toggle('need', !vinOk);
   $('needVin').hidden = vinOk;
   $('generation').classList.toggle('need', !genOk);
   $('needGen').hidden = genOk;
+  // Модификация обязательна: в справочнике она есть у каждого поколения
+  $('modification').classList.toggle('need', genOk && !modOk);
+  $('needMod').hidden = !(genOk && !modOk);
 
-  $('save').disabled = !(vinOk && genOk);
+  $('save').disabled = !(vinOk && genOk && modOk);
   if (!vinOk)       $('save').textContent = 'Введите VIN или отметьте, что его нет';
   else if (!genOk)  $('save').textContent = 'Выберите модель и поколение';
+  else if (!modOk)  $('save').textContent = 'Выберите модификацию';
   else              $('save').textContent = 'Принять автомобиль';
 }
 

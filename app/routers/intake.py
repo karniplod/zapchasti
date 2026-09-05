@@ -47,7 +47,10 @@ class VinRequest(BaseModel):
 class DonorCreate(BaseModel):
     vin: str | None = None
     generation_id: int
-    modification_id: int | None = None
+    # Обязательна: в справочнике модификации есть у всех поколений без
+    # исключения, так что выбирать всегда есть из чего, а донор без
+    # модификации потом всплывает пустотой в подборе деталей
+    modification_id: int
     complectation_id: int | None = None
     year: int | None = None
     color: str | None = None

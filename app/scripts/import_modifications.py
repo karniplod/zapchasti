@@ -140,7 +140,7 @@ async def upsert_brand(session, name: str, cache: dict) -> int:
         await session.execute(
             text("""
         INSERT INTO brands (name, slug, source)
-        VALUES (:n, :s, 'manual')
+        VALUES (:n, :s, 'import')
         ON CONFLICT (slug) DO UPDATE SET name = brands.name
         RETURNING id
     """),
@@ -159,7 +159,7 @@ async def upsert_model(session, brand_id: int, name: str, cache: dict) -> int:
         await session.execute(
             text("""
         INSERT INTO models (brand_id, name, slug, source)
-        VALUES (:b, :n, :s, 'manual')
+        VALUES (:b, :n, :s, 'import')
         ON CONFLICT (brand_id, slug) DO UPDATE SET name = models.name
         RETURNING id
     """),
@@ -180,7 +180,7 @@ async def upsert_generation(
         await session.execute(
             text("""
         INSERT INTO generations (model_id, name, body_type, year_from, year_to, source)
-        VALUES (:m, :n, :b, COALESCE(:yf, 1900), :yt, 'manual')
+        VALUES (:m, :n, :b, COALESCE(:yf, 1900), :yt, 'import')
         ON CONFLICT (model_id, name) DO UPDATE
             SET body_type = COALESCE(generations.body_type, EXCLUDED.body_type),
                 year_to   = COALESCE(generations.year_to, EXCLUDED.year_to)
