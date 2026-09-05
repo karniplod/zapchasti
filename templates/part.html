@@ -34,17 +34,33 @@
 .zoom-btn svg{width:19px;height:19px}
 
 .viewer{position:fixed;inset:0;z-index:100;display:none;
-  background:rgba(18,22,27,.92);padding:24px;cursor:zoom-out}
-.viewer.open{display:flex;align-items:center;justify-content:center}
-.viewer img{max-width:100%;max-height:100%;object-fit:contain;
-  border-radius:var(--r)}
-.viewer .close{position:absolute;top:16px;right:20px;width:40px;height:40px;
-  border:0;border-radius:50%;background:rgba(255,255,255,.14);color:#fff;
-  font-size:24px;line-height:1;cursor:pointer}
+  background:rgba(18,22,27,.92);overflow:hidden;touch-action:none}
+.viewer.open{display:block}
+/* Снимок центрируется, а увеличение делается transform-ом от центра:
+   так масштаб не влияет на раскладку и не дёргает страницу */
+.viewer img{position:absolute;top:50%;left:50%;max-width:100%;max-height:100%;
+  transform-origin:center center;cursor:zoom-in;will-change:transform;
+  user-select:none;-webkit-user-drag:none}
+.viewer.zoomed img{cursor:grab}
+.viewer.zoomed.dragging img{cursor:grabbing}
+
+.viewer .close{position:absolute;top:16px;right:20px;z-index:2;
+  width:40px;height:40px;border:0;border-radius:50%;
+  background:rgba(255,255,255,.14);color:#fff;font-size:24px;line-height:1;
+  cursor:pointer}
 .viewer .close:hover{background:rgba(255,255,255,.24)}
-.viewer .hint{position:absolute;bottom:18px;left:0;right:0;text-align:center;
-  color:rgba(255,255,255,.7);font-size:var(--t-xs)}
-@media(max-width:520px){.viewer{padding:12px}}
+
+.viewer .zoom-ctl{position:absolute;bottom:20px;left:50%;translate:-50% 0;
+  z-index:2;display:flex;align-items:center;gap:4px;padding:4px;
+  background:rgba(255,255,255,.12);border-radius:999px;backdrop-filter:blur(6px)}
+.viewer .zoom-ctl button{width:38px;height:38px;border:0;border-radius:50%;
+  background:none;color:#fff;font-size:20px;line-height:1;cursor:pointer}
+.viewer .zoom-ctl button:hover{background:rgba(255,255,255,.18)}
+.viewer .zoom-ctl .lvl{min-width:52px;text-align:center;color:#fff;
+  font-size:var(--t-xs);font-variant-numeric:tabular-nums}
+.viewer .hint{position:absolute;bottom:70px;left:0;right:0;text-align:center;
+  color:rgba(255,255,255,.55);font-size:var(--t-xs);pointer-events:none}
+@media(max-width:520px){.viewer .hint{display:none}}
 .shots .strip{display:flex;gap:8px;margin-top:10px;overflow-x:auto;padding-bottom:4px}
 .shots .strip button{flex:0 0 76px;height:76px;padding:0;border-radius:8px;
   overflow:hidden;border:2px solid var(--line);background:none;cursor:pointer}
@@ -254,7 +270,12 @@
 <div class="viewer" id="viewer" role="dialog" aria-modal="true" aria-label="Просмотр фото">
   <button class="close" id="viewerClose" aria-label="Закрыть">×</button>
   <img id="viewerImg" alt="{{ part.name }}">
-  <p class="hint">Нажмите в любом месте или Esc, чтобы закрыть</p>
+  <p class="hint">Колесо мыши — масштаб, перетаскивание — сдвиг, Esc — закрыть</p>
+  <div class="zoom-ctl">
+    <button id="zoomOut" aria-label="Уменьшить">−</button>
+    <span class="lvl" id="zoomLvl">100%</span>
+    <button id="zoomIn" aria-label="Увеличить">+</button>
+  </div>
 </div>
 {% endif %}
 
@@ -270,14 +291,44 @@ document.querySelectorAll('.strip button').forEach(b => b.onclick = () => {
   document.querySelectorAll('.strip button').forEach(x => x.classList.toggle('on', x === b));
 });
 
-// Просмотр фото. Открывается тем снимком, который сейчас показан, —
-// иначе после переключения миниатюры увеличивалось бы не то фото
+// Просмотр с увеличением. Открывается тем снимком, который показан
+// сейчас, — иначе после переключения миниатюры увеличивалось бы не то
 (function(){
-  const viewer = $('viewer'), big = $('bigImg');
-  if (!viewer || !big) return;
+  const viewer = $('viewer'), big = $('bigImg'), img = $('viewerImg');
+  if (!viewer || !big || !img) return;
+
+  const MIN = 1, MAX = 6;
+  let scale = 1, tx = 0, ty = 0;
+
+  // Снимок центрирован через top/left 50%, поэтому свой сдвиг на половину
+  // размера входит в ту же трансформацию — иначе центр «уезжает»
+  const apply = () => {
+    img.style.transform =
+      `translate(-50%, -50%) translate(${tx}px, ${ty}px) scale(${scale})`;
+    $('zoomLvl').textContent = Math.round(scale * 100) + '%';
+    viewer.classList.toggle('zoomed', scale > 1);
+  };
+
+  const reset = () => { scale = 1; tx = ty = 0; apply(); };
+
+  // Масштабируем вокруг точки под курсором: она должна остаться на месте
+  const zoomAt = (factor, cx, cy) => {
+    const next = Math.min(MAX, Math.max(MIN, scale * factor));
+    if (next === scale) return;
+    const r = viewer.getBoundingClientRect();
+    const dx = cx - (r.left + r.width / 2) - tx;
+    const dy = cy - (r.top + r.height / 2) - ty;
+    const k = next / scale;
+    tx -= dx * (k - 1);
+    ty -= dy * (k - 1);
+    scale = next;
+    if (scale === 1) { tx = ty = 0; }
+    apply();
+  };
 
   const open = () => {
-    $('viewerImg').src = big.src;
+    img.src = big.src;
+    reset();
     viewer.classList.add('open');
     document.body.style.overflow = 'hidden';   // фон не должен прокручиваться
   };
@@ -288,9 +339,80 @@ document.querySelectorAll('.strip button').forEach(b => b.onclick = () => {
 
   big.onclick = open;
   $('zoomBtn').onclick = e => { e.stopPropagation(); open(); };
-  viewer.onclick = close;
+  $('viewerClose').onclick = close;
+  $('zoomIn').onclick = () => zoomAt(1.5, innerWidth / 2, innerHeight / 2);
+  $('zoomOut').onclick = () => zoomAt(1 / 1.5, innerWidth / 2, innerHeight / 2);
+
+  // После перетаскивания браузер всё равно шлёт click. Без этой отметки
+  // сдвиг снимка заканчивался бы сбросом масштаба
+  let dragged = false;
+
+  // Клик мимо снимка закрывает; по самому снимку — приближает,
+  // а если уже приближено, возвращает к исходному
+  viewer.onclick = e => {
+    if (dragged) { dragged = false; return; }
+    if (e.target === img) { scale > 1 ? reset() : zoomAt(2.5, e.clientX, e.clientY); }
+    else if (!e.target.closest('.zoom-ctl') && !e.target.closest('.close')) close();
+  };
+
+  viewer.addEventListener('wheel', e => {
+    e.preventDefault();
+    zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX, e.clientY);
+  }, {passive: false});
+
+  // Перетаскивание и щипок — общий обработчик на указателях,
+  // поэтому мышь и палец работают одинаково
+  const pts = new Map();
+  let base = null;
+
+  viewer.addEventListener('pointerdown', e => {
+    if (e.target.closest('.zoom-ctl') || e.target.closest('.close')) return;
+    pts.set(e.pointerId, {x: e.clientX, y: e.clientY});
+    viewer.setPointerCapture(e.pointerId);
+    if (pts.size === 2) {
+      const [a, b] = [...pts.values()];
+      base = {d: Math.hypot(a.x - b.x, a.y - b.y), scale};
+    }
+    viewer.classList.add('dragging');
+  });
+
+  viewer.addEventListener('pointermove', e => {
+    const prev = pts.get(e.pointerId);
+    if (!prev) return;
+    const cur = {x: e.clientX, y: e.clientY};
+
+    if (pts.size === 2 && base) {
+      pts.set(e.pointerId, cur);
+      const [a, b] = [...pts.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      const next = Math.min(MAX, Math.max(MIN, base.scale * (d / base.d)));
+      zoomAt(next / scale, (a.x + b.x) / 2, (a.y + b.y) / 2);
+      return;
+    }
+
+    if (scale > 1) {           // без увеличения таскать нечего
+      const dx = cur.x - prev.x, dy = cur.y - prev.y;
+      if (Math.abs(dx) > 2 || Math.abs(dy) > 2) dragged = true;
+      tx += dx;
+      ty += dy;
+      apply();
+    }
+    pts.set(e.pointerId, cur);
+  });
+
+  const release = e => {
+    pts.delete(e.pointerId);
+    if (pts.size < 2) base = null;
+    if (!pts.size) viewer.classList.remove('dragging');
+  };
+  viewer.addEventListener('pointerup', release);
+  viewer.addEventListener('pointercancel', release);
+
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && viewer.classList.contains('open')) close();
+    if (!viewer.classList.contains('open')) return;
+    if (e.key === 'Escape') close();
+    if (e.key === '+' || e.key === '=') zoomAt(1.5, innerWidth / 2, innerHeight / 2);
+    if (e.key === '-') zoomAt(1 / 1.5, innerWidth / 2, innerHeight / 2);
   });
 })();
 
