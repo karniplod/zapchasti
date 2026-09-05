@@ -74,6 +74,20 @@ class DonorCreate(BaseModel):
             raise ValueError("Год вне допустимого диапазона")
         return v
 
+    @field_validator("accepted_at")
+    @classmethod
+    def sane_accepted_at(cls, v):
+        """Поле ввода даты легко «промахивается» на порядки: браузер
+        принимает набранное вручную и отдаёт что-нибудь вроде 0205-01-01.
+        Будущей датой принять машину тоже нельзя."""
+        if v is None:
+            return v
+        if v.year < 2000:
+            raise ValueError("Дата приёмки слишком старая — проверьте, не опечатка ли")
+        if v > date.today():
+            raise ValueError("Дата приёмки в будущем")
+        return v
+
 
 # ------------------------------------------------------------------
 # Страница

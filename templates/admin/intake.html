@@ -118,7 +118,8 @@ header .code{font-family:var(--mono);font-size:13px;color:var(--amber)}
     <div><label for="mileage">Пробег, км</label><input type="number" id="mileage" min="0"></div>
     <div><label for="plate">Госномер</label><input type="text" id="plate"></div>
     <div><label for="price">Цена закупки, ₽</label><input type="number" id="price" min="0" step="100"></div>
-    <div><label for="acceptedAt">Дата приёмки</label><input type="date" id="acceptedAt"></div>
+    <div><label for="acceptedAt">Дата приёмки</label>
+      <input type="date" id="acceptedAt" min="2000-01-01"></div>
   </div>
   <div style="margin-top:14px">
     <label for="notes-field">Заметки приёмщика</label>
@@ -350,34 +351,49 @@ $('save').addEventListener('click', async () => {
     accepted_at: $('acceptedAt').value || null,
     notes: $('notes-field').value || null
   };
+  // Приёмка машины и загрузка фото разнесены намеренно: раньше всё
+  // лежало в одном try, и любая ошибка после успешного сохранения
+  // (в том числе опечатка в коде страницы) показывалась приёмщику как
+  // «нет связи». Машина при этом была принята, он жал «Сохранить»
+  // повторно и получал «VIN уже принят».
+  let donor;
   try {
     const r = await fetch('/api/donors', {
       method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
     });
     if (!r.ok){
-      const err = await r.json();
+      const err = await r.json().catch(() => ({}));
       $('status').textContent = '';
       $('notes').innerHTML = note('err', err.detail || 'Сохранить не удалось');
       $('save').disabled = false;
       return;
     }
-    const donor = await r.json();
-
-    if (files.length){
-      $('status').textContent = 'Загружаю фото…';
-      const fd = new FormData();
-      files.forEach(f => fd.append('files', f));
-      await fetch(`/api/donors/${donor.id}/photos`, {method:'POST', body: fd});
-    }
-
-    $('nextCode').textContent = donor.code;
-    $('status').textContent = `Принят: ${donor.code}. Можно вводить следующий.`;
-    resetForm();
-  } catch {
+    donor = await r.json();
+  } catch (e) {
+    console.error('Приёмка не удалась:', e);
     $('status').textContent = '';
     $('notes').innerHTML = note('err', 'Нет связи с сервером. Не закрывайте вкладку.');
     $('save').disabled = false;
+    return;
   }
+
+  // Дальше машина уже в базе — что бы ни случилось, это не обрыв связи
+  if (files.length){
+    $('status').textContent = 'Загружаю фото…';
+    try {
+      const fd = new FormData();
+      files.forEach(f => fd.append('files', f));
+      const pr = await fetch(`/api/donors/${donor.id}/photos`, {method:'POST', body: fd});
+      if (!pr.ok) throw new Error(`HTTP ${pr.status}`);
+    } catch (e) {
+      console.error('Фото не загрузились:', e);
+      $('notes').innerHTML = note('warn',
+        `${donor.code} принят, но фото не загрузились. Добавьте их позже из карточки машины.`);
+    }
+  }
+
+  $('status').textContent = `Принят: ${donor.code}. Можно вводить следующий.`;
+  resetForm();
 });
 
 function resetForm(){
@@ -398,6 +414,9 @@ $('reset').addEventListener('click', resetForm);
 
 // --- старт ---------------------------------------------------------
 paintRuler('');
+// Будущей датой машину принять нельзя — верхняя граница всегда сегодня
+$('acceptedAt').max = new Date().toISOString().slice(0, 10);
+
 fill('brand', '/api/brands', r => r.name);
 $('vin').focus();
 </script>
