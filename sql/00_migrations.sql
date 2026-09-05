@@ -65,3 +65,13 @@ CREATE TABLE IF NOT EXISTS complectations (
 -- по кузову — тогда поле остаётся пустым.
 ALTER TABLE donors ADD COLUMN IF NOT EXISTS complectation_id int
     REFERENCES complectations(id);
+
+-- Деталь, поступившая отдельно от машины (выкуплена, привезена под
+-- заказ, новая). Схема изначально требовала донора для каждой детали,
+-- поэтому «Принять запчасть» не могла сохранить ничего.
+ALTER TABLE parts ALTER COLUMN donor_id DROP NOT NULL;
+ALTER TABLE parts ADD COLUMN IF NOT EXISTS source text;
+
+-- Свой артикул для деталей без машины: P-0001. У снятых с донора
+-- артикул другой — номер машины плюс счётчик (D-0042-0137).
+CREATE SEQUENCE IF NOT EXISTS standalone_part_seq START 1;

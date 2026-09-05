@@ -1,8 +1,15 @@
-"""Приём запчастей отдельно от авто.
+"""Приём запчастей вне рабочего места разборщика.
 
-Деталь, поступившая не с разбора: выкуплена, привезена под заказ, новая.
-Донора нет, поэтому применимость обязательна — иначе деталь не попадёт
-ни в один фильтр каталога.
+Два случая, и они по-разному считают применимость:
+
+1. Деталь с уже принятой машины — выбирается донор, применимость и
+   артикул берутся от него, как при разборе. Нужно, когда деталь сняли
+   не в общем потоке разбора: вернули с примерки, нашли в кузове позже,
+   разобрали машину частично.
+
+2. Деталь, приехавшая отдельно (выкуплена, под заказ, новая). Донора
+   нет, поэтому применимость обязательна вручную — иначе деталь не
+   попадёт ни в один фильтр каталога.
 """
 
 from decimal import Decimal
@@ -18,7 +25,11 @@ from ..templating import templates
 
 router = APIRouter(tags=["stock"])
 
-SOURCES = {"purchased": "Куплена б/у", "new": "Новая"}
+SOURCES = {
+    "donor": "С принятой машины",
+    "purchased": "Куплена б/у",
+    "new": "Новая",
+}
 CONDITIONS = {"A", "B", "C", "D"}
 
 
@@ -29,13 +40,34 @@ async def stock_page(request: Request, user=Depends(require_role("manager"))):
     )
 
 
+@router.get("/api/stock/donors")
+async def acceptable_donors(session: AsyncSession = Depends(get_session)):
+    """Машины, с которых ещё можно снимать детали. Утилизированные
+    и полностью разобранные не предлагаем."""
+    rows = await session.execute(
+        text("""
+        SELECT d.id, d.code, b.name AS brand, m.name AS model,
+               g.name AS generation, d.year
+          FROM donors d
+          JOIN generations g ON g.id = d.generation_id
+          JOIN models m ON m.id = g.model_id
+          JOIN brands b ON b.id = m.brand_id
+         WHERE d.status IN ('accepted', 'dismantling')
+         ORDER BY d.id DESC
+    """)
+    )
+    return [dict(r._mapping) for r in rows]
+
+
 @router.post("/api/stock/parts", status_code=201)
 async def create_standalone(
     category_id: int = Form(...),
     name: str = Form(...),
     condition: str = Form(...),
     source: str = Form(...),
-    generations: str = Form(...),  # id поколений через запятую
+    # Донор указан — применимость берётся от него, generations не нужен
+    donor_id: int | None = Form(None),
+    generations: str = Form(""),  # id поколений через запятую
     oem_number: str | None = Form(None),
     condition_note: str | None = Form(None),
     price: Decimal | None = Form(None),
@@ -50,14 +82,34 @@ async def create_standalone(
         raise HTTPException(422, "Неизвестный источник поступления")
 
     gen_ids = [int(g) for g in generations.split(",") if g.strip().isdigit()]
-    if not gen_ids:
-        raise HTTPException(422, "Укажите хотя бы одну модель, к которой подходит деталь")
 
-    sku = (
-        await session.execute(
-            text("SELECT 'P-' || lpad(nextval('standalone_part_seq')::text, 4, '0')")
-        )
-    ).scalar_one()
+    if donor_id is not None:
+        # Деталь с принятой машины: применимость и артикул — от неё,
+        # руками указывать нечего
+        row = (
+            await session.execute(
+                text("""
+            UPDATE donors SET part_counter = part_counter + 1
+             WHERE id = :id AND status IN ('accepted', 'dismantling')
+            RETURNING code, part_counter, generation_id
+        """),
+                {"id": donor_id},
+            )
+        ).first()
+        if not row:
+            raise HTTPException(404, "Машина не найдена или с неё уже нельзя снимать детали")
+        sku = f"{row.code}-{row.part_counter:04d}"
+        gen_ids = [row.generation_id]
+    else:
+        if not gen_ids:
+            raise HTTPException(
+                422, "Укажите машину или хотя бы одну модель, к которой подходит деталь"
+            )
+        sku = (
+            await session.execute(
+                text("SELECT 'P-' || lpad(nextval('standalone_part_seq')::text, 4, '0')")
+            )
+        ).scalar_one()
 
     oem = "".join(c for c in (oem_number or "").upper() if c.isalnum()) or None
 
@@ -66,12 +118,13 @@ async def create_standalone(
             text("""
         INSERT INTO parts (sku, donor_id, category_id, name, oem_number, condition,
                            condition_note, price, location, status, published, source)
-        VALUES (:sku, NULL, :cat, :name, :oem, CAST(:cond AS part_condition),
+        VALUES (:sku, :donor, :cat, :name, :oem, CAST(:cond AS part_condition),
                 :note, :price, :loc, CAST(:st AS part_status), :pub, :src)
         RETURNING id
     """),
             {
                 "sku": sku,
+                "donor": donor_id,
                 "cat": category_id,
                 "name": name.strip(),
                 "oem": oem,

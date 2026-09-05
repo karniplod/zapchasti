@@ -26,6 +26,17 @@ border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-ins
 
 <div class="wrap">
 
+<!-- Откуда деталь: с нашей машины или со стороны. От этого зависит
+     и артикул, и то, нужно ли указывать применимость руками -->
+<section class="panel">
+  <p class="eyebrow">Откуда деталь</p>
+  <label for="donor">Машина, с которой снята</label>
+  <select id="donor"></select>
+  <p class="hint" id="donorHint" style="margin:8px 0 0">
+    Не с нашей машины — применимость нужно будет указать вручную.
+  </p>
+</section>
+
 <section class="panel">
   <p class="eyebrow">Деталь</p>
   <button type="button" class="shoot" id="shoot">📷 Снять деталь</button>
@@ -56,7 +67,7 @@ border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-ins
 
   <div class="row" style="margin-top:18px">
     <div>
-      <label for="source">Откуда поступила</label>
+      <label for="source">Как поступила</label>
       <select id="source">
         {% for k, v in sources.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
       </select>
@@ -76,10 +87,10 @@ border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-ins
   </div>
 </section>
 
-<section class="panel">
+<section class="panel" id="fitsPanel">
   <p class="eyebrow">К каким машинам подходит</p>
-  <p class="hint">Деталь снята не с машины, поэтому применимость нужно указать
-     вручную — иначе покупатель её не найдёт ни по одному фильтру.</p>
+  <p class="hint">Деталь снята не с нашей машины, поэтому применимость нужно
+     указать вручную — иначе покупатель её не найдёт ни по одному фильтру.</p>
 
   <div class="row"><div>
     <label for="brand">Марка</label><select id="brand"></select></div>
@@ -191,13 +202,31 @@ function drawFits(){
   $('noFits').hidden = fits.length>0;
 }
 
+// --- машина, с которой снята деталь ---
+// Выбрана машина — применимость и артикул берутся от неё, руками
+// указывать нечего, поэтому весь блок применимости прячем
+const fromDonor = () => !!$('donor').value;
+
+function applyDonorMode(){
+  const on = fromDonor();
+  $('fitsPanel').hidden = on;
+  $('donorHint').textContent = on
+    ? 'Применимость и артикул возьмутся от машины — указывать вручную ничего не нужно.'
+    : 'Не с нашей машины — применимость нужно будет указать вручную.';
+  // Источник поступления при этом очевиден и меняться не должен
+  $('source').value = on ? 'donor' : ($('source').value === 'donor' ? 'purchased' : $('source').value);
+  $('source').disabled = on;
+  refresh();
+}
+$('donor').onchange = applyDonorMode;
+
 // --- сохранение ---
 function refresh(){
-  const ok = category && condition && fits.length;
-  $('save').disabled = !ok;
+  const fitsOk = fromDonor() || fits.length > 0;
+  $('save').disabled = !(category && condition && fitsOk);
   if (!category)        $('save').textContent='Выберите деталь';
   else if (!condition)  $('save').textContent='Укажите состояние';
-  else if (!fits.length)$('save').textContent='Укажите, к чему подходит';
+  else if (!fitsOk)     $('save').textContent='Укажите машину или к чему подходит';
   else if (!files.length) $('save').textContent='Принять без фото (черновик)';
   else                  $('save').textContent='Принять запчасть';
 }
@@ -208,8 +237,9 @@ $('save').onclick = async () => {
   fd.append('category_id',category.id);
   fd.append('name',category.name);
   fd.append('condition',condition);
-  fd.append('source',$('source').value);
-  fd.append('generations',fits.map(f=>f.id).join(','));
+  fd.append('source', fromDonor() ? 'donor' : $('source').value);
+  if (fromDonor()) fd.append('donor_id', $('donor').value);
+  else fd.append('generations', fits.map(f=>f.id).join(','));
   [['oem','oem_number'],['price','price'],['loc','location'],['note','condition_note']]
     .forEach(([id,key])=>{ if($(id).value) fd.append(key,$(id).value); });
   files.forEach(f=>fd.append('files',f));
@@ -224,6 +254,8 @@ $('save').onclick = async () => {
 };
 
 function resetForm(){
+  // Машину намеренно не сбрасываем: с одной машины детали снимают
+  // подряд, переспрашивать каждый раз незачем
   category=null; condition=null; files=[]; fits=[];
   $('catBox').hidden=false; $('catPicked').hidden=true; $('catSearch').value='';
   ['price','oem','note'].forEach(id=>$(id).value='');
@@ -239,6 +271,17 @@ function toast(m,k=''){ const el=$('toast'); el.textContent=m; el.className=`toa
 
 document.addEventListener('click',e=>{ if(!e.target.closest('#catBox'))
   $('catResults').classList.remove('open'); });
+
+const fmtDonor = d =>
+  `${d.code} — ${d.brand} ${d.model}${d.year ? ', ' + d.year : ''}`;
+
+(async () => {
+  const el = $('donor');
+  el.innerHTML = '<option value="">Деталь не с нашей машины</option>';
+  const rows = await (await fetch('/api/stock/donors')).json();
+  rows.forEach(d => el.add(new Option(fmtDonor(d), d.id)));
+  applyDonorMode();
+})();
 
 fill('brand','/api/brands',r=>r.name);
 drawFits(); refresh();
