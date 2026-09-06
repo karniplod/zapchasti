@@ -25,6 +25,20 @@ dialog.crop::backdrop{background:#000}
   display:flex;gap:10px;align-items:center;background:#12161c;
   border-top:1px solid #2b333f}
 .crop-bar .hint{flex:1;font-size:13px;color:#8794a6;line-height:1.35}
+.crop-zoom{display:flex;align-items:center;gap:2px;padding:3px;
+  background:#1f2630;border:1px solid #2b333f;border-radius:999px}
+.crop-zoom button{width:36px;height:36px;padding:0;border-radius:50%;
+  background:none;color:#e8ecf2;font-size:19px;font-weight:400}
+.crop-zoom button:hover{background:#2b333f}
+.crop-zoom .lvl{min-width:50px;text-align:center;font-size:12px;color:#8794a6;
+  font-variant-numeric:tabular-nums}
+.crop-zoom .fit{width:auto;padding:0 12px;font-size:13px;font-weight:600;
+  color:#8794a6}
+@media(max-width:560px){
+  /* На телефоне зум делается щипком — кнопки только занимают место */
+  .crop-zoom{display:none}
+  .crop-bar .hint{display:none}
+}
 .crop-bar button{border:0;border-radius:9px;padding:13px 20px;font-size:15px;
   font-weight:600;cursor:pointer;font-family:inherit}
 .crop-ok{background:#ffc233;color:#1a1408}
@@ -38,7 +52,13 @@ dialog.crop::backdrop{background:#000}
       <div class="crop-mask" id="cropMask"></div>
     </div>
     <div class="crop-bar">
-      <span class="hint">Двигайте снимок, щипком меняйте масштаб</span>
+      <div class="crop-zoom">
+        <button type="button" id="cropOut" aria-label="Уменьшить">−</button>
+        <span class="lvl" id="cropLvl">100%</span>
+        <button type="button" id="cropIn" aria-label="Увеличить">+</button>
+        <button type="button" class="fit" id="cropFit">Сбросить</button>
+      </div>
+      <span class="hint">Двигайте снимок, масштаб — колесом мыши или щипком</span>
       <button class="crop-no" id="cropCancel">Отмена</button>
       <button class="crop-ok" id="cropOk">Готово</button>
     </div>
@@ -94,7 +114,23 @@ dialog.crop::backdrop{background:#000}
     clamp();
     ctx.clearRect(0, 0, cv.width, cv.height);
     ctx.drawImage(img, ox, oy, img.width * scale, img.height * scale);
+    const lvl = document.getElementById('cropLvl');
+    if (lvl) lvl.textContent = Math.round(scale / minScale * 100) + '%';
   }
+
+  /** Изменить масштаб, оставив точку (cx, cy) на месте.
+      Координаты — относительно области просмотра. Общая точка для
+      колеса, щипка и кнопок: иначе каждый жест уводил бы кадр по-своему */
+  function zoomAt(next, cx, cy){
+    const prev = scale;
+    scale = next;
+    clamp();
+    ox = cx - (cx - ox) * (scale / prev);
+    oy = cy - (cy - oy) * (scale / prev);
+    draw();
+  }
+
+  const center = () => ({x: box.x + box.side / 2, y: box.y + box.side / 2});
 
   // --- жесты ---
   let pts = new Map(), startDist = 0, startScale = 1, last = null;
@@ -117,15 +153,10 @@ dialog.crop::backdrop{background:#000}
     if (pts.size === 2){
       const [a, b] = [...pts.values()];
       const d = Math.hypot(a.x - b.x, a.y - b.y);
-      const mid = {x:(a.x + b.x)/2 - stage.getBoundingClientRect().left,
-                   y:(a.y + b.y)/2 - stage.getBoundingClientRect().top};
-      const prev = scale;
-      scale = startScale * (d / startDist);
-      clamp();
+      const r = stage.getBoundingClientRect();
       // Масштабируем вокруг точки между пальцами, а не вокруг угла
-      ox = mid.x - (mid.x - ox) * (scale / prev);
-      oy = mid.y - (mid.y - oy) * (scale / prev);
-      draw();
+      zoomAt(startScale * (d / startDist),
+             (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top);
       return;
     }
 
@@ -140,6 +171,23 @@ dialog.crop::backdrop{background:#000}
   const up = e => { pts.delete(e.pointerId); last = null; };
   stage.addEventListener('pointerup', up);
   stage.addEventListener('pointercancel', up);
+
+  // Колесо мыши: за компьютером щипка нет, и без этого масштаб
+  // было не поменять вообще
+  stage.addEventListener('wheel', e => {
+    e.preventDefault();
+    const r = stage.getBoundingClientRect();
+    zoomAt(scale * (e.deltaY < 0 ? 1.12 : 1 / 1.12),
+           e.clientX - r.left, e.clientY - r.top);
+  }, {passive: false});
+
+  document.getElementById('cropIn').onclick = () => {
+    const c = center(); zoomAt(scale * 1.25, c.x, c.y);
+  };
+  document.getElementById('cropOut').onclick = () => {
+    const c = center(); zoomAt(scale / 1.25, c.x, c.y);
+  };
+  document.getElementById('cropFit').onclick = () => { fit(); draw(); };
 
   document.getElementById('cropCancel').onclick = () => {
     dlg.close(); resolve && resolve(null);
