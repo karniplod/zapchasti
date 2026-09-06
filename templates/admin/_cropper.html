@@ -25,24 +25,29 @@ dialog.crop::backdrop{background:#000}
   display:flex;gap:10px;align-items:center;background:#12161c;
   border-top:1px solid #2b333f}
 .crop-bar .hint{flex:1;font-size:13px;color:#8794a6;line-height:1.35}
+.crop-bar button{border:0;border-radius:9px;padding:13px 20px;font-size:15px;
+  font-weight:600;cursor:pointer;font-family:inherit}
+.crop-ok{background:#ffc233;color:#1a1408}
+.crop-no{background:transparent;color:#8794a6;border:1px solid #2b333f}
+
+/* Панель масштаба идёт после .crop-bar button: специфичность у них
+   одинаковая, и объявленное выше просто перебивалось — кнопки получали
+   отступ 13x20 вместо круглых 36x36 и панель разъезжалась */
 .crop-zoom{display:flex;align-items:center;gap:2px;padding:3px;
-  background:#1f2630;border:1px solid #2b333f;border-radius:999px}
-.crop-zoom button{width:36px;height:36px;padding:0;border-radius:50%;
-  background:none;color:#e8ecf2;font-size:19px;font-weight:400}
-.crop-zoom button:hover{background:#2b333f}
+  background:#1f2630;border:1px solid #2b333f;border-radius:999px;
+  flex:0 0 auto}
+.crop-bar .crop-zoom button{width:36px;height:36px;padding:0;border-radius:50%;
+  background:none;color:#e8ecf2;font-size:19px;font-weight:400;line-height:1}
+.crop-bar .crop-zoom button:hover{background:#2b333f}
 .crop-zoom .lvl{min-width:50px;text-align:center;font-size:12px;color:#8794a6;
   font-variant-numeric:tabular-nums}
-.crop-zoom .fit{width:auto;padding:0 12px;font-size:13px;font-weight:600;
-  color:#8794a6}
+.crop-bar .crop-zoom .fit{width:auto;padding:0 12px;font-size:13px;
+  font-weight:600;color:#8794a6}
 @media(max-width:560px){
   /* На телефоне зум делается щипком — кнопки только занимают место */
   .crop-zoom{display:none}
   .crop-bar .hint{display:none}
 }
-.crop-bar button{border:0;border-radius:9px;padding:13px 20px;font-size:15px;
-  font-weight:600;cursor:pointer;font-family:inherit}
-.crop-ok{background:#ffc233;color:#1a1408}
-.crop-no{background:transparent;color:#8794a6;border:1px solid #2b333f}
 </style>
 
 <dialog class="crop" id="cropDlg">
