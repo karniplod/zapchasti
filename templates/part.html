@@ -96,6 +96,8 @@
 .cond .who{font-size:var(--t-xs);color:var(--dim)}
 .cond .note{margin:12px 0 0;font-size:var(--t-sm);color:var(--muted)}
 
+.where{margin:12px 0 0;font-size:var(--t-sm);color:var(--muted)}
+.where b{color:var(--ink);font-weight:600}
 .specs{margin-top:22px;border-top:1px solid var(--line)}
 .specs div{display:flex;gap:14px;padding:11px 0;border-bottom:1px solid var(--line);
   font-size:var(--t-sm)}
@@ -183,6 +185,14 @@
         <span class="stock out">Продана</span>
       {% endif %}
     </div>
+
+    {% if part.branch %}
+    {# Где лежит деталь — вопрос, который задают сразу после цены:
+       за деталью в другом городе поедут не все #}
+    <p class="where">Забрать: <b>{{ part.city }}</b>, {{ part.branch }}
+      {%- if part.branch_address %}, {{ part.branch_address }}{% endif %}
+      {%- if part.branch_phone %} · {{ part.branch_phone }}{% endif %}</p>
+    {% endif %}
 
     <div class="actions">
       <button class="btn btn-primary" id="buy"

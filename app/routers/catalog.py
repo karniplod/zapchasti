@@ -19,7 +19,9 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import optional_user
+from ..config import settings
 from ..database import get_session
+from ..services.geo import detect_city
 from ..templating import templates
 from ..vin_decoder import decode
 
@@ -144,9 +146,12 @@ async def part_page(sku: str, request: Request, session: AsyncSession = Depends(
                b.name AS brand, m.name AS model, g.name AS generation, g.body_type,
                g.id AS generation_id,
                concat_ws(' ', mo.engine_volume || ' л', mo.engine_code,
-                         mo.transmission, mo.drive) AS modification
+                         mo.transmission, mo.drive) AS modification,
+               br.city, br.name AS branch, br.address AS branch_address,
+               br.phone AS branch_phone
           FROM parts p
           JOIN part_categories c ON c.id = p.category_id
+          LEFT JOIN branches br       ON br.id = p.branch_id
           LEFT JOIN part_categories parent ON parent.id = c.parent_id
           LEFT JOIN donors d          ON d.id = p.donor_id
           LEFT JOIN generations g ON g.id = d.generation_id
@@ -394,6 +399,40 @@ FITS_CLAUSE = """
 """
 
 
+@router.get("/api/catalog/cities")
+async def catalog_cities(session: AsyncSession = Depends(get_session)):
+    """Города, в которых реально есть что купить. Пустой филиал
+    покупателю показывать незачем."""
+    rows = await session.execute(
+        text("""
+        SELECT br.city, count(*) AS parts
+          FROM parts p JOIN branches br ON br.id = p.branch_id
+         WHERE p.status = 'in_stock' AND p.published
+         GROUP BY br.city
+         ORDER BY count(*) DESC, br.city
+    """)
+    )
+    return [dict(r._mapping) for r in rows]
+
+
+@router.get("/api/catalog/geo")
+async def catalog_geo(request: Request, session: AsyncSession = Depends(get_session)):
+    """Подсказка города по IP. Отвечает городом только если он у нас
+    действительно есть: угадать «Казань» и показать пустой каталог хуже,
+    чем не угадать вовсе."""
+    city = detect_city(request, settings.geoip_db)
+    if not city:
+        return {"city": None}
+
+    row = (
+        await session.execute(
+            text("SELECT 1 FROM branches WHERE city = :c AND is_active LIMIT 1"),
+            {"c": city},
+        )
+    ).first()
+    return {"city": city if row else None, "detected": city}
+
+
 @router.get("/api/catalog/parts")
 async def catalog_parts(
     generation_id: int | None = None,
@@ -405,6 +444,7 @@ async def catalog_parts(
     price_min: int | None = None,
     price_max: int | None = None,
     q: str | None = None,
+    city: str | None = None,
     sort: str = "new",
     page: int = 1,
     session: AsyncSession = Depends(get_session),
@@ -434,6 +474,13 @@ async def catalog_parts(
         if codes:
             where.append("p.condition = ANY(CAST(:conds AS part_condition[]))")
             params["conds"] = codes
+    if city:
+        # Фильтр по городу детали, а не машины: деталь могли перевезти,
+        # и покупателю важно, где она лежит сейчас
+        where.append(
+            "p.branch_id IN (SELECT id FROM branches WHERE city = CAST(:city AS text))"
+        )
+        params["city"] = city
     if price_min is not None:
         where.append("p.price >= :pmin")
         params["pmin"] = price_min
@@ -478,14 +525,13 @@ async def catalog_parts(
         LEFT JOIN models m      ON m.id = g.model_id
         LEFT JOIN brands b      ON b.id = m.brand_id
         JOIN part_categories c ON c.id = p.category_id
+        LEFT JOIN branches br   ON br.id = p.branch_id
     """
 
     rows = await session.execute(
         text(f"""
         SELECT p.id, p.sku, p.name, p.condition::text AS condition, p.price,
                p.oem_number, c.name AS category,
-               (SELECT pc.name FROM part_categories pc
-                 WHERE pc.id = c.parent_id) AS node,
                (SELECT pc.name FROM part_categories pc
                  WHERE pc.id = c.parent_id) AS node,
                b.name AS brand, m.name AS model, g.name AS generation,
@@ -500,7 +546,8 @@ async def catalog_parts(
                  WHERE pa.part_id = p.id
                  ORDER BY b2.name LIMIT 1) AS fits_first,
                (SELECT count(*) FROM part_applicability pa
-                 WHERE pa.part_id = p.id) AS fits_count
+                 WHERE pa.part_id = p.id) AS fits_count,
+               br.city
         {base_from}
         WHERE {where_sql}
         ORDER BY {order}

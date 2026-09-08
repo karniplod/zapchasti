@@ -103,6 +103,7 @@
 
 <div class="wrap layout">
   <aside class="side" id="side" hidden>
+    <section id="citySection" hidden><h4>Город</h4><div id="cities"></div></section>
     <section><h4>Узел</h4><div id="cats"></div></section>
     <section><h4>Состояние</h4><div id="conds"></div></section>
     <section><h4>Цена, ₽</h4>
@@ -137,7 +138,7 @@
 <script>
 const $ = id => document.getElementById(id);
 const state = {generation_id:null, modification_id:null, category_id:null,
-  condition:[], price_min:null, price_max:null, q:'', sort:'new', page:1};
+  condition:[], price_min:null, price_max:null, q:'', city:null, sort:'new', page:1};
 
 // ── VIN ──────────────────────────────────────────────────
 $('vin').addEventListener('input', e => {
@@ -290,7 +291,9 @@ $('pGo').onclick = () => {
 function openCatalog(){
   $('side').hidden = false;
   state.page = 1; state.category_id = null; state.condition = [];
-  loadFacets(); loadParts();
+  // Ждём город: иначе при быстром выборе машины первая выдача уйдёт
+  // без фильтра и тут же перерисуется — заметное мигание
+  citiesReady.then(() => { loadFacets(); loadParts(); });
   document.querySelector('.layout').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
@@ -335,6 +338,8 @@ $('q').addEventListener('input', () => {
 });
 $('sort').onchange = () => { state.sort = $('sort').value; state.page = 1; loadParts(); };
 $('reset').onclick = () => {
+  // Город намеренно не сбрасываем: это не фильтр подбора, а место,
+  // куда человек готов приехать — и радиокнопки остались бы отмеченными
   Object.assign(state, {category_id:null, condition:[], price_min:null,
     price_max:null, q:'', page:1});
   $('q').value = ''; $('pmin').value = ''; $('pmax').value = '';
@@ -381,7 +386,7 @@ function card(i){
       <div class="body">
         <span class="sku">${i.sku}</span>
         <span class="name">${i.name}</span>
-        <span class="fit">${fit}</span>
+        <span class="fit">${fit}${!state.city && i.city ? ' · '+i.city : ''}</span>
         <span class="price">${i.price ? Number(i.price).toLocaleString('ru')+' ₽'
                                       : 'по запросу'}<small>${i.node || ''}</small></span>
       </div></a>`;
@@ -424,6 +429,53 @@ async function loadFresh(){
 // При подборе по машине свежие убираем: они мешают увидеть результат
 const _openCatalog = openCatalog;
 openCatalog = function(){ $('fresh').hidden = true; _openCatalog(); };
+
+// ── Город ────────────────────────────────────────────────
+// Порядок важен: выбранное человеком важнее подсказки по IP, иначе
+// он выберет Москву, обновит страницу и снова окажется в Перми
+const savedCity = () => document.cookie.match(/(?:^|; )city=([^;]*)/)?.[1];
+
+async function initCities(){
+  const cities = await (await fetch('/api/catalog/cities')).json();
+  // Один город — выбирать не из чего, блок только мешает
+  if (cities.length < 2){ return; }
+
+  const saved = savedCity() && decodeURIComponent(savedCity());
+  let chosen = cities.some(c => c.city === saved) ? saved : null;
+
+  if (!chosen){
+    // Подсказка по IP: сервер отвечает городом, только если он у нас есть
+    try {
+      const geo = await (await fetch('/api/catalog/geo')).json();
+      if (geo.city && cities.some(c => c.city === geo.city)) chosen = geo.city;
+    } catch {}
+  }
+
+  const box = $('cities');
+  box.innerHTML = '';
+  [{city:'', parts:null}, ...cities].forEach(c => {
+    const id = 'city-' + (c.city || 'all');
+    const el = document.createElement('label');
+    el.innerHTML = `<input type="radio" name="city" id="${id}" value="${c.city}"
+        ${c.city === (chosen || '') ? 'checked' : ''}>
+      ${c.city || 'Все города'}
+      ${c.parts !== null ? `<span class="n">${c.parts}</span>` : ''}`;
+    el.querySelector('input').onchange = e => {
+      state.city = e.target.value || null;
+      state.page = 1;
+      // Год — чтобы выбор пережил и закрытие вкладки
+      document.cookie = `city=${encodeURIComponent(e.target.value)};path=/;max-age=31536000`;
+      loadParts();
+    };
+    box.appendChild(el);
+  });
+
+  $('citySection').hidden = false;
+  if (chosen) state.city = chosen;
+}
+
+// Промис, а не await: остальная страница грузится параллельно
+const citiesReady = initCities().catch(() => {});
 
 loadFresh();
 // VIN может прийти с главной — сразу подбираем

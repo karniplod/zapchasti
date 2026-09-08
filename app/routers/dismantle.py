@@ -200,9 +200,13 @@ async def create_part(
         await session.execute(
             text("""
         INSERT INTO parts (sku, donor_id, category_id, name, oem_number, condition,
-                           condition_note, price, location, weight_kg, status, published)
+                           condition_note, price, location, weight_kg, status, published,
+                           branch_id)
         VALUES (:sku, :donor, :cat, :name, :oem, CAST(:cond AS part_condition),
-                :note, :price, :loc, :weight, CAST(:status AS part_status), :pub)
+                :note, :price, :loc, :weight, CAST(:status AS part_status), :pub,
+                -- Деталь появляется там же, где стоит машина. Дальше её
+                -- можно перевезти, и филиал детали разойдётся с машиной
+                (SELECT branch_id FROM donors WHERE id = :donor))
         RETURNING id
     """),
             {

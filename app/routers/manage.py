@@ -34,6 +34,19 @@ async def parts_page(request: Request, user=Depends(current_user)):
     return templates.TemplateResponse("admin/parts.html", {"request": request, "user": user})
 
 
+@router.get("/api/branches")
+async def branches(session: AsyncSession = Depends(get_session), user=Depends(current_user)):
+    """Для выпадающих списков в приёмке и правке."""
+    rows = await session.execute(
+        text("""
+        SELECT id, city, name, city || ', ' || name AS label
+          FROM branches WHERE is_active
+         ORDER BY sort_order, city, name
+    """)
+    )
+    return [dict(r._mapping) for r in rows]
+
+
 @router.get("/api/manage/donors")
 async def donors_list(
     status: str | None = None,
@@ -44,7 +57,9 @@ async def donors_list(
         text("""
         SELECT d.id, d.code, d.vin, d.year, d.color, d.status::text AS status,
                d.accepted_at, d.purchase_price, d.mileage_km, d.plate, d.notes,
-               d.modification_id, d.generation_id,
+               d.modification_id, d.generation_id, d.branch_id,
+               (SELECT br.city || ', ' || br.name FROM branches br
+                 WHERE br.id = d.branch_id) AS branch,
                b.name AS brand, m.name AS model, g.name AS generation,
                (SELECT count(*) FROM parts p WHERE p.donor_id = d.id) AS parts,
                (SELECT count(*) FROM parts p
@@ -77,7 +92,9 @@ async def parts_list(
         text("""
         SELECT p.id, p.sku, p.name, p.condition::text AS condition, p.price,
                p.status::text AS status, p.location, p.published, p.oem_number,
-               p.condition_note, p.weight_kg, p.category_id,
+               p.condition_note, p.weight_kg, p.category_id, p.branch_id,
+               (SELECT br.city || ', ' || br.name FROM branches br
+                 WHERE br.id = p.branch_id) AS branch,
                p.source, c.name AS category,
                (SELECT pc.name FROM part_categories pc
                  WHERE pc.id = c.parent_id) AS node,
@@ -120,6 +137,8 @@ class PartPatch(BaseModel):
     oem_number: str | None = None
     condition_note: str | None = None
     weight_kg: Decimal | None = None
+    # Деталь можно перевезти в другой филиал независимо от машины
+    branch_id: int | None = None
 
 
 class DonorPatch(BaseModel):
@@ -138,6 +157,7 @@ class DonorPatch(BaseModel):
     status: str | None = None
     modification_id: int | None = None
     complectation_id: int | None = None
+    branch_id: int | None = None
 
 
 @router.patch("/api/manage/parts/{part_id}")
@@ -224,6 +244,10 @@ async def patch_part(
         sets.append("weight_kg = :weight")
         params["weight"] = payload.weight_kg
 
+    if payload.branch_id is not None:
+        sets.append("branch_id = :branch")
+        params["branch"] = payload.branch_id
+
     if not sets:
         raise HTTPException(422, "Нечего менять")
 
@@ -293,6 +317,10 @@ async def patch_donor(
     if payload.complectation_id is not None:
         sets.append("complectation_id = :compl")
         params["compl"] = payload.complectation_id
+
+    if payload.branch_id is not None:
+        sets.append("branch_id = :branch")
+        params["branch"] = payload.branch_id
 
     if payload.year is not None:
         if not (1950 <= payload.year <= 2030):

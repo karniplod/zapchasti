@@ -112,7 +112,7 @@ async function load(){
       <div class="meta">
         <span class="sku">${r.sku}</span> · ${r.node || r.category} ·
         ${r.donor_code ? r.brand+' '+r.model : 'поступила отдельно, моделей: '+r.fits}
-        ${r.oem_number ? ' · '+r.oem_number : ''}
+        ${r.oem_number ? ' · '+r.oem_number : ''}${r.branch ? ' · '+r.branch : ''}
       </div>
       <div style="margin-top:7px">${bad.join(' ')}</div>
       <div class="photos" data-part="${r.id}"></div>
@@ -169,6 +169,8 @@ async function load(){
         body.weight_kg = w === '' ? null : +w;
         const cat = full.querySelector('.f-cat').dataset.id;
         if (cat) body.category_id = +cat;
+        const br = full.querySelector('.f-branch').value;
+        if (br) body.branch_id = +br;
       }
       patch(id, body, !!full);
     };
@@ -266,6 +268,18 @@ async function loadPhotos(box){
 // с ценой и статусом
 const esc = v => (v ?? '').toString().replace(/"/g, '&quot;');
 
+// Филиалы одни на все строки — грузим один раз за страницу
+let branchCache = null;
+async function fillBranches(sel, current){
+  if (!branchCache) branchCache = await (await fetch('/api/branches')).json();
+  sel.innerHTML = '';
+  branchCache.forEach(b => {
+    const o = new Option(b.label, b.id);
+    if (b.id === current) o.selected = true;
+    sel.add(o);
+  });
+}
+
 function toggleFull(el, r){
   const open = el.querySelector('.full');
   const btn = el.querySelector('.more');
@@ -287,11 +301,13 @@ function toggleFull(el, r){
       <input class="f-oem" value="${esc(r.oem_number)}"></div>
     <div><label>Вес, кг</label>
       <input type="number" class="f-weight" min="0" step="0.1" value="${r.weight_kg ?? ''}"></div>
+    <div><label>Филиал</label><select class="f-branch"></select></div>
     <div class="wide"><label>Дефекты</label>
       <input class="f-note" value="${esc(r.condition_note)}"></div>`;
   el.querySelector('.act').before(box);
 
   bindCategory(box.querySelector('.f-cat'));
+  fillBranches(box.querySelector('.f-branch'), r.branch_id);
 }
 
 // Подбор категории тот же, что в приёмке: поиск, а не дерево

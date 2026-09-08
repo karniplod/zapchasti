@@ -123,9 +123,12 @@ async def create_standalone(
         await session.execute(
             text("""
         INSERT INTO parts (sku, donor_id, category_id, name, oem_number, condition,
-                           condition_note, price, location, status, published, source)
+                           condition_note, price, location, status, published, source,
+                           branch_id)
         VALUES (:sku, :donor, :cat, :name, :oem, CAST(:cond AS part_condition),
-                :note, :price, :loc, CAST(:st AS part_status), :pub, :src)
+                :note, :price, :loc, CAST(:st AS part_status), :pub, :src,
+                -- С машины — её филиал, со стороны — филиал приёмщика
+                COALESCE((SELECT branch_id FROM donors WHERE id = :donor), :branch))
         RETURNING id
     """),
             {
@@ -141,6 +144,7 @@ async def create_standalone(
                 "st": "in_stock" if files else "draft",
                 "pub": bool(files and price),
                 "src": source,
+                "branch": user.get("branch_id"),
             },
         )
     ).scalar_one()

@@ -73,7 +73,7 @@ async function load(){
         <span class="st ${work?'work':''}">${label}</span>
       </div>
       <div class="meta">${c.generation}${c.year?', '+c.year:''}${c.color?', '+c.color:''}
-        ${c.vin?' · '+c.vin:' · без VIN'}</div>
+        ${c.vin?' · '+c.vin:' · без VIN'}${c.branch?' · '+c.branch:''}</div>
       <div class="nums">
         <span>деталей <b>${c.parts}</b></span>
         <span>продано <b>${c.sold}</b></span>
@@ -136,6 +136,7 @@ function toggleEdit(el, c){
       ${Object.entries(STATUSES).map(([k,v]) =>
         `<option value="${k}" ${k===c.status?'selected':''}>${v}</option>`).join('')}
     </select></div>
+    <div><label>Филиал</label><select class="f-branch"></select></div>
     <div class="wide"><label>Модификация</label><select class="f-mod"></select></div>
     <div class="wide"><label>Заметки</label><input class="f-notes" value="${val(c.notes)}"></div>
     <div class="wide"><button class="btn btn-accent save">Сохранить</button></div>`;
@@ -144,7 +145,20 @@ function toggleEdit(el, c){
   // Модификации подгружаются по поколению машины: менять поколение
   // отсюда нельзя, на нём висит применимость уже снятых деталей
   fill(box.querySelector('.f-mod'), c.generation_id, c.modification_id);
+  fillBranches(box.querySelector('.f-branch'), c.branch_id);
   box.querySelector('.save').onclick = () => save(el, c.id, box);
+}
+
+// Филиалы одни на все списки — грузим один раз за страницу
+let branchCache = null;
+async function fillBranches(sel, current){
+  if (!branchCache) branchCache = await (await fetch('/api/branches')).json();
+  sel.innerHTML = '';
+  branchCache.forEach(b => {
+    const o = new Option(b.label, b.id);
+    if (b.id === current) o.selected = true;
+    sel.add(o);
+  });
 }
 
 async function fill(sel, generationId, current){
@@ -172,6 +186,7 @@ async function save(el, id, box){
     accepted_at: box.querySelector('.f-acc').value || null,
     status: box.querySelector('.f-status').value,
     modification_id: num(box.querySelector('.f-mod').value),
+    branch_id: num(box.querySelector('.f-branch').value),
     notes: str(box.querySelector('.f-notes').value),
   };
   const btn = box.querySelector('.save');

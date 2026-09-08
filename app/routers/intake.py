@@ -52,6 +52,8 @@ class DonorCreate(BaseModel):
     # модификации потом всплывает пустотой в подборе деталей
     modification_id: int
     complectation_id: int | None = None
+    # Филиал, принявший машину. Пусто — берём филиал приёмщика
+    branch_id: int | None = None
     year: int | None = None
     color: str | None = None
     mileage_km: int | None = None
@@ -282,9 +284,10 @@ async def create_donor(
             text("""
         INSERT INTO donors (code, vin, generation_id, modification_id, complectation_id,
                             year, color, mileage_km, plate, purchase_price,
-                            accepted_at, notes, vin_source)
+                            accepted_at, notes, vin_source, branch_id)
         VALUES (:code, :vin, :gen, :mod, :compl, :year, :color,
-                :mileage, :plate, :price, COALESCE(:accepted, CURRENT_DATE), :notes, :src)
+                :mileage, :plate, :price, COALESCE(:accepted, CURRENT_DATE), :notes, :src,
+                :branch)
         RETURNING id
     """),
             {
@@ -294,6 +297,9 @@ async def create_donor(
                 "mod": payload.modification_id,
                 "compl": payload.complectation_id,
                 "accepted": payload.accepted_at,
+                # Филиал приёмщика — значение по умолчанию: выбранный
+                # руками рано или поздно поставят не тот
+                "branch": payload.branch_id or user.get("branch_id"),
                 "year": payload.year,
                 "color": payload.color,
                 "mileage": payload.mileage_km,

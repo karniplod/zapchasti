@@ -115,7 +115,7 @@ async def current_user(request: Request, session: AsyncSession = Depends(get_ses
     row = (
         await session.execute(
             text("""
-        SELECT id, login, full_name, role, is_active
+        SELECT id, login, full_name, role, is_active, branch_id
           FROM users WHERE id = :id
     """),
             {"id": data["uid"]},
@@ -125,7 +125,8 @@ async def current_user(request: Request, session: AsyncSession = Depends(get_ses
     if not row or not row.is_active:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Учётная запись отключена")
 
-    return {"id": row.id, "login": row.login, "name": row.full_name, "role": row.role}
+    return {"id": row.id, "login": row.login, "name": row.full_name,
+            "role": row.role, "branch_id": row.branch_id}
 
 
 async def optional_user(

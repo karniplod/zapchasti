@@ -82,3 +82,48 @@ CREATE SEQUENCE IF NOT EXISTS standalone_part_seq START 1;
 -- разборщик мог положить деталь в «GPS-навигаторы».
 ALTER TABLE part_categories
     ADD COLUMN IF NOT EXISTS is_placeholder boolean NOT NULL DEFAULT false;
+
+-- ------------------------------------------------------------
+-- Филиалы
+-- ------------------------------------------------------------
+-- Город — поле филиала, а не своя таблица: филиала без города не
+-- бывает, а для страниц вида «запчасти в Перми» хватает группировки.
+CREATE TABLE IF NOT EXISTS branches (
+    id         serial PRIMARY KEY,
+    city       text NOT NULL,
+    name       text NOT NULL,          -- «Ленина 1»
+    address    text,
+    phone      text,
+    is_active  boolean NOT NULL DEFAULT true,
+    sort_order smallint NOT NULL DEFAULT 0,
+    UNIQUE (city, name)
+);
+
+INSERT INTO branches (city, name, sort_order) VALUES
+    ('Пермь',  'Ленина 1',                1),
+    ('Пермь',  'Комсомольская площадь 1', 2),
+    ('Москва', 'Дзержинского 1',          3),
+    ('Москва', 'Ушакова 1',               4)
+ON CONFLICT (city, name) DO NOTHING;
+
+-- Филиал хранится и у машины, и у детали, и это не дублирование:
+-- машину разобрали в Перми, а деталь увезли в Москву под заказ.
+-- У машины — где разобрали (факт истории), у детали — где лежит
+-- сейчас (то, что видит покупатель). Поле location остаётся полкой
+-- внутри филиала: филиал + место = полный адрес детали.
+ALTER TABLE donors ADD COLUMN IF NOT EXISTS branch_id int REFERENCES branches(id);
+ALTER TABLE parts  ADD COLUMN IF NOT EXISTS branch_id int REFERENCES branches(id);
+
+-- Филиал сотрудника подставляется при приёмке: выбранный руками
+-- рано или поздно поставят не тот
+ALTER TABLE users  ADD COLUMN IF NOT EXISTS branch_id int REFERENCES branches(id);
+
+CREATE INDEX IF NOT EXISTS parts_branch_id_idx  ON parts (branch_id);
+CREATE INDEX IF NOT EXISTS donors_branch_id_idx ON donors (branch_id);
+
+-- Заведённое до появления филиалов приписываем первому по порядку:
+-- иначе эти машины и детали выпадут из любой выборки по филиалу
+UPDATE donors SET branch_id = (SELECT id FROM branches ORDER BY sort_order LIMIT 1)
+ WHERE branch_id IS NULL;
+UPDATE parts  SET branch_id = (SELECT id FROM branches ORDER BY sort_order LIMIT 1)
+ WHERE branch_id IS NULL;

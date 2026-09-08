@@ -128,6 +128,7 @@ header .code{font-family:var(--mono);font-size:13px;color:var(--amber)}
     <div><label for="price">Цена закупки, ₽</label><input type="number" id="price" min="0" step="100"></div>
     <div><label for="acceptedAt">Дата приёмки</label>
       <input type="date" id="acceptedAt" min="2000-01-01"></div>
+    <div><label for="branch">Филиал</label><select id="branch"></select></div>
   </div>
   <div style="margin-top:14px">
     <label for="notes-field">Заметки приёмщика</label>
@@ -374,6 +375,7 @@ $('save').addEventListener('click', async () => {
     plate: $('plate').value || null,
     purchase_price: $('price').value ? +$('price').value : null,
     accepted_at: $('acceptedAt').value || null,
+    branch_id: $('branch').value ? +$('branch').value : null,
     notes: $('notes-field').value || null
   };
   // Приёмка машины и загрузка фото разнесены намеренно: раньше всё
@@ -424,8 +426,8 @@ $('save').addEventListener('click', async () => {
 function resetForm(){
   $('vin').value = ''; $('vin').disabled = false; $('noVin').checked = false;
   paintRuler(''); $('readout').innerHTML = ''; $('notes').innerHTML = '';
-  // Дату приёмки намеренно не сбрасываем: партию машин заводят одним
-  // заходом и обычно одной датой
+  // Дату приёмки и филиал намеренно не сбрасываем: партию машин
+  // заводят одним заходом, в одном месте и обычно одной датой
   ['year','color','mileage','plate','price','notes-field'].forEach(id => $(id).value = '');
   ['model','generation','modification'].forEach(id => { $(id).innerHTML=''; $(id).disabled = true; });
   $('complectation').innerHTML = ''; $('complectationBox').hidden = true;
@@ -441,6 +443,15 @@ $('reset').addEventListener('click', resetForm);
 paintRuler('');
 // Будущей датой машину принять нельзя — верхняя граница всегда сегодня
 $('acceptedAt').max = new Date().toISOString().slice(0, 10);
+
+// Филиал сотрудника выбран заранее: приёмщик работает в одном месте,
+// и переспрашивать при каждой машине незачем
+(async () => {
+  const el = $('branch');
+  const rows = await (await fetch('/api/branches')).json();
+  rows.forEach(b => el.add(new Option(b.label, b.id)));
+  {% if user and user.branch_id %}el.value = '{{ user.branch_id }}';{% endif %}
+})();
 
 fill('brand', '/api/brands', r => r.name);
 $('vin').focus();

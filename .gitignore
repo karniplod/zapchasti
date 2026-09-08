@@ -9,3 +9,5 @@ media/
 uploads/
 static/uploads/
 *.log
+*.mmdb
+data/

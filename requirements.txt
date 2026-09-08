@@ -13,3 +13,4 @@ segno==1.6.1
 pillow==12.3.0
 pillow-heif==1.6.0
 openpyxl==3.1.5
+geoip2==5.1.0

@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     session_ttl_hours: int = 12  # смена закончилась — вход заново
 
     # --- файлы ---
+    # База GeoIP для подсказки города в каталоге. Файла может не быть —
+    # тогда определение просто выключено (см. app/services/geo.py)
+    geoip_db: Path = BASE_DIR / "data" / "GeoLite2-City.mmdb"
+
     media_root: Path = BASE_DIR / "media"
     static_root: Path = BASE_DIR / "static"
     max_upload_mb: int = 12
@@ -52,6 +56,13 @@ class Settings(BaseSettings):
     @classmethod
     def strip_slash(cls, v: str) -> str:
         return v.rstrip("/")
+
+    @field_validator("geoip_db")
+    @classmethod
+    def abs_geoip(cls, v: Path) -> Path:
+        # В .env путь удобнее писать относительным — считаем его от корня
+        # проекта, а не от текущего каталога запуска
+        return v if v.is_absolute() else BASE_DIR / v
 
     @property
     def max_upload_bytes(self) -> int:
