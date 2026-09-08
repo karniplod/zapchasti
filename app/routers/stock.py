@@ -89,7 +89,13 @@ async def create_standalone(
         row = (
             await session.execute(
                 text("""
-            UPDATE donors SET part_counter = part_counter + 1
+            UPDATE donors
+               SET part_counter = part_counter + 1,
+                   -- Как и при разборе: первая снятая деталь переводит
+                   -- машину в «в разборе», иначе она не попадёт на витрину
+                   status = CASE WHEN status = 'accepted'
+                                 THEN 'dismantling'::donor_status
+                                 ELSE status END
              WHERE id = :id AND status IN ('accepted', 'dismantling')
             RETURNING code, part_counter, generation_id
         """),

@@ -169,7 +169,15 @@ async def create_part(
     row = (
         await session.execute(
             text("""
-        UPDATE donors SET part_counter = part_counter + 1
+        UPDATE donors
+           SET part_counter = part_counter + 1,
+               -- Снятая деталь и означает, что машину начали разбирать.
+               -- Без этого перехода она стояла в «принята» до самого
+               -- закрытия разбора и не попадала на витрину: каталог
+               -- показывает машины со статусом dismantling/dismantled
+               status = CASE WHEN status = 'accepted'
+                             THEN 'dismantling'::donor_status
+                             ELSE status END
          WHERE id = :id
         RETURNING code, part_counter
     """),

@@ -605,15 +605,21 @@ async def unmet_demand(session: AsyncSession = Depends(get_session)):
 # плюс детали с проставленной применимостью
 AVAILABLE_GENERATIONS = """
     WITH avail AS (
-        SELECT d.generation_id AS gen_id, count(*) AS cnt
-          FROM parts p JOIN donors d ON d.id = p.donor_id
-         WHERE p.status = 'in_stock' AND p.published
-         GROUP BY d.generation_id
-        UNION ALL
-        SELECT pa.generation_id, count(*)
-          FROM parts p JOIN part_applicability pa ON pa.part_id = p.id
-         WHERE p.status = 'in_stock' AND p.published
-         GROUP BY pa.generation_id
+        -- Деталь подходит к поколению по двум причинам сразу: она снята
+        -- с машины этого поколения и на него же заведена применимость.
+        -- Поэтому сначала собираем пары «деталь + поколение» и убираем
+        -- дубли, а считаем уже потом — иначе такая деталь учитывалась
+        -- дважды и в каталоге у марки стояло вдвое больше, чем есть.
+        SELECT gen_id, count(*) AS cnt FROM (
+            SELECT d.generation_id AS gen_id, p.id AS part_id
+              FROM parts p JOIN donors d ON d.id = p.donor_id
+             WHERE p.status = 'in_stock' AND p.published
+            UNION
+            SELECT pa.generation_id, p.id
+              FROM parts p JOIN part_applicability pa ON pa.part_id = p.id
+             WHERE p.status = 'in_stock' AND p.published
+        ) s
+        GROUP BY gen_id
     )
 """
 
