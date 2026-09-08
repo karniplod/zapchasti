@@ -26,11 +26,13 @@ gap:11px;margin-bottom:24px}
 .car .nm{flex:1;min-width:0;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .car .nm small{display:block;color:var(--dim);font-size:12px}
 .car .cnt{font-size:13px;color:var(--muted);white-space:nowrap}
-.car .act{display:flex;gap:6px;flex:0 0 auto}
+/* Ряд кнопок стоит в строке, а не под карточкой, поэтому верхний
+   отступ общего .actions-row тут не нужен */
+.car .actions-row{margin-top:0;gap:6px;flex:0 0 auto}
 @media(max-width:560px){
   /* На узком экране строка машины переносится, кнопки уходят под неё */
   .car{flex-wrap:wrap}
-  .car .act{width:100%;margin-top:6px}
+  .car .actions-row{width:100%;margin-top:6px}
 }
 .empty-note{color:var(--dim);font-size:13.5px;margin:0}
 .act{display:inline-block;background:var(--amber);color:#1a1408;border-radius:9px;
@@ -86,7 +88,7 @@ padding:12px 20px;font-weight:600;font-size:14.5px;margin-bottom:22px}
       <span class="nm">{{ c.brand }} {{ c.model }}
         <small>{{ c.generation }}{% if c.year %}, {{ c.year }}{% endif %}</small></span>
       <span class="cnt">{{ c.parts }} дет.</span>
-      <span class="act">
+      <span class="actions-row">
         <a class="btn" href="/donors/{{ c.id }}/dismantle">Разбор</a>
         <!-- Правка живёт на странице машин: тащить всю форму сюда
              значит держать её в двух местах. Якорь раскрывает карточку -->
