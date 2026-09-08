@@ -25,14 +25,19 @@ background:var(--panel-2);color:var(--muted)}
   border-radius:8px;padding:8px 14px;color:var(--ink);cursor:pointer;
   font-family:inherit;font-size:13.5px;text-decoration:none;display:inline-block}
 .car .act a:hover,.car .act button:hover{border-color:var(--dim)}
-.car .act .save{background:var(--amber);color:#1a1408;border-color:var(--amber);
-  font-weight:600}
-
 .edit{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
   gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
 .edit label{font-size:11px;color:var(--dim);display:block;margin-bottom:4px}
 .edit input,.edit select{padding:9px;font-size:14px}
 .edit .wide{grid-column:1/-1}
+
+/* Кнопка сохранения — та же янтарная, что и на остальных экранах.
+   Селектор именно .edit: кнопка лежит в форме правки, а не в .act */
+.edit .save{background:var(--amber);color:#1a1408;border:1px solid var(--amber);
+  border-radius:9px;padding:11px 22px;font-family:inherit;font-size:14px;
+  font-weight:600;cursor:pointer}
+.edit .save:hover{filter:brightness(1.06)}
+.edit .save:disabled{opacity:.5;cursor:not-allowed}
 </style></head><body>
 
 {% include "admin/_nav.html" %}
