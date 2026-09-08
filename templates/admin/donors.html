@@ -107,6 +107,26 @@ async function load(){
     const car = rows.find(r => r.id === +el.dataset.id);
     el.querySelector('.edit-btn').onclick = () => toggleEdit(el, car);
   });
+
+  openFromHash(rows);
+}
+
+// Со сводки приходят по ссылке /donors#car-4 — сразу раскрываем эту
+// машину, иначе пришлось бы искать её глазами в общем списке.
+// Срабатывает один раз: load() вызывается ещё и после сохранения и при
+// смене фильтра, и форма открывалась бы снова поверх работы
+let hashHandled = false;
+
+function openFromHash(rows){
+  if (hashHandled) return;
+  const m = location.hash.match(/^#car-(\d+)$/);
+  if (!m) return;
+  hashHandled = true;
+  const el = document.querySelector(`.car[data-id="${m[1]}"]`);
+  const car = rows.find(r => r.id === +m[1]);
+  if (!el || !car) return;
+  toggleEdit(el, car);
+  el.scrollIntoView({behavior: 'smooth', block: 'center'});
 }
 
 const val = v => v === null || v === undefined ? '' : v;

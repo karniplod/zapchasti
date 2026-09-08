@@ -26,6 +26,15 @@ gap:11px;margin-bottom:24px}
 .car .nm{flex:1;min-width:0;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .car .nm small{display:block;color:var(--dim);font-size:12px}
 .car .cnt{font-size:13px;color:var(--muted);white-space:nowrap}
+.car .act{display:flex;gap:6px;flex:0 0 auto}
+.car .act a{background:var(--panel-2);border:1px solid var(--line);border-radius:7px;
+padding:6px 12px;font-size:13px;color:var(--ink);white-space:nowrap}
+.car .act a:hover{border-color:var(--dim)}
+@media(max-width:560px){
+  /* На узком экране строка машины переносится, кнопки уходят под неё */
+  .car{flex-wrap:wrap}
+  .car .act{width:100%;margin-top:6px}
+}
 .empty-note{color:var(--dim);font-size:13.5px;margin:0}
 .act{display:inline-block;background:var(--amber);color:#1a1408;border-radius:9px;
 padding:12px 20px;font-weight:600;font-size:14.5px;margin-bottom:22px}
@@ -75,12 +84,18 @@ padding:12px 20px;font-weight:600;font-size:14.5px;margin-bottom:22px}
   <h3>Машины в работе</h3>
   {% if active %}
     {% for c in active %}
-    <a class="car" href="/donors/{{ c.id }}/dismantle">
+    <div class="car">
       <span class="code">{{ c.code }}</span>
       <span class="nm">{{ c.brand }} {{ c.model }}
         <small>{{ c.generation }}{% if c.year %}, {{ c.year }}{% endif %}</small></span>
       <span class="cnt">{{ c.parts }} дет.</span>
-    </a>
+      <span class="act">
+        <a href="/donors/{{ c.id }}/dismantle">Разбор</a>
+        <!-- Правка живёт на странице машин: тащить всю форму сюда
+             значит держать её в двух местах. Якорь раскрывает карточку -->
+        <a href="/donors#car-{{ c.id }}">Изменить</a>
+      </span>
+    </div>
     {% endfor %}
   {% else %}
     <p class="empty-note">Машин в работе нет. Примите первую — кнопка выше.</p>
