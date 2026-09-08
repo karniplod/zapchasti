@@ -69,8 +69,11 @@ padding:13px 15px;margin-bottom:9px}
 <script>
 const $ = id => document.getElementById(id);
 // Фильтр можно задать из адреса: со сводки приходят /parts?f=problems
-let filter = new URLSearchParams(location.search).get('f') || '';
-let q = '', timer;
+const params = new URLSearchParams(location.search);
+let filter = params.get('f') || '';
+// Из разбора приходят по карандашу: /parts?q=D-0004-0001 — сразу
+// показываем одну деталь, а не весь список
+let q = params.get('q') || '', timer;
 
 $('tabs').onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
@@ -336,6 +339,10 @@ function toast(m,k=''){ const el=$('toast'); el.textContent=m; el.className=`toa
 
 [...$('tabs').children].forEach(b =>
   b.classList.toggle('on', b.dataset.f === filter));
+
+// Поиск из адреса виден в поле: иначе непонятно, почему в списке
+// одна деталь, и нечего стереть, чтобы вернуть остальные
+$('q').value = q;
 
 load();
 </script>

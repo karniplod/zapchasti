@@ -35,6 +35,12 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
      background:var(--panel-2);color:var(--muted);margin-left:6px}
 .tag.draft{background:rgba(255,159,46,.15);color:var(--warn)}
 .part .del{background:none;border:0;color:var(--dim);font-size:18px;cursor:pointer;padding:6px}
+/* Карандаш рядом с крестиком — тот же размер и цвет, чтобы пара
+   читалась как одно действие «править / удалить» */
+.part .edit-link{display:flex;align-items:center;color:var(--dim);padding:6px}
+.part .edit-link:hover{color:var(--ink)}
+.part .edit-link svg{width:17px;height:17px;display:block}
+.part .del:hover{color:var(--err)}
 
 /* Нижняя панель */
 .bar{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--panel);
@@ -326,6 +332,15 @@ async function loadParts(){
         <div class="sub">${p.sku}${p.location ? ' · ' + p.location : ''}</div>
       </div>
       <div class="pr">${p.price ? Number(p.price).toLocaleString('ru') + ' ₽' : '—'}</div>
+      <!-- Правка живёт на странице деталей: там весь редактор целиком,
+           тащить его в рабочее место разборщика незачем -->
+      <a class="edit-link" href="/parts?q=${encodeURIComponent(p.sku)}"
+         title="Изменить" aria-label="Изменить деталь">
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <path d="M13.4 2.9l3.7 3.7L7.3 16.4l-4.4.7.7-4.4z" fill="none"
+                stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+        </svg>
+      </a>
       <button class="del" aria-label="Удалить деталь">×</button>`;
     el.querySelector('.del').onclick = async () => {
       if (!confirm(`Удалить ${p.sku}?`)) return;
