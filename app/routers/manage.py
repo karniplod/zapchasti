@@ -4,6 +4,7 @@
 место, публикация. Без этого экрана любая опечатка остаётся навсегда.
 """
 
+from datetime import date
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -15,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth import current_user, require_role
 from ..config import settings
 from ..database import get_session
+from ..vin_decoder import normalize
 from ..templating import templates
 
 router = APIRouter(tags=["manage"])
@@ -41,7 +43,8 @@ async def donors_list(
     rows = await session.execute(
         text("""
         SELECT d.id, d.code, d.vin, d.year, d.color, d.status::text AS status,
-               d.accepted_at, d.purchase_price,
+               d.accepted_at, d.purchase_price, d.mileage_km, d.plate, d.notes,
+               d.modification_id, d.generation_id,
                b.name AS brand, m.name AS model, g.name AS generation,
                (SELECT count(*) FROM parts p WHERE p.donor_id = d.id) AS parts,
                (SELECT count(*) FROM parts p
@@ -111,6 +114,24 @@ class PartPatch(BaseModel):
     published: bool | None = None
 
 
+class DonorPatch(BaseModel):
+    """Правка карточки машины. Поколение здесь не меняется: на нём висит
+    применимость уже снятых деталей, и смена молча увела бы их не к той
+    машине. Для этого есть слияние поколений в справочнике."""
+
+    vin: str | None = None
+    year: int | None = None
+    color: str | None = None
+    mileage_km: int | None = None
+    plate: str | None = None
+    purchase_price: Decimal | None = None
+    accepted_at: date | None = None
+    notes: str | None = None
+    status: str | None = None
+    modification_id: int | None = None
+    complectation_id: int | None = None
+
+
 @router.patch("/api/manage/parts/{part_id}")
 async def patch_part(
     part_id: int,
@@ -153,6 +174,103 @@ async def patch_part(
         raise HTTPException(422, "Нечего менять")
 
     await session.execute(text(f"UPDATE parts SET {', '.join(sets)} WHERE id = :id"), params)
+    await session.commit()
+    return {"ok": True}
+
+
+DONOR_STATUSES = {"accepted", "dismantling", "dismantled", "scrapped"}
+
+
+@router.patch("/api/manage/donors/{donor_id}")
+async def patch_donor(
+    donor_id: int,
+    payload: DonorPatch,
+    user=Depends(require_role("manager")),
+    session: AsyncSession = Depends(get_session),
+):
+    cur = (
+        await session.execute(
+            text("SELECT id, generation_id FROM donors WHERE id = :id"), {"id": donor_id}
+        )
+    ).first()
+    if not cur:
+        raise HTTPException(404, "Машина не найдена")
+
+    sets, params = [], {"id": donor_id}
+
+    if payload.vin is not None:
+        vin = normalize(payload.vin) or None
+        if vin:
+            if len(vin) != 17:
+                raise HTTPException(422, "VIN должен быть из 17 символов")
+            dup = (
+                await session.execute(
+                    text("SELECT code FROM donors WHERE vin = :v AND id <> :id"),
+                    {"v": vin, "id": donor_id},
+                )
+            ).first()
+            if dup:
+                raise HTTPException(409, f"Этот VIN уже стоит у машины {dup.code}")
+        sets.append("vin = :vin")
+        params["vin"] = vin
+
+    if payload.status is not None:
+        if payload.status not in DONOR_STATUSES:
+            raise HTTPException(422, "Неизвестный статус машины")
+        sets.append("status = CAST(:st AS donor_status)")
+        params["st"] = payload.status
+
+    if payload.modification_id is not None:
+        # Модификация обязана принадлежать тому же поколению, иначе
+        # в карточке окажется двигатель от другой машины
+        ok = (
+            await session.execute(
+                text("SELECT 1 FROM modifications WHERE id = :m AND generation_id = :g"),
+                {"m": payload.modification_id, "g": cur.generation_id},
+            )
+        ).first()
+        if not ok:
+            raise HTTPException(422, "Модификация не из этого поколения")
+        sets.append("modification_id = :mod")
+        params["mod"] = payload.modification_id
+
+    if payload.complectation_id is not None:
+        sets.append("complectation_id = :compl")
+        params["compl"] = payload.complectation_id
+
+    if payload.year is not None:
+        if not (1950 <= payload.year <= 2030):
+            raise HTTPException(422, "Год вне допустимого диапазона")
+        sets.append("year = :year")
+        params["year"] = payload.year
+
+    if payload.accepted_at is not None:
+        if payload.accepted_at.year < 2000 or payload.accepted_at > date.today():
+            raise HTTPException(422, "Дата приёмки вне допустимого диапазона")
+        sets.append("accepted_at = :acc")
+        params["acc"] = payload.accepted_at
+
+    for field, column in (
+        ("color", "color"),
+        ("plate", "plate"),
+        ("notes", "notes"),
+        ("mileage_km", "mileage_km"),
+        ("purchase_price", "purchase_price"),
+    ):
+        value = getattr(payload, field)
+        if value is not None:
+            # Пустая строка означает «очистить поле», а не текст из пробелов
+            if isinstance(value, str):
+                value = value.strip() or None
+            sets.append(f"{column} = :{field}")
+            params[field] = value
+
+    if not sets:
+        raise HTTPException(422, "Нечего сохранять")
+
+    await session.execute(
+        text(f"UPDATE donors SET {', '.join(sets)} WHERE id = :id"), params
+    )
     await session.commit()
     return {"ok": True}
 
