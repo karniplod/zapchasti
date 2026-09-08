@@ -18,6 +18,14 @@ padding:13px 15px;margin-bottom:9px}
 .edit label{font-size:11px;color:var(--dim);display:block;margin-bottom:4px}
 .edit input,.edit select{padding:9px;font-size:14px}
 
+/* Полный редактор — раскрывается по кнопке под ежедневными полями */
+.full{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:11px;
+  padding-top:11px;border-top:1px solid var(--line)}
+.full label{font-size:11px;color:var(--dim);display:block;margin-bottom:4px}
+.full input{padding:9px;font-size:14px}
+.full .wide{grid-column:1/-1}
+.full .f-cat{position:relative}
+
 .photos{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px;align-items:center}
 .photos .ph{margin:0;position:relative;width:64px;height:64px}
 .photos .ph img{width:100%;height:100%;object-fit:cover;border-radius:8px;
@@ -119,6 +127,7 @@ async function load(){
       </div>
       <div class="act actions-row">
         <button class="btn btn-accent save">Сохранить</button>
+        <button class="btn more">Изменить полностью</button>
         ${r.status !== 'sold' ? `<button class="btn sold">Продано</button>` : ''}
         ${r.status === 'in_stock' ? `<button class="btn hold">Бронь</button>` : ''}
         ${r.status === 'reserved' ? `<button class="btn unhold">Снять бронь</button>` : ''}
@@ -136,12 +145,30 @@ async function load(){
 
   document.querySelectorAll('.p').forEach(el => {
     const id = el.dataset.id;
-    el.querySelector('.save').onclick = () => patch(id, {
-      price: el.querySelector('.f-price').value || null,
-      condition: el.querySelector('.f-cond').value,
-      location: el.querySelector('.f-loc').value || null,
-      status: el.querySelector('.f-st').value,
-    });
+    const row = rows.find(r => r.id === +id);
+
+    el.querySelector('.more').onclick = () => toggleFull(el, row);
+
+    el.querySelector('.save').onclick = () => {
+      const body = {
+        price: el.querySelector('.f-price').value || null,
+        condition: el.querySelector('.f-cond').value,
+        location: el.querySelector('.f-loc').value || null,
+        status: el.querySelector('.f-st').value,
+      };
+      // Полный редактор раскрыт — сохраняем и его поля тем же запросом
+      const full = el.querySelector('.full');
+      if (full){
+        body.name = full.querySelector('.f-name').value;
+        body.oem_number = full.querySelector('.f-oem').value;
+        body.condition_note = full.querySelector('.f-note').value;
+        const w = full.querySelector('.f-weight').value;
+        body.weight_kg = w === '' ? null : +w;
+        const cat = full.querySelector('.f-cat').dataset.id;
+        if (cat) body.category_id = +cat;
+      }
+      patch(id, body, !!full);
+    };
     const pub = el.querySelector('.pub');
     if (pub) pub.onclick = () => patch(id, {
       published: pub.textContent.startsWith('Показать')
@@ -229,6 +256,71 @@ async function loadPhotos(box){
   // capture="environment" открывает камеру, его отсутствие — галерею
   box.querySelector('.ph-cam input').onchange = upload;
   box.querySelector('.ph-add input').onchange = upload;
+}
+
+// Полный редактор: поля, которые правят редко. Держать их развёрнутыми
+// на каждой строке списка — значит утопить в них ежедневную работу
+// с ценой и статусом
+const esc = v => (v ?? '').toString().replace(/"/g, '&quot;');
+
+function toggleFull(el, r){
+  const open = el.querySelector('.full');
+  const btn = el.querySelector('.more');
+  if (open){ open.remove(); btn.textContent = 'Изменить полностью'; return; }
+  btn.textContent = 'Свернуть';
+
+  const box = document.createElement('div');
+  box.className = 'full';
+  box.innerHTML = `
+    <div class="wide"><label>Название</label>
+      <input class="f-name" value="${esc(r.name)}"></div>
+    <div class="wide"><label>Категория</label>
+      <div class="f-cat" data-id="${r.category_id ?? ''}">
+        <input class="f-cat-q" placeholder="${esc(r.node ? r.node + ' / ' + r.category : r.category)}"
+               autocomplete="off">
+        <div class="results"></div>
+      </div></div>
+    <div><label>Каталожный номер</label>
+      <input class="f-oem" value="${esc(r.oem_number)}"></div>
+    <div><label>Вес, кг</label>
+      <input type="number" class="f-weight" min="0" step="0.1" value="${r.weight_kg ?? ''}"></div>
+    <div class="wide"><label>Дефекты</label>
+      <input class="f-note" value="${esc(r.condition_note)}"></div>`;
+  el.querySelector('.act').before(box);
+
+  bindCategory(box.querySelector('.f-cat'));
+}
+
+// Подбор категории тот же, что в приёмке: поиск, а не дерево
+function bindCategory(box){
+  const input = box.querySelector('.f-cat-q');
+  const list = box.querySelector('.results');
+  let timer;
+
+  const search = async q => {
+    const rows = await (await fetch('/api/part-categories'
+      + (q ? `?q=${encodeURIComponent(q)}` : ''))).json();
+    list.innerHTML = '';
+    rows.forEach(c => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.innerHTML = `${c.name}<span class="path">${c.path}</span>`;
+      b.onclick = () => {
+        box.dataset.id = c.id;
+        input.value = c.name;
+        list.classList.remove('open');
+      };
+      list.appendChild(b);
+    });
+    list.classList.toggle('open', rows.length > 0);
+  };
+
+  input.oninput = () => { clearTimeout(timer);
+    timer = setTimeout(() => search(input.value.trim()), 250); };
+  input.onfocus = () => search(input.value.trim());
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.f-cat')) list.classList.remove('open');
+  });
 }
 
 async function patch(id, body, reload){

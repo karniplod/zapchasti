@@ -77,6 +77,7 @@ async def parts_list(
         text("""
         SELECT p.id, p.sku, p.name, p.condition::text AS condition, p.price,
                p.status::text AS status, p.location, p.published, p.oem_number,
+               p.condition_note, p.weight_kg, p.category_id,
                p.source, c.name AS category,
                (SELECT pc.name FROM part_categories pc
                  WHERE pc.id = c.parent_id) AS node,
@@ -112,6 +113,13 @@ class PartPatch(BaseModel):
     location: str | None = None
     status: str | None = None
     published: bool | None = None
+    # Поля полного редактора: в списке они не показываются, правятся
+    # по кнопке — их меняют редко, а место занимают на каждой строке
+    name: str | None = None
+    category_id: int | None = None
+    oem_number: str | None = None
+    condition_note: str | None = None
+    weight_kg: Decimal | None = None
 
 
 class DonorPatch(BaseModel):
@@ -170,8 +178,56 @@ async def patch_part(
     if payload.published is not None:
         sets.append("published = :pub")
         params["pub"] = payload.published
+
+    if payload.name is not None:
+        name = payload.name.strip()
+        if not name:
+            raise HTTPException(422, "Название не может быть пустым")
+        sets.append("name = :name")
+        params["name"] = name
+
+    if payload.category_id is not None:
+        # Ветки дерева, оставленные под будущее наполнение, деталью
+        # занимать нельзя — их же прячет и подбор категории
+        cat = (
+            await session.execute(
+                text("""
+            SELECT is_placeholder,
+                   EXISTS (SELECT 1 FROM part_categories c
+                            WHERE c.parent_id = pc.id) AS has_children
+              FROM part_categories pc WHERE pc.id = :c
+        """),
+                {"c": payload.category_id},
+            )
+        ).first()
+        if not cat:
+            raise HTTPException(422, "Категория не найдена")
+        if cat.is_placeholder or cat.has_children:
+            raise HTTPException(422, "Выберите конечную категорию, а не раздел")
+        sets.append("category_id = :cat")
+        params["cat"] = payload.category_id
+
+    if payload.oem_number is not None:
+        # Тот же разбор, что и при создании: номера сверяют по буквам
+        # и цифрам, разделители у каждого каталога свои
+        oem = "".join(c for c in payload.oem_number.upper() if c.isalnum()) or None
+        sets.append("oem_number = :oem")
+        params["oem"] = oem
+
+    if payload.condition_note is not None:
+        sets.append("condition_note = :note")
+        params["note"] = payload.condition_note.strip() or None
+
+    if payload.weight_kg is not None:
+        if payload.weight_kg < 0:
+            raise HTTPException(422, "Вес не может быть отрицательным")
+        sets.append("weight_kg = :weight")
+        params["weight"] = payload.weight_kg
+
     if not sets:
         raise HTTPException(422, "Нечего менять")
+
+    sets.append("updated_at = now()")
 
     await session.execute(text(f"UPDATE parts SET {', '.join(sets)} WHERE id = :id"), params)
     await session.commit()
