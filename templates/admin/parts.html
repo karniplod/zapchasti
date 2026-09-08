@@ -17,10 +17,6 @@ padding:13px 15px;margin-bottom:9px}
 .edit{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:11px}
 .edit label{font-size:11px;color:var(--dim);display:block;margin-bottom:4px}
 .edit input,.edit select{padding:9px;font-size:14px}
-.act{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}
-.act button{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;
-padding:9px 14px;color:var(--ink);cursor:pointer;font-family:inherit;font-size:13.5px}
-.act button.save{background:var(--amber);color:#1a1408;border-color:var(--amber);font-weight:600}
 
 .photos{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px;align-items:center}
 .photos .ph{margin:0;position:relative;width:64px;height:64px}
@@ -121,15 +117,15 @@ async function load(){
           <select class="f-st">${Object.entries(ST).map(([k,v]) =>
             `<option value="${k}" ${k===r.status?'selected':''}>${v}</option>`).join('')}</select></div>
       </div>
-      <div class="act">
-        <button class="save">Сохранить</button>
-        ${r.status !== 'sold' ? `<button class="sold">Продано</button>` : ''}
-        ${r.status === 'in_stock' ? `<button class="hold">Бронь</button>` : ''}
-        ${r.status === 'reserved' ? `<button class="unhold">Снять бронь</button>` : ''}
+      <div class="act actions-row">
+        <button class="btn btn-accent save">Сохранить</button>
+        ${r.status !== 'sold' ? `<button class="btn sold">Продано</button>` : ''}
+        ${r.status === 'in_stock' ? `<button class="btn hold">Бронь</button>` : ''}
+        ${r.status === 'reserved' ? `<button class="btn unhold">Снять бронь</button>` : ''}
         ${r.status !== 'sold' && r.status !== 'written_off'
-          ? `<button class="pub">${r.published ? 'Убрать из каталога' : 'Показать в каталоге'}</button>`
+          ? `<button class="btn pub">${r.published ? 'Убрать из каталога' : 'Показать в каталоге'}</button>`
           : ''}
-        <button class="del" style="color:var(--err);border-color:rgba(255,95,86,.4)">Удалить</button>
+        <button class="btn btn-danger del">Удалить</button>
         <a class="act-link" href="/p/${r.sku}" target="_blank"
            style="padding:9px 4px;color:var(--dim);font-size:13.5px">Карточка ↗</a>
       </div>

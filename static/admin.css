@@ -75,6 +75,25 @@ button{font-family:inherit}
 .ghost{background:transparent;color:var(--muted);border:1px solid var(--line);
   border-radius:10px;padding:13px 16px;cursor:pointer;font-size:14px}
 
+/* Кнопка внутри строки списка — «Разбор», «Изменить», «Сохранить».
+   Крупные .primary/.ghost остаются для нижних панелей действий.
+   Раньше это же самое описывала у себя каждая страница: сводка,
+   машины и детали расходились в скруглении, отступах и кегле. */
+.btn{display:inline-block;background:var(--panel-2);border:1px solid var(--line);
+  border-radius:8px;padding:9px 14px;color:var(--ink);font-family:inherit;
+  font-size:13.5px;line-height:1.2;cursor:pointer;text-decoration:none;
+  white-space:nowrap}
+.btn:hover{border-color:var(--dim)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-accent{background:var(--amber);border-color:var(--amber);color:#1a1408;
+  font-weight:600}
+.btn-accent:hover{filter:brightness(1.06);border-color:var(--amber)}
+.btn-danger{color:var(--err);border-color:rgba(255,95,86,.4)}
+.btn-danger:hover{border-color:var(--err)}
+
+/* Ряд кнопок под содержимым карточки */
+.actions-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px}
+
 /* ── Список вкладок-фильтров (Машины, Детали) ─────────────── */
 .tabs{display:flex;gap:8px;margin:12px 0 16px;overflow-x:auto;padding-bottom:4px}
 .tabs button{background:var(--panel);border:1px solid var(--line);border-radius:8px;

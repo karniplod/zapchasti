@@ -18,26 +18,12 @@ background:var(--panel-2);color:var(--muted)}
 .car .nums b{color:var(--ink);font-variant-numeric:tabular-nums}
 .car .profit{color:var(--ok)}.car .loss{color:var(--muted)}
 
-/* Действия под карточкой: раньше вся карточка была одной ссылкой на
-   разбор, и места под кнопки просто не было */
-.car .act{display:flex;gap:8px;margin-top:11px;flex-wrap:wrap}
-.car .act a,.car .act button{background:var(--panel-2);border:1px solid var(--line);
-  border-radius:8px;padding:8px 14px;color:var(--ink);cursor:pointer;
-  font-family:inherit;font-size:13.5px;text-decoration:none;display:inline-block}
-.car .act a:hover,.car .act button:hover{border-color:var(--dim)}
+/* Кнопки — общие .btn из admin.css, тут только раскладка ряда */
 .edit{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
   gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
 .edit label{font-size:11px;color:var(--dim);display:block;margin-bottom:4px}
 .edit input,.edit select{padding:9px;font-size:14px}
 .edit .wide{grid-column:1/-1}
-
-/* Кнопка сохранения — та же янтарная, что и на остальных экранах.
-   Селектор именно .edit: кнопка лежит в форме правки, а не в .act */
-.edit .save{background:var(--amber);color:#1a1408;border:1px solid var(--amber);
-  border-radius:9px;padding:11px 22px;font-family:inherit;font-size:14px;
-  font-weight:600;cursor:pointer}
-.edit .save:hover{filter:brightness(1.06)}
-.edit .save:disabled{opacity:.5;cursor:not-allowed}
 </style></head><body>
 
 {% include "admin/_nav.html" %}
@@ -96,9 +82,9 @@ async function load(){
         ${profit !== null ? `<span class="${profit>=0?'profit':'loss'}">
           итог <b>${profit>=0?'+':''}${Number(profit).toLocaleString('ru')} ₽</b></span>` : ''}
       </div>
-      <div class="act">
-        <a href="/donors/${c.id}/dismantle">Разбор</a>
-        <button class="edit-btn">Изменить</button>
+      <div class="actions-row">
+        <a class="btn" href="/donors/${c.id}/dismantle">Разбор</a>
+        <button class="btn edit-btn">Изменить</button>
       </div>
     </div>`;
   }).join('');
@@ -152,7 +138,7 @@ function toggleEdit(el, c){
     </select></div>
     <div class="wide"><label>Модификация</label><select class="f-mod"></select></div>
     <div class="wide"><label>Заметки</label><input class="f-notes" value="${val(c.notes)}"></div>
-    <div class="wide"><button class="save">Сохранить</button></div>`;
+    <div class="wide"><button class="btn btn-accent save">Сохранить</button></div>`;
   el.appendChild(box);
 
   // Модификации подгружаются по поколению машины: менять поколение
