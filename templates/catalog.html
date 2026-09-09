@@ -103,7 +103,6 @@
 
 <div class="wrap layout">
   <aside class="side" id="side" hidden>
-    <section id="citySection" hidden><h4>Город</h4><div id="cities"></div></section>
     <section><h4>Узел</h4><div id="cats"></div></section>
     <section><h4>Состояние</h4><div id="conds"></div></section>
     <section><h4>Цена, ₽</h4>
@@ -293,7 +292,7 @@ function openCatalog(){
   state.page = 1; state.category_id = null; state.condition = [];
   // Ждём город: иначе при быстром выборе машины первая выдача уйдёт
   // без фильтра и тут же перерисуется — заметное мигание
-  citiesReady.then(() => { loadFacets(); loadParts(); });
+  loadFacets(); loadParts();
   document.querySelector('.layout').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
@@ -347,7 +346,10 @@ $('reset').onclick = () => {
 };
 
 // ── Выдача ───────────────────────────────────────────────
+let partsRun = 0;
+
 async function loadParts(){
+  const run = ++partsRun;
   const p = new URLSearchParams();
   Object.entries(state).forEach(([k,v]) => {
     if (v === null || v === '' || (Array.isArray(v) && !v.length)) return;
@@ -355,6 +357,8 @@ async function loadParts(){
   });
 
   const d = await (await fetch('/api/catalog/parts?'+p)).json();
+  if (run !== partsRun) return;   // пока ждали, фильтры успели поменяться
+
   $('count').textContent = d.total
     ? `${d.total} ${plural(d.total,'деталь','детали','деталей')}` : '';
 
@@ -362,7 +366,18 @@ async function loadParts(){
     $('grid').innerHTML = `<div class="empty" style="grid-column:1/-1">
       <h3>Ничего не нашлось</h3>
       <p>Уберите часть фильтров или напишите нам — деталь может лежать
-         на складе, но ещё не быть выложенной.</p></div>`;
+         на складе, но ещё не быть выложенной.</p>
+      ${state.city ? `<p style="margin-top:12px">Сейчас показан только
+        <b>${state.city}</b>. <button class="linkish" id="allCities">Искать
+        во всех городах</button></p>` : ''}</div>`;
+    const all = $('allCities');
+    // Город меняем через шапку, чтобы подпись там не разошлась с выдачей
+    if (all) all.onclick = () => {
+      document.cookie = 'city=;path=/;max-age=31536000';
+      const nm = document.getElementById('cityName');
+      if (nm) nm.textContent = 'все города';
+      window.onCityChange('');
+    };
     $('pager').innerHTML = ''; return;
   }
 
@@ -417,12 +432,18 @@ const plural = (n,one,few,many) => {
 };
 
 // Свежие поступления: человек видит товар сразу, а не пустой экран
+let freshRun = 0;
+
 async function loadFresh(){
+  const run = ++freshRun;
   try {
-    const d = await (await fetch('/api/catalog/parts?sort=new&page=1')).json();
+    const p = new URLSearchParams({sort:'new', page:1});
+    if (state.city) p.set('city', state.city);
+    const d = await (await fetch('/api/catalog/parts?'+p)).json();
+    if (run !== freshRun) return;
+    $('fresh').hidden = !d.items.length;
     if (!d.items.length) return;
     $('freshGrid').innerHTML = d.items.slice(0, 3).map(card).join('');
-    $('fresh').hidden = false;
   } catch { /* каталог ниже всё равно загрузится */ }
 }
 
@@ -430,52 +451,21 @@ async function loadFresh(){
 const _openCatalog = openCatalog;
 openCatalog = function(){ $('fresh').hidden = true; _openCatalog(); };
 
-// ── Город ────────────────────────────────────────────────
-// Порядок важен: выбранное человеком важнее подсказки по IP, иначе
-// он выберет Москву, обновит страницу и снова окажется в Перми
-const savedCity = () => document.cookie.match(/(?:^|; )city=([^;]*)/)?.[1];
+// ── Город ───────────────────────────────────────────────
+// Выбирается в шапке (templates/_city.html), сюда приходит готовым.
+// Каталог только читает куку и слушает смену
+const cityCookie = () => {
+  const m = document.cookie.match(/(?:^|; )city=([^;]*)/);
+  return m ? decodeURIComponent(m[1]) : null;
+};
+state.city = cityCookie();
 
-async function initCities(){
-  const cities = await (await fetch('/api/catalog/cities')).json();
-  // Один город — выбирать не из чего, блок только мешает
-  if (cities.length < 2){ return; }
-
-  const saved = savedCity() && decodeURIComponent(savedCity());
-  let chosen = cities.some(c => c.city === saved) ? saved : null;
-
-  if (!chosen){
-    // Подсказка по IP: сервер отвечает городом, только если он у нас есть
-    try {
-      const geo = await (await fetch('/api/catalog/geo')).json();
-      if (geo.city && cities.some(c => c.city === geo.city)) chosen = geo.city;
-    } catch {}
-  }
-
-  const box = $('cities');
-  box.innerHTML = '';
-  [{city:'', parts:null}, ...cities].forEach(c => {
-    const id = 'city-' + (c.city || 'all');
-    const el = document.createElement('label');
-    el.innerHTML = `<input type="radio" name="city" id="${id}" value="${c.city}"
-        ${c.city === (chosen || '') ? 'checked' : ''}>
-      ${c.city || 'Все города'}
-      ${c.parts !== null ? `<span class="n">${c.parts}</span>` : ''}`;
-    el.querySelector('input').onchange = e => {
-      state.city = e.target.value || null;
-      state.page = 1;
-      // Год — чтобы выбор пережил и закрытие вкладки
-      document.cookie = `city=${encodeURIComponent(e.target.value)};path=/;max-age=31536000`;
-      loadParts();
-    };
-    box.appendChild(el);
-  });
-
-  $('citySection').hidden = false;
-  if (chosen) state.city = chosen;
-}
-
-// Промис, а не await: остальная страница грузится параллельно
-const citiesReady = initCities().catch(() => {});
+window.onCityChange = city => {
+  state.city = city || null;
+  state.page = 1;
+  loadFresh();
+  if (!$('side').hidden) loadParts();
+};
 
 loadFresh();
 // VIN может прийти с главной — сразу подбираем

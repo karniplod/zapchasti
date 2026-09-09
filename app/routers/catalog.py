@@ -401,15 +401,23 @@ FITS_CLAUSE = """
 
 @router.get("/api/catalog/cities")
 async def catalog_cities(session: AsyncSession = Depends(get_session)):
-    """Города, в которых реально есть что купить. Пустой филиал
-    покупателю показывать незачем."""
+    """Города, где у нас есть филиалы, и сколько в каждом деталей.
+
+    Город без товара из списка не убираем: мы там работаем, машины
+    принимаем, и человеку честнее увидеть свой город с нулём, чем
+    решить, что нас в его городе нет.
+    """
     rows = await session.execute(
         text("""
-        SELECT br.city, count(*) AS parts
-          FROM parts p JOIN branches br ON br.id = p.branch_id
-         WHERE p.status = 'in_stock' AND p.published
+        SELECT br.city,
+               count(p.id) FILTER (
+                   WHERE p.status = 'in_stock' AND p.published) AS parts
+          FROM branches br
+          LEFT JOIN parts p ON p.branch_id = br.id
+         WHERE br.is_active
          GROUP BY br.city
-         ORDER BY count(*) DESC, br.city
+         ORDER BY count(p.id) FILTER (
+                   WHERE p.status = 'in_stock' AND p.published) DESC, br.city
     """)
     )
     return [dict(r._mapping) for r in rows]
@@ -426,11 +434,23 @@ async def catalog_geo(request: Request, session: AsyncSession = Depends(get_sess
 
     row = (
         await session.execute(
-            text("SELECT 1 FROM branches WHERE city = :c AND is_active LIMIT 1"),
+            text("""
+        SELECT count(DISTINCT br.id) AS branches,
+               count(p.id) FILTER (
+                   WHERE p.status = 'in_stock' AND p.published) AS parts
+          FROM branches br
+          LEFT JOIN parts p ON p.branch_id = br.id
+         WHERE br.city = :c AND br.is_active
+    """),
             {"c": city},
         )
     ).first()
-    return {"city": city if row else None, "detected": city}
+
+    # Агрегат без GROUP BY возвращает строку всегда, поэтому «наш ли это
+    # город» решает счётчик филиалов, а не сам факт строки
+    if not row.branches:
+        return {"city": None, "detected": city}
+    return {"city": city, "parts": row.parts, "detected": city}
 
 
 @router.get("/api/catalog/parts")

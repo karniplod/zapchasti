@@ -70,10 +70,52 @@ h3{font-size:var(--t-lg)}
 .brand{font-family:var(--display);font-weight:700;font-size:17px;
   letter-spacing:.02em;text-transform:uppercase;white-space:nowrap}
 .brand i{font-style:normal;color:var(--accent)}
-.site-nav{margin-left:auto;display:flex;gap:6px}
+.site-nav{display:flex;gap:6px}
 .site-nav a{padding:8px 12px;border-radius:8px;font-size:var(--t-sm);color:var(--muted)}
 .site-nav a:hover{background:var(--surface-2);color:var(--ink)}
 .site-nav a[aria-current]{color:var(--ink);font-weight:600}
+
+/* ── Город покупателя ──────────────────────────────────── */
+/* Стоит перед меню и прижат вправо: марка слева, город и навигация
+   вместе справа. Из бургера город намеренно вынесен — на телефоне
+   он нужнее пунктов меню */
+.city{position:relative;margin-left:auto;flex:0 0 auto}
+.city-btn{display:flex;align-items:center;gap:6px;background:none;border:0;
+  padding:7px 10px;border-radius:8px;font:inherit;font-size:var(--t-sm);
+  color:var(--muted);cursor:pointer;white-space:nowrap}
+.city-btn:hover{background:var(--surface-2);color:var(--ink)}
+.city-btn svg{color:var(--accent);flex:0 0 auto}
+.city-btn b{color:var(--ink);font-weight:600;
+  border-bottom:1px dashed var(--line-2)}
+.city-btn[aria-expanded="true"] b{border-bottom-color:var(--accent)}
+
+.city-pop{position:absolute;top:calc(100% + 6px);right:0;z-index:50;
+  min-width:210px;background:var(--surface);border:1px solid var(--line);
+  border-radius:10px;padding:5px;box-shadow:0 12px 32px rgba(0,0,0,.13)}
+.city-pop button{display:flex;align-items:center;width:100%;gap:10px;
+  background:none;border:0;padding:9px 11px;border-radius:7px;
+  font:inherit;font-size:var(--t-sm);color:var(--ink);cursor:pointer;
+  text-align:left}
+.city-pop button:hover{background:var(--surface-2)}
+.city-pop button[aria-selected]{font-weight:600;color:var(--accent)}
+.city-pop .n{margin-left:auto;color:var(--dim);font-size:var(--t-xs);
+  font-variant-numeric:tabular-nums}
+.city-pop .all{border-top:1px solid var(--line);margin-top:4px;padding-top:11px;
+  border-radius:0 0 7px 7px;color:var(--muted)}
+
+/* Догадка geoip: висит под шапкой, пока человек не ответит */
+.city-ask{position:absolute;top:calc(100% + 6px);right:0;z-index:50;width:250px;
+  background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  padding:14px;box-shadow:0 12px 32px rgba(0,0,0,.13)}
+.city-ask p{margin:0 0 11px;font-size:var(--t-sm)}
+.city-ask .row{display:flex;gap:8px}
+.city-ask .btn{flex:1;padding:8px 10px;font-size:var(--t-xs)}
+
+@media(max-width:560px){
+  /* Остаётся название города: подпись занимает место, а смысл несёт значок */
+  .city-btn .lbl{display:none}
+  .city-pop,.city-ask{right:auto;left:50%;transform:translateX(-50%)}
+}
 
 /* ── Кнопки ────────────────────────────────────────────── */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
@@ -150,6 +192,8 @@ label{display:block;font-size:var(--t-xs);color:var(--muted);margin:0 0 6px;
   padding:48px 28px;text-align:center}
 .empty h3{margin-bottom:8px}
 .empty p{margin:0;color:var(--muted);font-size:var(--t-sm)}
+.linkish{background:none;border:0;padding:0;font:inherit;color:var(--accent);
+  text-decoration:underline;cursor:pointer}
 
 @media(max-width:640px){
   :root{--t-3xl:29px;--t-2xl:24px;--t-xl:20px}
