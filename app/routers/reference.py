@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..auth import require_role
+from ..auth import current_user, require_role
 from ..database import get_session
 from ..scripts.import_catalog import slugify
 
@@ -240,7 +240,7 @@ async def add_modification(
 
 
 @router.get("/body-types")
-async def body_types():
+async def body_types(user: dict = Depends(current_user)):
     return BODY_TYPES
 
 

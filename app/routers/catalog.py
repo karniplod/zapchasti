@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..auth import optional_user
+from ..auth import optional_user, require_role
 from ..config import settings
 from ..database import get_session
 from ..services.geo import detect_city
@@ -637,7 +637,10 @@ async def catalog_facets(
 
 
 @router.get("/api/reports/unmet-demand")
-async def unmet_demand(session: AsyncSession = Depends(get_session)):
+async def unmet_demand(
+    session: AsyncSession = Depends(get_session),
+    user: dict = Depends(require_role("manager")),
+):
     """Какие машины искали, но у вас их не оказалось.
     Готовый список на закупку."""
     rows = await session.execute(text("SELECT * FROM unmet_demand LIMIT 50"))

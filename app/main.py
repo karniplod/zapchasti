@@ -8,6 +8,7 @@
 """
 
 import logging
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, Response
@@ -73,6 +74,40 @@ app.include_router(stock.router)
 # Вход
 # ------------------------------------------------------------------
 
+# Защита от перебора пароля. Считаем неудачи по паре «IP + логин»:
+# по одному IP работает целая смена через общий роутер, а по одному
+# логину перебирают с разных адресов — блокировать надо пересечение.
+#
+# Счётчик в памяти процесса: сотрудников единицы, ради этого поднимать
+# Redis незачем. Цена — при нескольких воркерах лимит умножается на их
+# число, и перезапуск обнуляет счёт. От автоматического перебора
+# защищает всё равно, от точечного подбора живым человеком — нет.
+LOGIN_MAX_FAILS = 7
+LOGIN_BLOCK_SECONDS = 300
+_login_fails: dict[tuple[str, str], list[float]] = {}
+
+
+def _login_key(request: Request, login: str) -> tuple[str, str]:
+    ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    if not ip:
+        ip = request.client.host if request.client else "?"
+    return ip, login.strip().lower()
+
+
+def login_blocked(key: tuple[str, str]) -> bool:
+    now = time.monotonic()
+    fails = [t for t in _login_fails.get(key, []) if now - t < LOGIN_BLOCK_SECONDS]
+    # Заодно чистим просроченные: без этого словарь растёт на каждой опечатке
+    if fails:
+        _login_fails[key] = fails
+    else:
+        _login_fails.pop(key, None)
+    return len(fails) >= LOGIN_MAX_FAILS
+
+
+def login_failed(key: tuple[str, str]) -> None:
+    _login_fails.setdefault(key, []).append(time.monotonic())
+
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_form(request: Request, next: str = "/admin"):
@@ -89,14 +124,27 @@ async def login_submit(
     next: str = Form("/admin"),
     session: AsyncSession = Depends(get_session),
 ):
+    key = _login_key(request, login)
+    if login_blocked(key):
+        log.warning("Перебор пароля: %s / %s", key[0], key[1])
+        return templates.TemplateResponse(
+            "admin/login.html",
+            {"request": request, "next": next,
+             "error": "Слишком много попыток. Подождите 5 минут."},
+            status_code=429,
+        )
+
     user = await authenticate(session, login, password)
     if not user:
+        login_failed(key)
         # Не уточняем, что именно неверно — логин или пароль
         return templates.TemplateResponse(
             "admin/login.html",
             {"request": request, "next": next, "error": "Неверный логин или пароль"},
             status_code=401,
         )
+
+    _login_fails.pop(key, None)  # вошёл — счёт обнуляем
 
     # Открытый редирект: пускаем только на внутренние пути
     target = next if next.startswith("/") and not next.startswith("//") else "/admin"

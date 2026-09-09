@@ -117,7 +117,11 @@ async def load_wmi(session: AsyncSession) -> dict:
 
 
 @router.post("/api/vin/decode")
-async def decode_vin(payload: VinRequest, session: AsyncSession = Depends(get_session)):
+async def decode_vin(
+    payload: VinRequest,
+    session: AsyncSession = Depends(get_session),
+    user: dict = Depends(current_user),
+):
     wmi_map = await load_wmi(session)
 
     # Совпадение по накопленным паттернам делает сама БД
@@ -198,13 +202,20 @@ async def modification_chain(session: AsyncSession, modification_id: int):
 
 
 @router.get("/api/brands")
-async def brands(session: AsyncSession = Depends(get_session)):
+async def brands(
+    session: AsyncSession = Depends(get_session),
+    user: dict = Depends(current_user),
+):
     rows = await session.execute(text("SELECT id, name FROM brands ORDER BY name"))
     return [dict(r._mapping) for r in rows]
 
 
 @router.get("/api/models")
-async def models(brand_id: int, session: AsyncSession = Depends(get_session)):
+async def models(
+    brand_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: dict = Depends(current_user),
+):
     rows = await session.execute(
         text("SELECT id, name FROM models WHERE brand_id = :b ORDER BY name"),
         {"b": brand_id},
@@ -213,7 +224,11 @@ async def models(brand_id: int, session: AsyncSession = Depends(get_session)):
 
 
 @router.get("/api/generations")
-async def generations(model_id: int, session: AsyncSession = Depends(get_session)):
+async def generations(
+    model_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: dict = Depends(current_user),
+):
     rows = await session.execute(
         text("""
         SELECT id, name, body_type, year_from, year_to
@@ -226,7 +241,11 @@ async def generations(model_id: int, session: AsyncSession = Depends(get_session
 
 
 @router.get("/api/modifications")
-async def modifications(generation_id: int, session: AsyncSession = Depends(get_session)):
+async def modifications(
+    generation_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: dict = Depends(current_user),
+):
     rows = await session.execute(
         text("""
         SELECT id, engine_code, engine_volume, fuel, power_hp, transmission, drive, doors
@@ -239,7 +258,11 @@ async def modifications(generation_id: int, session: AsyncSession = Depends(get_
 
 
 @router.get("/api/complectations")
-async def complectations(modification_id: int, session: AsyncSession = Depends(get_session)):
+async def complectations(
+    modification_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: dict = Depends(current_user),
+):
     """Список пуст, если в справочнике комплектаций для этой модификации
     нет — форма тогда просто не показывает поле."""
     rows = await session.execute(

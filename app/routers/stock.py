@@ -41,7 +41,10 @@ async def stock_page(request: Request, user=Depends(require_role("manager"))):
 
 
 @router.get("/api/stock/donors")
-async def acceptable_donors(session: AsyncSession = Depends(get_session)):
+async def acceptable_donors(
+    session: AsyncSession = Depends(get_session),
+    user: dict = Depends(require_role("manager")),
+):
     """Машины, с которых ещё можно снимать детали. Утилизированные
     и полностью разобранные не предлагаем."""
     rows = await session.execute(
