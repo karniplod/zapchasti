@@ -12,10 +12,7 @@
   CREATE SEQUENCE donor_code_seq START 1;
 """
 
-import shutil
-import uuid
 from datetime import date
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
@@ -24,15 +21,14 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import current_user, require_role
+from ..config import settings
 from ..database import get_session  # ваш штатный провайдер сессии
+from ..services.images import save_images
 from ..templating import templates
 from ..vin_decoder import decode, normalize
 
 router = APIRouter(tags=["intake"])
 
-MEDIA_ROOT = Path("media/donors")
-ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
-MAX_PHOTO_BYTES = 12 * 1024 * 1024
 
 
 # ------------------------------------------------------------------
@@ -368,37 +364,21 @@ async def upload_photos(
     if not exists:
         raise HTTPException(404, "Донор не найден")
 
-    folder = MEDIA_ROOT / str(donor_id)
-    folder.mkdir(parents=True, exist_ok=True)
-    saved = []
+    # Тот же обработчик, что и при правке карточки: снимок с телефона
+    # ужимается в webp и получает миниатюру. Раньше здесь файл клался
+    # на диск как есть, поэтому в списках машин превью тянуло оригинал
+    # на несколько мегабайт
+    images = await save_images(files, settings.media_root / "donors" / str(donor_id))
 
-    for order, upload in enumerate(files):
-        if upload.content_type not in ALLOWED_IMAGE_TYPES:
-            raise HTTPException(415, f"{upload.filename}: только JPEG, PNG или WebP")
-
-        ext = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}[
-            upload.content_type
-        ]
-        name = f"{uuid.uuid4().hex}{ext}"
-        target = folder / name
-
-        # Имя файла из браузера в путь не попадает — только сгенерированное
-        with target.open("wb") as out:
-            shutil.copyfileobj(upload.file, out, length=1024 * 1024)
-
-        if target.stat().st_size > MAX_PHOTO_BYTES:
-            target.unlink()
-            raise HTTPException(413, f"{upload.filename}: больше 12 МБ")
-
-        rel = f"/media/donors/{donor_id}/{name}"
+    for order, img in enumerate(images):
         await session.execute(
             text("""
-            INSERT INTO donor_photos (donor_id, path, sort_order)
-            VALUES (:d, :p, :o)
+            INSERT INTO donor_photos (donor_id, path, thumb, width, height, sort_order)
+            VALUES (:d, :path, :thumb, :w, :h, :o)
         """),
-            {"d": donor_id, "p": rel, "o": order},
+            {"d": donor_id, "path": img.path, "thumb": img.thumb,
+             "w": img.width, "h": img.height, "o": order},
         )
-        saved.append(rel)
 
     await session.commit()
-    return {"photos": saved}
+    return {"photos": [img.path for img in images]}

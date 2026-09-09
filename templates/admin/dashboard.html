@@ -22,7 +22,8 @@ gap:11px;margin-bottom:24px}
 .panel h3{margin:0 0 12px;font-size:15px}
 .car{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--line)}
 .car:last-child{border-bottom:0}
-.car .code{font-family:ui-monospace,monospace;font-size:13px;color:var(--amber);flex:0 0 60px}
+.car .code{font-family:ui-monospace,monospace;font-size:13px;color:var(--amber);
+  flex:0 0 60px}
 .car .nm{flex:1;min-width:0;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .car .nm small{display:block;color:var(--dim);font-size:12px}
 .car .cnt{font-size:13px;color:var(--muted);white-space:nowrap}
@@ -84,6 +85,11 @@ padding:12px 20px;font-weight:600;font-size:14.5px;margin-bottom:22px}
   {% if active %}
     {% for c in active %}
     <div class="car">
+      {% if c.photo %}
+        <span class="car-pic"><img src="{{ c.photo }}" alt="" loading="lazy"></span>
+      {% else %}
+        <span class="car-pic none"></span>
+      {% endif %}
       <span class="code">{{ c.code }}</span>
       <span class="nm">{{ c.brand }} {{ c.model }}
         <small>{{ c.generation }}{% if c.year %}, {{ c.year }}{% endif %}</small></span>

@@ -206,6 +206,14 @@ def reprocess_existing(root: Path | None = None, dry_run: bool = True) -> dict:
 
         python -c "from app.services.images import reprocess_existing; \\
                    print(reprocess_existing(dry_run=False))"
+
+    ОСТОРОЖНО: работает только с диском. Файл сохраняется под новым
+    именем, старый удаляется, а пути в donor_photos и part_photos
+    остаются прежними — снимки после этого не откроются.
+
+    Для снимков, на которые есть строки в базе, есть
+    app/scripts/rebuild_photos.py: он правит запись раньше, чем
+    трогает файл.
     """
     root = root or settings.media_root
     stats = {"files": 0, "before": 0, "after": 0, "errors": 0}

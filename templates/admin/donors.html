@@ -7,6 +7,8 @@
 .car{display:block;background:var(--panel);border:1px solid var(--line);border-radius:11px;
 padding:14px 16px;margin-bottom:10px}
 .car:hover{border-color:var(--dim)}
+.car .row{display:flex;gap:14px;align-items:flex-start}
+.car .info{flex:1;min-width:0}
 .car .h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .car .code{font-family:ui-monospace,monospace;color:var(--amber);font-size:14px;font-weight:600}
 .car .nm{font-size:15.5px}
@@ -67,24 +69,31 @@ async function load(){
     const profit = c.purchase_price
       ? (Number(c.revenue) - Number(c.purchase_price)) : null;
     return `<div class="car" data-id="${c.id}">
-      <div class="h">
-        <span class="code">${c.code}</span>
-        <span class="nm">${c.brand} ${c.model}</span>
-        <span class="st ${work?'work':''}">${label}</span>
-      </div>
-      <div class="meta">${c.generation}${c.year?', '+c.year:''}${c.color?', '+c.color:''}
-        ${c.vin?' · '+c.vin:' · без VIN'}${c.branch?' · '+c.branch:''}</div>
-      <div class="nums">
-        <span>деталей <b>${c.parts}</b></span>
-        <span>продано <b>${c.sold}</b></span>
-        <span>закупка <b>${money(c.purchase_price)}</b></span>
-        <span>выручка <b>${money(c.revenue)}</b></span>
-        ${profit !== null ? `<span class="${profit>=0?'profit':'loss'}">
-          итог <b>${profit>=0?'+':''}${Number(profit).toLocaleString('ru')} ₽</b></span>` : ''}
-      </div>
-      <div class="actions-row">
-        <a class="btn" href="/donors/${c.id}/dismantle">Разбор</a>
-        <button class="btn edit-btn">Изменить</button>
+      <div class="row">
+        ${c.photo ? `<span class="car-pic car-pic-lg">
+            <img src="${c.photo}" alt="" loading="lazy"></span>`
+                  : '<span class="car-pic car-pic-lg none"></span>'}
+        <div class="info">
+          <div class="h">
+            <span class="code">${c.code}</span>
+            <span class="nm">${c.brand} ${c.model}</span>
+            <span class="st ${work?'work':''}">${label}</span>
+          </div>
+          <div class="meta">${c.generation}${c.year?', '+c.year:''}${c.color?', '+c.color:''}
+            ${c.vin?' · '+c.vin:' · без VIN'}${c.branch?' · '+c.branch:''}</div>
+          <div class="nums">
+            <span>деталей <b>${c.parts}</b></span>
+            <span>продано <b>${c.sold}</b></span>
+            <span>закупка <b>${money(c.purchase_price)}</b></span>
+            <span>выручка <b>${money(c.revenue)}</b></span>
+            ${profit !== null ? `<span class="${profit>=0?'profit':'loss'}">
+              итог <b>${profit>=0?'+':''}${Number(profit).toLocaleString('ru')} ₽</b></span>` : ''}
+          </div>
+          <div class="actions-row">
+            <a class="btn" href="/donors/${c.id}/dismantle">Разбор</a>
+            <button class="btn edit-btn">Изменить</button>
+          </div>
+        </div>
       </div>
     </div>`;
   }).join('');

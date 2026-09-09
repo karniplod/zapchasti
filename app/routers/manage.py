@@ -61,6 +61,9 @@ async def donors_list(
                (SELECT br.city || ', ' || br.name FROM branches br
                  WHERE br.id = d.branch_id) AS branch,
                b.name AS brand, m.name AS model, g.name AS generation,
+               (SELECT coalesce(ph.thumb, ph.path) FROM donor_photos ph
+                 WHERE ph.donor_id = d.id
+                 ORDER BY ph.sort_order LIMIT 1)                       AS photo,
                (SELECT count(*) FROM parts p WHERE p.donor_id = d.id) AS parts,
                (SELECT count(*) FROM parts p
                  WHERE p.donor_id = d.id AND p.status = 'sold')        AS sold,

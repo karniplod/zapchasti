@@ -48,7 +48,12 @@ async def dashboard(
                 text("""
         SELECT d.id, d.code, d.status::text AS status, d.year,
                b.name AS brand, m.name AS model, g.name AS generation,
-               (SELECT count(*) FROM parts p WHERE p.donor_id = d.id) AS parts
+               (SELECT count(*) FROM parts p WHERE p.donor_id = d.id) AS parts,
+               -- Миниатюра, если её сделали при загрузке; у старых
+               -- снимков её нет, и тогда берём сам файл
+               (SELECT coalesce(ph.thumb, ph.path) FROM donor_photos ph
+                 WHERE ph.donor_id = d.id
+                 ORDER BY ph.sort_order LIMIT 1) AS photo
           FROM donors d
           JOIN generations g ON g.id = d.generation_id
           JOIN models m      ON m.id = g.model_id
