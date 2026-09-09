@@ -14,6 +14,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -191,8 +192,12 @@ async def robots():
 # ------------------------------------------------------------------
 
 
-@app.exception_handler(HTTPException)
-async def http_error(request: Request, exc: HTTPException):
+# Ловим starlette-исключение, а не fastapi: наследник ловится заодно,
+# а вот наоборот — нет. Раньше страница ошибки не показывалась там,
+# где нужнее всего: на несуществующем адресе маршрут не находит сам
+# starlette, и в браузер уходил голый JSON
+@app.exception_handler(StarletteHTTPException)
+async def http_error(request: Request, exc: StarletteHTTPException):
     # API отвечает JSON, страницы — человеческой страницей
     if request.url.path.startswith("/api/"):
         return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)

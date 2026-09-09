@@ -1,0 +1,199 @@
+/* ─────────────────────────────────────────────────────────
+   ЯДРО ВИТРИНЫ. Словарь, из которого собираются все страницы:
+   токены, сброс, типографика, кнопки, поля, карточка товара.
+
+   Здесь не должно быть ничего, что относится к одной странице.
+   Правило простое: если селектор встречается только на одной
+   странице — ему место в её файле (catalog.css, part.css, home.css).
+
+   Порядок подключения задан в templates/_base.html:
+       core.css → chrome.css → файл страницы
+   Поэтому страница может уточнять ядро, а ядро о страницах не знает.
+
+   Мотив оформления: складская бирка — моноширинный артикул,
+   грейд состояния штампом, сигнальный синий как на маркировке.
+   ───────────────────────────────────────────────────────── */
+
+:root{
+  /* Палитра: холодный склад */
+  --bg:        #EDEFF2;   /* оцинковка */
+  --surface:   #FFFFFF;
+  --surface-2: #F5F7F9;
+  --line:      #D6DBE1;
+  --line-2:    #BFC7D0;
+  --ink:       #12161B;
+  --muted:     #5B6672;
+  --dim:       #8C97A3;
+  --accent:    #1B4DE4;   /* сигнальный синий: маркировка, техпаспорт */
+  --accent-dk: #133AAE;
+  --accent-bg: #E8EEFF;
+  --ok:        #0E7A4B;
+  --warn:      #A8600A;
+  --err:       #C02A2A;
+
+  /* Шрифты: узкий гротеск на заголовки, моно на коды */
+  --display: "Oswald","Archivo Narrow","Roboto Condensed",
+             system-ui,-apple-system,sans-serif;
+  --body:    "Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  --mono:    ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+
+  /* Шкала: 1.25 */
+  --t-xs: 12px; --t-sm: 13.5px; --t-md: 15px;
+  --t-lg: 19px; --t-xl: 24px;  --t-2xl: 31px; --t-3xl: 39px;
+
+  --gap: 16px;
+  --r:   10px;
+  --shadow: 0 1px 2px rgba(18,22,27,.06), 0 4px 16px rgba(18,22,27,.05);
+}
+
+/* ── Сброс ─────────────────────────────────────────────── */
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:var(--body);font-size:var(--t-md);line-height:1.55;
+  -webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+img{max-width:100%;display:block}
+
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+
+/* Ничто не шире экрана: горизонтальная прокрутка на телефоне
+   ломает всё — шапку обрезает, секции разъезжаются */
+html,body{max-width:100%;overflow-x:clip}
+
+/* ── Ширина страницы ───────────────────────────────────── */
+.wrap{width:100%;max-width:min(1120px, 100%);margin:0 auto;padding:0 16px}
+
+/* ── Типографика ───────────────────────────────────────── */
+h1,h2,h3{font-family:var(--display);font-weight:600;
+  letter-spacing:-.01em;line-height:1.15;margin:0}
+h1{font-size:var(--t-3xl);text-transform:uppercase;letter-spacing:.005em}
+h2{font-size:var(--t-xl)}
+h3{font-size:var(--t-lg)}
+.eyebrow{font-family:var(--display);font-size:var(--t-xs);font-weight:600;
+  letter-spacing:.18em;text-transform:uppercase;color:var(--dim);margin:0 0 10px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.lead{font-size:var(--t-lg);color:var(--muted);max-width:56ch}
+.hint{font-size:var(--t-sm);color:var(--muted)}
+/* Подпись под заголовком или блоком: абзацный отступ браузера здесь
+   всегда лишний, из-за него в разметке заводились правки на месте */
+p.hint{margin:4px 0 0}
+
+/* ── Кнопки ────────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  font-family:var(--body);font-size:var(--t-md);font-weight:600;
+  padding:13px 22px;border-radius:var(--r);border:1px solid transparent;
+  cursor:pointer;transition:background .13s,border-color .13s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-dk)}
+.btn-primary:disabled{background:var(--line-2);cursor:not-allowed}
+.btn-ghost{background:var(--surface);color:var(--ink);border-color:var(--line-2)}
+.btn-ghost:hover{border-color:var(--ink)}
+.btn-sm{padding:9px 16px;font-size:var(--t-sm)}
+
+/* Ссылка, которая на самом деле кнопка: внутри текста абзаца */
+.linkish{background:none;border:0;padding:0;font:inherit;color:var(--accent);
+  text-decoration:underline;cursor:pointer}
+
+/* ── Поля ──────────────────────────────────────────────── */
+.field{width:100%;background:var(--surface);border:1px solid var(--line-2);
+  border-radius:var(--r);color:var(--ink);padding:13px 15px;
+  font-family:var(--body);font-size:var(--t-md);outline:none}
+.field:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-bg)}
+.field-code{font-family:var(--mono);letter-spacing:.12em;text-transform:uppercase;
+  font-size:var(--t-lg)}
+label{display:block;font-size:var(--t-xs);color:var(--muted);margin:0 0 6px;
+  letter-spacing:.02em}
+
+/* Моноширинный шрифт с разрядкой не влезает в 360 px */
+@media(max-width:560px){
+  .field-code{font-size:16px;letter-spacing:.06em}
+}
+
+/* ── Первый экран с VIN ────────────────────────────────── */
+/* Общий для главной и каталога: вход в подбор на обеих страницах
+   один и тот же. Отступы у каждой свои — заданы в её файле */
+.hero{background:var(--surface);border-bottom:1px solid var(--line)}
+.vinbar{display:flex;gap:10px;max-width:min(620px, 100%)}
+.vinbar .field{flex:1;width:100%;min-width:0}
+.vinbar .field.bad{border-color:var(--err)}
+@media(max-width:560px){
+  .vinbar{flex-direction:column}
+  .vinbar .btn{width:100%}
+}
+
+/* ── Карточка товара ───────────────────────────────────── */
+/* Одна и та же плитка в каталоге и в свежих поступлениях */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(216px,1fr));
+  gap:var(--gap);grid-auto-rows:1fr}
+
+.tag-card{height:100%;background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column;
+  position:relative;transition:border-color .13s,transform .13s,box-shadow .13s}
+.tag-card:hover{border-color:var(--line-2);transform:translateY(-2px);
+  box-shadow:var(--shadow)}
+
+/* Квадратный кадр через padding-top, а не aspect-ratio: приём старый,
+   зато работает везде, а вертикальные снимки с телефона перестают
+   вытягивать сетку */
+.tag-card .shot{position:relative;height:0;padding-top:100%;overflow:hidden;
+  background:var(--surface-2);border-radius:var(--r) var(--r) 0 0}
+.tag-card .shot img,
+.tag-card .shot .none{position:absolute;inset:0;width:100%;height:100%}
+.tag-card .shot img{object-fit:cover}
+.tag-card .shot .none{display:flex;align-items:center;justify-content:center;
+  color:var(--dim);font-size:var(--t-sm)}
+
+/* Грейд состояния — штамп в углу снимка */
+.grade{position:absolute;right:9px;bottom:9px;z-index:3;
+  font-family:var(--display);font-size:15px;font-weight:700;line-height:1;
+  width:30px;height:30px;display:flex;align-items:center;justify-content:center;
+  background:var(--surface);border:2px solid var(--ink);border-radius:6px}
+.grade[data-g="C"],.grade[data-g="D"]{border-color:var(--warn);color:var(--warn)}
+
+.tag-card .body{padding:13px 15px 15px;display:flex;flex-direction:column;
+  gap:6px;flex:1}
+.tag-card .sku{font-family:var(--mono);font-size:11.5px;color:var(--dim);
+  letter-spacing:.04em}
+.tag-card .name{font-size:var(--t-md);line-height:1.3}
+.tag-card .fit{font-size:var(--t-sm);color:var(--muted)}
+.tag-card .price{margin-top:auto;padding-top:8px;font-family:var(--display);
+  font-size:var(--t-xl);font-weight:600;font-variant-numeric:tabular-nums}
+.tag-card .price small{display:block;font-family:var(--body);font-size:var(--t-xs);
+  font-weight:400;color:var(--muted)}
+
+/* ── Метки ─────────────────────────────────────────────── */
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:var(--t-xs);
+  padding:4px 10px;border-radius:6px;background:var(--surface-2);
+  color:var(--muted);border:1px solid var(--line)}
+.chip-ok{background:#E6F4ED;color:var(--ok);border-color:#BFE3D2}
+.chip-warn{background:#FDF2E2;color:var(--warn);border-color:#F0DCBB}
+.chip-accent{background:var(--accent-bg);color:var(--accent-dk);border-color:#C7D6FF}
+
+/* ── Панели и состояния ────────────────────────────────── */
+.panel{background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--r);padding:20px 22px}
+.notice{border-radius:var(--r);padding:15px 18px;font-size:var(--t-sm);line-height:1.5}
+.notice h3{margin:0 0 4px}
+/* Сообщение вторым блоком подряд — например предупреждение про
+   комплектацию под разобранным VIN */
+.notice + .notice,
+.panel + .notice{margin-top:12px}
+.notice-accent{background:var(--accent-bg);border:1px solid #C7D6FF}
+.notice-warn{background:#FDF2E2;border:1px solid #F0DCBB;color:#7A4708}
+.empty{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:48px 28px;text-align:center}
+.empty h3{margin-bottom:8px}
+.empty p{margin:0;color:var(--muted);font-size:var(--t-sm)}
+.empty p + p{margin-top:12px}
+/* Пустая выдача занимает всю ширину сетки, а не одну ячейку */
+.grid > .empty{grid-column:1/-1}
+
+/* ── Узкий экран ───────────────────────────────────────── */
+@media(max-width:640px){
+  :root{--t-3xl:29px;--t-2xl:24px;--t-xl:20px}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:11px}
+}

@@ -21,8 +21,13 @@ def _file_version(name: str) -> str:
         return "0"
 
 
-def _css_version() -> str:
-    return _file_version("site.css")
+def _asset(name: str) -> str:
+    """Адрес файла из static с меткой правки: изменили стиль — браузер
+    забирает новый, а не показывает вчерашний из кеша.
+
+    Имя относительно static/, например asset("css/core.css").
+    """
+    return f"/static/{name}?v={_file_version(name)}"
 
 
 def _admin_css_version() -> str:
@@ -39,7 +44,7 @@ def _chosen_city(request) -> str:
 
 # Функции, а не значения: вызываются в шаблоне при каждой отрисовке,
 # поэтому правка CSS видна без перезапуска
-templates.env.globals["css_version"] = _css_version
+templates.env.globals["asset"] = _asset
 templates.env.globals["admin_css_version"] = _admin_css_version
 templates.env.globals["app_name"] = settings.app_name
 templates.env.globals["base_url"] = settings.base_url

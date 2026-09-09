@@ -1,0 +1,192 @@
+/* ─────────────────────────────────────────────────────────
+   КАТАЛОГ: /catalog
+   Подбор по VIN, выбор машины из справочника, фильтры и выдача.
+   Общее с главной (первый экран, плитка товара) лежит в core.css.
+   ───────────────────────────────────────────────────────── */
+
+/* ── Первый экран ──────────────────────────────────────── */
+/* Ниже, чем на главной: здесь под ним сразу выдача, а не рассказ */
+.hero{padding:44px 0 38px}
+.hero h1{margin:0 0 10px}
+.hero .lead{margin:0 0 24px}
+
+/* ── Строка «VIN под рукой нет?» ────────────────────────── */
+.alt{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  margin:14px 0 0;font-size:var(--t-sm);color:var(--muted)}
+
+/* Кнопка тут второстепенная: главный путь — VIN.
+   Селектор с двумя классами намеренно сильнее .alt button ниже:
+   ссылкой выглядит только текстовый переключатель, не кнопка */
+.alt .btn,
+.alt button.btn-ghost{
+  background:var(--surface);
+  color:var(--ink);
+  border:1px solid var(--line-2);
+  border-radius:var(--r);
+  padding:11px 18px;
+  font-family:var(--body);
+  font-size:var(--t-sm);
+  font-weight:600;
+  text-decoration:none;
+  cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+  gap:8px
+}
+.alt .btn:hover{border-color:var(--ink)}
+.alt .btn[aria-expanded="true"]{border-color:var(--accent);color:var(--accent)}
+
+/* Значок раскрытия — понятно, что кнопка что-то открывает */
+.alt .btn::after{
+  content:"";
+  width:8px;height:8px;
+  border-right:2px solid currentColor;
+  border-bottom:2px solid currentColor;
+  transform:rotate(45deg) translate(-2px,-2px);
+  transition:transform .15s
+}
+.alt .btn[aria-expanded="true"]::after{
+  transform:rotate(-135deg) translate(-2px,-2px)
+}
+
+.alt button{background:none;border:0;padding:0;font:inherit;color:var(--accent);
+  text-decoration:underline;cursor:pointer}
+
+@media(max-width:520px){
+  .alt{flex-direction:column;align-items:stretch;gap:8px}
+  .alt .btn{width:100%}
+}
+
+/* ── Выбор машины из справочника ───────────────────────── */
+.picker{
+  background:var(--surface);
+  border:1px solid var(--line-2);
+  border-radius:var(--r);
+  padding:20px;
+  margin-top:16px;
+  max-width:620px;
+  box-shadow:var(--shadow);
+  animation:picker-in .18s ease-out
+}
+@keyframes picker-in{
+  from{opacity:0;transform:translateY(-6px)}
+  to{opacity:1;transform:none}
+}
+@media(prefers-reduced-motion:reduce){.picker{animation:none}}
+
+/* Заголовок блока — тем же языком, что и остальные секции */
+.picker::before{
+  content:"Марка и модель";
+  display:block;
+  font-family:var(--display);
+  font-size:var(--t-xs);
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--dim);
+  margin-bottom:14px
+}
+
+.picker-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:520px){.picker-row{grid-template-columns:1fr}}
+
+/* Селекты выглядят как поля ввода, а не как системные виджеты */
+.picker select{
+  width:100%;
+  appearance:none;
+  background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%235B6672' stroke-width='2' fill='none'/%3E%3C/svg%3E") no-repeat right 14px center;
+  padding-right:36px;
+  cursor:pointer
+}
+.picker select:disabled{opacity:.45;cursor:not-allowed;background-color:var(--surface-2)}
+
+.picker-gen{margin-top:12px}
+.picker .hint{margin:10px 0 0}
+
+.picker-actions{display:flex;gap:10px;margin-top:14px}
+.picker-actions .btn-primary{flex:1}
+.picker-actions .btn-ghost{flex:0 0 auto}
+@media(max-width:520px){
+  .picker-actions{flex-direction:column}
+  .picker-actions .btn{width:100%}
+}
+
+/* ── Машина определилась по VIN ────────────────────────── */
+.resolved{max-width:620px;margin-top:20px}
+.resolved h3{font-size:var(--t-lg);margin:0 0 4px}
+.cands{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.cands button{text-align:left;background:var(--surface);border:1px solid var(--line-2);
+  border-radius:8px;padding:9px 13px;font:inherit;font-size:var(--t-sm);cursor:pointer}
+.cands button:hover{border-color:var(--accent)}
+.cands b{display:block;font-weight:600}
+.cands small{color:var(--dim)}
+
+/* ── Свежие поступления ────────────────────────────────── */
+.fresh{padding-top:26px}
+@media(min-width:641px){
+  /* Ровно три в ряд: это витрина, а не выдача */
+  .fresh .grid{grid-template-columns:repeat(3,1fr)}
+}
+@media(max-width:640px){
+  .fresh{padding-top:20px}
+}
+
+/* ── Раскладка: фильтры и выдача ───────────────────────── */
+/* Ширину и поля задаёт .wrap.layout — иначе на узком экране
+   выдача теряла отступы, которые есть у первого экрана */
+.layout{display:grid;grid-template-columns:224px 1fr;gap:30px;
+  padding:26px 0 70px;align-items:start;
+  width:100%;max-width:min(1120px, 100%);margin-inline:auto}
+.wrap.layout{padding-inline:16px}
+
+/* Ничто внутри не распирает страницу */
+.layout .grid,
+.layout main,
+.layout .side{max-width:100%;min-width:0}
+
+@media(max-width:820px){
+  .layout{grid-template-columns:1fr}
+  .side{order:2}
+}
+
+/* Два столбца только на широком экране: боковой колонке нужно
+   не меньше 220 px, иначе фильтры не читаются */
+@media(max-width:900px){
+  .layout{display:block}
+  /* Фильтры внизу — в ряд, каждый блок своей колонкой */
+  .layout .side{margin-top:26px;padding-top:20px;
+    border-top:1px solid var(--line);position:static;max-height:none;
+    columns:2;column-gap:24px}
+  .layout .side section{break-inside:avoid;margin-bottom:18px}
+  .layout .side .reset{column-span:all;margin-top:4px}
+}
+@media(max-width:520px){
+  .layout .side{columns:1}
+}
+
+/* ── Фильтры ───────────────────────────────────────────── */
+.side section{margin-bottom:22px}
+.side h4{font-family:var(--display);font-size:var(--t-xs);letter-spacing:.16em;
+  text-transform:uppercase;color:var(--dim);margin:0 0 9px}
+.side label{display:flex;align-items:center;gap:8px;padding:5px 0;
+  font-size:var(--t-sm);color:var(--ink);cursor:pointer;margin:0}
+.side label input{accent-color:var(--accent)}
+.side label .n{margin-left:auto;color:var(--dim);font-size:var(--t-xs);
+  font-variant-numeric:tabular-nums}
+.side .range{display:flex;gap:8px}
+.side .range .field{padding:9px 11px;font-size:var(--t-sm)}
+.side .reset{background:none;border:0;padding:0;font:inherit;font-size:var(--t-sm);
+  color:var(--accent);text-decoration:underline;cursor:pointer}
+
+/* ── Выдача ────────────────────────────────────────────── */
+.search{margin-bottom:16px}
+.toolbar{display:flex;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap}
+.toolbar .count{font-size:var(--t-sm);color:var(--muted)}
+.toolbar select{margin-left:auto;padding:9px 12px;border:1px solid var(--line-2);
+  border-radius:8px;background:var(--surface);font:inherit;font-size:var(--t-sm)}
+
+.pager{display:flex;gap:8px;justify-content:center;margin-top:28px;flex-wrap:wrap}
+.pager button{background:var(--surface);border:1px solid var(--line-2);
+  border-radius:8px;padding:9px 15px;font:inherit;font-size:var(--t-sm);cursor:pointer}
+.pager button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.pager button:disabled{opacity:.4;cursor:not-allowed}
+.pager .gap{padding:9px 4px}

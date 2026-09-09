@@ -3,51 +3,7 @@
 {% block description %}Б/у автозапчасти с разбора: подбор по VIN, фото каждой детали, честная оценка состояния.{% endblock %}
 
 {% block head %}
-<style>
-.hero{background:var(--surface);border-bottom:1px solid var(--line);padding:52px 0 44px}
-.hero h1{font-size:var(--t-3xl);margin:0 0 12px;max-width:16ch}
-.hero .lead{margin:0 0 26px}
-.vinbar{display:flex;gap:10px;max-width:620px}
-.vinbar .field{flex:1;min-width:0}
-.vinbar .field.bad{border-color:var(--err)}
-@media(max-width:560px){.vinbar{flex-direction:column}.vinbar .btn{width:100%}}
-
-/* Цифры склада — не украшение, а ответ на «а есть ли у вас что-то» */
-.figures{display:flex;gap:28px;margin-top:26px;flex-wrap:wrap}
-.figures div{display:flex;align-items:baseline;gap:8px}
-.figures b{font-family:var(--display);font-size:var(--t-2xl);font-weight:600;
-  font-variant-numeric:tabular-nums;line-height:1}
-.figures span{font-size:var(--t-sm);color:var(--muted)}
-
-section.block{padding:40px 0}
-section.block .head{display:flex;align-items:baseline;gap:14px;margin-bottom:18px}
-section.block .head a{margin-left:auto;font-size:var(--t-sm);color:var(--accent);
-  text-decoration:underline}
-
-/* Машины на разборе */
-.cars{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
-.car{display:flex;gap:12px;align-items:center;background:var(--surface);
-  border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;
-  transition:border-color .13s}
-.car:hover{border-color:var(--line-2)}
-.car .pic{width:56px;height:56px;flex:0 0 56px;border-radius:8px;overflow:hidden;
-  background:var(--surface-2)}
-.car .pic img{width:100%;height:100%;object-fit:cover}
-.car .nm{font-size:var(--t-md);line-height:1.25}
-.car .sub{font-size:var(--t-xs);color:var(--muted);margin-top:2px}
-.car .cnt{margin-left:auto;font-family:var(--mono);font-size:var(--t-xs);
-  color:var(--dim);white-space:nowrap}
-
-/* Как это работает — три шага, порядок здесь несёт смысл */
-.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
-@media(max-width:700px){.steps{grid-template-columns:1fr;gap:14px}}
-.step{background:var(--surface);border:1px solid var(--line);
-  border-radius:var(--r);padding:20px}
-.step .n{font-family:var(--display);font-size:var(--t-xs);letter-spacing:.16em;
-  color:var(--accent);font-weight:600;margin-bottom:8px}
-.step h3{font-size:var(--t-md);margin:0 0 6px;text-transform:none}
-.step p{margin:0;font-size:var(--t-sm);color:var(--muted);line-height:1.5}
-</style>
+<link rel="stylesheet" href="{{ asset('css/home.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -103,7 +59,7 @@ section.block .head a{margin-left:auto;font-size:var(--t-sm);color:var(--accent)
 {% endif %}
 
 {% if cars %}
-<section class="block" style="background:var(--surface-2)">
+<section class="block tint">
   <div class="wrap">
     <div class="head"><h2>Машины на разборе</h2></div>
     <div class="cars">

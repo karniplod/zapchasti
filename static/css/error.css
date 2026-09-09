@@ -1,0 +1,25 @@
+/* ─────────────────────────────────────────────────────────
+   СТРАНИЦА ОШИБКИ: 404 / 403 / 500
+   Стоит особняком: она отдаётся из обработчика исключений и не
+   наследует _base.html — шапку на сломанной странице показывать
+   нечем, данных для неё может уже не быть.
+
+   Но палитра общая. Раньше здесь лежал свой :root с другими
+   цветами (бежевый фон, янтарный код), и страница выглядела
+   ни как витрина, ни как бэкенд.
+   ───────────────────────────────────────────────────────── */
+
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;
+  padding:24px}
+
+.box{max-width:440px;text-align:center}
+
+.code{font-family:var(--display);font-size:52px;font-weight:700;
+  color:var(--accent);line-height:1;margin-bottom:14px;letter-spacing:-.03em;
+  font-variant-numeric:tabular-nums}
+
+.box h1{font-size:var(--t-xl);text-transform:none;letter-spacing:-.02em;
+  margin:0 0 10px}
+.box p{margin:0 0 24px;color:var(--muted);font-size:var(--t-md);line-height:1.55}
+
+.links{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}

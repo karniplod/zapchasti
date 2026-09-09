@@ -1,0 +1,135 @@
+/* ─────────────────────────────────────────────────────────
+   КАРТОЧКА ДЕТАЛИ: /p/{sku}
+   Сюда же ведёт QR с этикетки, поэтому страницу открывают
+   и покупатели, и кладовщик у стеллажа.
+   ───────────────────────────────────────────────────────── */
+
+.crumbs{font-size:var(--t-sm);color:var(--muted);padding:18px 0 0}
+.crumbs a:hover{text-decoration:underline}
+
+.part{display:grid;grid-template-columns:1.1fr 1fr;gap:36px;
+  padding:18px 0 60px;align-items:start}
+@media(max-width:820px){.part{grid-template-columns:1fr;gap:24px}}
+
+/* ── Галерея ───────────────────────────────────────────── */
+/* Снимок детали — главный аргумент. Квадрат задаётся так же, как
+   у плитки в каталоге: высота через padding-top, картинка внутри
+   абсолютом. Раньше эти правила жили в двух файлах сразу, высота
+   считалась дважды и фото вылезало за карточку поверх текста */
+.shots .big{position:relative;height:0;padding-top:100%;overflow:hidden;
+  background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--r);cursor:zoom-in}
+.shots .big img,
+.shots .big .none{position:absolute;inset:0;width:100%;height:100%}
+.shots .big img{object-fit:cover}
+.shots .big .none{display:flex;align-items:center;justify-content:center;
+  color:var(--dim);font-size:var(--t-sm)}
+
+/* Лупа. Снимок кадрирован в квадрат, поэтому детали по краям обрезаны —
+   в просмотре показываем кадр целиком */
+.zoom-btn{position:absolute;right:10px;bottom:10px;z-index:2;
+  width:38px;height:38px;padding:0;display:flex;align-items:center;
+  justify-content:center;border:1px solid var(--line);border-radius:50%;
+  background:rgba(255,255,255,.92);color:var(--ink);cursor:zoom-in;
+  box-shadow:0 2px 8px rgba(18,22,27,.18)}
+.zoom-btn:hover{background:#fff;border-color:var(--dim)}
+.zoom-btn svg{width:19px;height:19px}
+
+.shots .strip{display:flex;gap:8px;margin-top:10px;overflow-x:auto;padding-bottom:4px}
+.shots .strip button{flex:0 0 76px;height:76px;padding:0;border-radius:8px;
+  overflow:hidden;border:2px solid var(--line);background:none;cursor:pointer}
+.shots .strip button.on{border-color:var(--accent)}
+.shots .strip img{width:100%;height:100%;object-fit:cover}
+
+/* ── Просмотр во весь экран ────────────────────────────── */
+.viewer{position:fixed;inset:0;z-index:100;display:none;
+  background:rgba(18,22,27,.92);overflow:hidden;touch-action:none}
+.viewer.open{display:block}
+/* Снимок центрируется, а увеличение делается transform-ом от центра:
+   так масштаб не влияет на раскладку и не дёргает страницу */
+.viewer img{position:absolute;top:50%;left:50%;max-width:100%;max-height:100%;
+  transform-origin:center center;cursor:zoom-in;will-change:transform;
+  user-select:none;-webkit-user-drag:none}
+.viewer.zoomed img{cursor:grab}
+.viewer.zoomed.dragging img{cursor:grabbing}
+
+.viewer .close{position:absolute;top:16px;right:20px;z-index:2;
+  width:40px;height:40px;border:0;border-radius:50%;
+  background:rgba(255,255,255,.14);color:#fff;font-size:24px;line-height:1;
+  cursor:pointer}
+.viewer .close:hover{background:rgba(255,255,255,.24)}
+
+.viewer .zoom-ctl{position:absolute;bottom:20px;left:50%;translate:-50% 0;
+  z-index:2;display:flex;align-items:center;gap:4px;padding:4px;
+  background:rgba(255,255,255,.12);border-radius:999px;backdrop-filter:blur(6px)}
+.viewer .zoom-ctl button{width:38px;height:38px;border:0;border-radius:50%;
+  background:none;color:#fff;font-size:20px;line-height:1;cursor:pointer}
+.viewer .zoom-ctl button:hover{background:rgba(255,255,255,.18)}
+.viewer .zoom-ctl .lvl{min-width:52px;text-align:center;color:#fff;
+  font-size:var(--t-xs);font-variant-numeric:tabular-nums}
+.viewer .hint{position:absolute;bottom:70px;left:0;right:0;text-align:center;
+  color:rgba(255,255,255,.55);font-size:var(--t-xs);pointer-events:none}
+@media(max-width:520px){.viewer .hint{display:none}}
+
+/* ── Заголовок и цена ──────────────────────────────────── */
+.head h1{font-size:var(--t-2xl);text-transform:none;letter-spacing:-.02em;
+  margin:0 0 6px;line-height:1.2}
+.head .from{color:var(--muted);font-size:var(--t-sm);margin:0 0 4px}
+.head .sku{font-family:var(--mono);font-size:var(--t-xs);color:var(--dim);
+  letter-spacing:.04em}
+
+.price-row{margin:22px 0 0;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.price-big{font-family:var(--display);font-size:var(--t-3xl);font-weight:600;
+  font-variant-numeric:tabular-nums;line-height:1}
+.price-big.ask{font-size:var(--t-xl);color:var(--muted)}
+.stock{display:inline-flex;align-items:center;gap:7px;font-size:var(--t-sm)}
+.stock::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ok)}
+.stock.out{color:var(--muted)}.stock.out::before{background:var(--dim)}
+
+/* Где забрать: вопрос, который задают сразу после цены */
+.where{margin:12px 0 0;font-size:var(--t-sm);color:var(--muted)}
+.where b{color:var(--ink);font-weight:600}
+
+.actions{display:flex;gap:10px;margin:20px 0 0;flex-wrap:wrap}
+.actions .btn{flex:1;min-width:160px}
+
+/* ── Состояние ─────────────────────────────────────────── */
+/* Тот же грейд, что на карточках каталога, только крупнее */
+.cond{margin-top:22px;background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--r);padding:16px 18px}
+.cond .top{display:flex;align-items:center;gap:12px}
+.cond .g{width:38px;height:38px;flex:0 0 38px;display:flex;align-items:center;
+  justify-content:center;font-family:var(--display);font-size:19px;font-weight:700;
+  border:2px solid var(--ink);border-radius:7px}
+.cond .g[data-g="C"],.cond .g[data-g="D"]{border-color:var(--warn);color:var(--warn)}
+.cond .label{font-weight:600}
+.cond .who{font-size:var(--t-xs);color:var(--dim)}
+.cond .note{margin:12px 0 0;font-size:var(--t-sm);color:var(--muted)}
+
+/* ── Характеристики ────────────────────────────────────── */
+.specs{margin-top:22px;border-top:1px solid var(--line)}
+.specs div{display:flex;gap:14px;padding:11px 0;border-bottom:1px solid var(--line);
+  font-size:var(--t-sm)}
+.specs dt{color:var(--muted);flex:0 0 44%;margin:0}
+.specs dd{margin:0;flex:1}
+.specs dd.mono{font-family:var(--mono);font-size:var(--t-xs)}
+.copy{background:none;border:0;padding:0 0 0 8px;font:inherit;font-size:var(--t-xs);
+  color:var(--accent);text-decoration:underline;cursor:pointer}
+
+/* ── Применимость ──────────────────────────────────────── */
+.fits{margin-top:34px}
+.fits ul{margin:14px 0 0;padding:0;list-style:none;columns:2;column-gap:28px}
+@media(max-width:640px){.fits ul{columns:1}}
+.fits li{padding:6px 0;font-size:var(--t-sm);break-inside:avoid}
+.fits li small{color:var(--dim)}
+
+.fits .notice{margin-top:16px}
+
+.donor-link{margin-top:20px;font-size:var(--t-sm);color:var(--muted)}
+.donor-link a{color:var(--accent);text-decoration:underline}
+
+/* ── Всплывающее уведомление ───────────────────────────── */
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:26px;
+  background:var(--ink);color:#fff;border-radius:var(--r);padding:13px 20px;
+  font-size:var(--t-sm);opacity:0;transition:.2s;pointer-events:none;z-index:50}
+.toast.show{opacity:1}

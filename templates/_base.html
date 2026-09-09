@@ -5,7 +5,8 @@
       {% block title %}Каталог{% endblock %}
       {% block content %} ... {% endblock %}
 
-  Стили лежат в static/site.css — правятся в одном месте.
+  Стили: static/css/core.css — ядро (токены, кнопки, поля, плитка),
+  static/css/chrome.css — шапка и подвал, дальше файл страницы.
 #}
 <!DOCTYPE html>
 <html lang="ru">
@@ -14,7 +15,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Запчасти с разбора{% endblock %} — {{ app_name }}</title>
 <meta name="description" content="{% block description %}Б/у автозапчасти с разбора: подбор по VIN, фото каждой детали, оценка состояния.{% endblock %}">
-<link rel="stylesheet" href="/static/site.css?v={{ css_version() }}">
+{# Ядро и обвязка — на каждой странице; свой файл страница
+   подключает сама в блоке head, после них #}
+<link rel="stylesheet" href="{{ asset('css/core.css') }}">
+<link rel="stylesheet" href="{{ asset('css/chrome.css') }}">
 {% block head %}{% endblock %}
 </head>
 <body>
@@ -63,8 +67,7 @@
 
 <main>{% block content %}{% endblock %}</main>
 
-<footer style="border-top:1px solid var(--line);margin-top:60px;padding:28px 0;
-               background:var(--surface)">
+<footer class="site-foot">
   <div class="wrap hint">
     Все детали б/у, сняты с конкретных машин. Состояние оценивает наш разборщик,
     фото — реальные, без подмены.

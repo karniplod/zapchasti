@@ -2,55 +2,7 @@
 {% block title %}Каталог запчастей{% endblock %}
 
 {% block head %}
-<style>
-/* Первый экран: VIN — единственный вход, всё остальное запасной путь */
-.hero{background:var(--surface);border-bottom:1px solid var(--line);padding:44px 0 38px}
-.hero h1{margin:0 0 10px}
-.hero .lead{margin:0 0 24px}
-.vinbar{display:flex;gap:10px;max-width:620px}
-.vinbar .field{flex:1;min-width:0}
-.vinbar .field.bad{border-color:var(--err)}
-.alt{margin:14px 0 0;font-size:var(--t-sm);color:var(--muted)}
-.alt button{background:none;border:0;padding:0;font:inherit;color:var(--accent);
-  text-decoration:underline;cursor:pointer}
-
-.resolved{max-width:620px;margin-top:20px}
-.resolved h3{font-size:var(--t-lg);margin:0 0 4px}
-.cands{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
-.cands button{text-align:left;background:var(--surface);border:1px solid var(--line-2);
-  border-radius:8px;padding:9px 13px;font:inherit;font-size:var(--t-sm);cursor:pointer}
-.cands button:hover{border-color:var(--accent)}
-.cands b{display:block;font-weight:600}
-.cands small{color:var(--dim)}
-
-.layout{display:grid;grid-template-columns:224px 1fr;gap:30px;
-  padding:26px 0 70px;align-items:start}
-@media(max-width:820px){.layout{grid-template-columns:1fr}.side{order:2}}
-
-.side section{margin-bottom:22px}
-.side h4{font-family:var(--display);font-size:var(--t-xs);letter-spacing:.16em;
-  text-transform:uppercase;color:var(--dim);margin:0 0 9px}
-.side label{display:flex;align-items:center;gap:8px;padding:5px 0;
-  font-size:var(--t-sm);color:var(--ink);cursor:pointer;margin:0}
-.side label input{accent-color:var(--accent)}
-.side label .n{margin-left:auto;color:var(--dim);font-size:var(--t-xs);
-  font-variant-numeric:tabular-nums}
-.side .range{display:flex;gap:8px}
-.side .range .field{padding:9px 11px;font-size:var(--t-sm)}
-.side .reset{background:none;border:0;padding:0;font:inherit;font-size:var(--t-sm);
-  color:var(--accent);text-decoration:underline;cursor:pointer}
-
-.toolbar{display:flex;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap}
-.toolbar .count{font-size:var(--t-sm);color:var(--muted)}
-.toolbar select{margin-left:auto;padding:9px 12px;border:1px solid var(--line-2);
-  border-radius:8px;background:var(--surface);font:inherit;font-size:var(--t-sm)}
-
-.pager{display:flex;gap:8px;justify-content:center;margin-top:28px;flex-wrap:wrap}
-.pager button{background:var(--surface);border:1px solid var(--line-2);
-  border-radius:8px;padding:9px 15px;font:inherit;font-size:var(--t-sm);cursor:pointer}
-.pager button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
-.pager button:disabled{opacity:.4;cursor:not-allowed}
-</style>
+<link rel="stylesheet" href="{{ asset('css/catalog.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -82,13 +34,13 @@
         <div><label for="pModel">Модель</label>
           <select id="pModel" class="field" disabled></select></div>
       </div>
-      <div style="margin-top:12px"><label for="pGen">Поколение</label>
+      <div class="picker-gen"><label for="pGen">Поколение</label>
         <select id="pGen" class="field" disabled></select></div>
       <div class="picker-actions">
         <button class="btn btn-primary" id="pGo" disabled>Показать детали</button>
         <button class="btn btn-ghost" id="pReset">Сбросить</button>
       </div>
-      <p class="hint" style="margin:10px 0 0">Показаны только машины,
+      <p class="hint">Показаны только машины,
          по которым у нас есть детали в наличии.</p>
     </div>
 
@@ -115,9 +67,8 @@
   </aside>
 
   <main>
-    <input class="field" id="q" placeholder="Название или каталожный номер"
-           autocomplete="off" aria-label="Поиск по названию или номеру"
-           style="margin-bottom:16px">
+    <input class="field search" id="q" placeholder="Название или каталожный номер"
+           autocomplete="off" aria-label="Поиск по названию или номеру">
     <div class="toolbar">
       <span class="count" id="count"></span>
       <select id="sort" aria-label="Сортировка">
@@ -161,7 +112,7 @@ async function findByVin(){
 
 // Предупреждение о комплектации висит всегда: подбор по VIN даёт
 // поколение кузова, но не исполнение
-const WARN = `<div class="notice notice-warn" style="margin-top:12px">
+const WARN = `<div class="notice notice-warn">
   Подбор по VIN определяет поколение кузова, но не точную комплектацию.
   Сверьте каталожный номер со своей деталью — это исключит возврат.</div>`;
 
@@ -171,14 +122,14 @@ function showResolution(d){
   if (d.resolution === 'invalid'){
     $('vin').classList.add('bad');
     box.innerHTML = `<div class="panel"><h3>Не похоже на VIN</h3>
-      <p class="hint" style="margin:4px 0 0">${d.errors.join('. ')}.
+      <p class="hint">${d.errors.join('. ')}.
       Номер есть в ПТС и на табличке под капотом.</p></div>`;
     return;
   }
 
   if (d.resolution === 'exact'){
     box.innerHTML = `<div class="notice notice-accent">
-      <h3 style="margin:0 0 4px">${d.brand} ${d.model} ${d.generation}${d.body_type ? ', '+d.body_type : ''}</h3>
+      <h3>${d.brand} ${d.model} ${d.generation}${d.body_type ? ', '+d.body_type : ''}</h3>
       <span class="hint">${d.year_from}–${d.year_to || 'н.в.'}${d.year ? ' · ваш год: '+d.year : ''}
         · подходящих деталей: ${d.results_count}</span></div>${WARN}`;
     state.generation_id = d.generation_id;
@@ -189,7 +140,7 @@ function showResolution(d){
   if (d.resolution === 'brand_year'){
     box.innerHTML = `<div class="panel">
       <h3>${d.manufacturer}${d.year ? ', '+d.year+' год' : ''}</h3>
-      <p class="hint" style="margin:4px 0 0">Точную модель по этому VIN определить
+      <p class="hint">Точную модель по этому VIN определить
         не удалось. Выберите свою:</p>
       <div class="cands">${d.candidates.map(c => `
         <button data-gen="${c.generation_id}"><b>${c.brand} ${c.model}</b>
@@ -206,7 +157,7 @@ function showResolution(d){
   }
 
   box.innerHTML = `<div class="panel"><h3>Такую машину мы пока не разбирали</h3>
-    <p class="hint" style="margin:4px 0 0">${d.country ? d.country+', ' : ''}${d.year ? d.year+' год' : ''} —
+    <p class="hint">${d.country ? d.country+', ' : ''}${d.year ? d.year+' год' : ''} —
       модель определить не смогли. Запрос записан: появится такая машина на разборе,
       детали будут в каталоге. Пока посмотрите общий каталог.</p></div>`;
   openCatalog();
@@ -281,7 +232,7 @@ $('pGo').onclick = () => {
   const car = `${$('pBrand').selectedOptions[0].text.split(' · ')[0]} `
             + `${$('pModel').selectedOptions[0].text.split(' · ')[0]}`;
   $('resolved').innerHTML = `<div class="notice notice-accent">
-    <h3 style="margin:0">${car}</h3>
+    <h3>${car}</h3>
     <span class="hint">Показаны детали для выбранной машины</span></div>`;
   $('picker').hidden = true;
   openCatalog();
@@ -306,7 +257,7 @@ async function loadFacets(){
   $('cats').innerHTML = f.categories.map(c =>
     `<label><input type="radio" name="cat" value="${c.id}">${c.name}
       <span class="n">${c.cnt}</span></label>`).join('')
-    || '<p class="hint" style="margin:0">Нет деталей</p>';
+    || '<p class="hint">Нет деталей</p>';
   $('cats').querySelectorAll('input').forEach(i => i.onchange = () => {
     state.category_id = +i.value; state.page = 1; loadParts(); });
 
@@ -363,11 +314,11 @@ async function loadParts(){
     ? `${d.total} ${plural(d.total,'деталь','детали','деталей')}` : '';
 
   if (!d.items.length){
-    $('grid').innerHTML = `<div class="empty" style="grid-column:1/-1">
+    $('grid').innerHTML = `<div class="empty">
       <h3>Ничего не нашлось</h3>
       <p>Уберите часть фильтров или напишите нам — деталь может лежать
          на складе, но ещё не быть выложенной.</p>
-      ${state.city ? `<p style="margin-top:12px">Сейчас показан только
+      ${state.city ? `<p>Сейчас показан только
         <b>${state.city}</b>. <button class="linkish" id="allCities">Искать
         во всех городах</button></p>` : ''}</div>`;
     const all = $('allCities');
@@ -414,7 +365,7 @@ function renderPager(d){
   for (let i = 1; i <= d.pages; i++){
     if (i===1 || i===d.pages || Math.abs(i-d.page) <= 1)
       h += `<button class="${i===d.page?'on':''}" data-p="${i}">${i}</button>`;
-    else if (Math.abs(i-d.page) === 2) h += '<span style="padding:9px 4px">…</span>';
+    else if (Math.abs(i-d.page) === 2) h += '<span class="gap">…</span>';
   }
   h += `<button ${d.page===d.pages?'disabled':''} data-p="${d.page+1}">Вперёд</button>`;
   $('pager').innerHTML = h;

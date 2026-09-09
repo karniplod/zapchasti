@@ -1,0 +1,125 @@
+/* ─────────────────────────────────────────────────────────
+   ОБВЯЗКА: шапка, меню, город, подвал.
+   Всё, что есть на каждой странице витрины и не зависит от того,
+   какая это страница. Подключается сразу после core.css.
+
+   Стили бэкенда сюда не попадают: у админки свой admin.css со своей
+   палитрой. Раньше её правила (.acct, .nav) лежали в общем файле
+   витрины и молча не работали — переменных --panel и --amber здесь
+   нет и не будет.
+   ───────────────────────────────────────────────────────── */
+
+/* ── Шапка ─────────────────────────────────────────────── */
+.site-head{background:var(--surface);border-bottom:1px solid var(--line);
+  position:sticky;top:0;z-index:40}
+.site-head .wrap{display:flex;align-items:center;gap:20px;height:60px;
+  flex-wrap:nowrap;min-width:0}
+
+.brand{display:flex;align-items:center;gap:9px;flex:0 0 auto;
+  font-family:var(--display);font-weight:700;font-size:17px;
+  letter-spacing:.02em;text-transform:uppercase;white-space:nowrap}
+.brand i{font-style:normal;color:var(--accent)}
+.brand img{width:34px;height:34px;object-fit:contain;flex:0 0 34px}
+
+/* ── Меню ──────────────────────────────────────────────── */
+/* Не прижато вправо: правый край держит блок города, меню идёт за ним */
+.site-nav{display:flex;gap:6px;min-width:0;
+  overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none}
+.site-nav::-webkit-scrollbar{display:none}
+.site-nav a{flex:0 0 auto;padding:8px 12px;border-radius:8px;
+  font-size:var(--t-sm);color:var(--muted)}
+.site-nav a:hover{background:var(--surface-2);color:var(--ink)}
+.site-nav a[aria-current]{color:var(--ink);font-weight:600}
+
+/* Ход в бэкенд: заметен сотруднику, не мешает покупателю */
+.site-nav .to-admin{background:var(--ink);color:#fff;font-weight:600;
+  padding:8px 14px;border-radius:8px;margin-left:6px}
+.site-nav .to-admin:hover{background:var(--accent);color:#fff}
+
+/* ── Город покупателя ──────────────────────────────────── */
+/* Стоит перед меню и прижат вправо: марка слева, город и навигация
+   вместе справа. Из бургера город намеренно вынесен — на телефоне
+   он нужнее пунктов меню */
+.city{position:relative;margin-left:auto;flex:0 0 auto}
+.city-btn{display:flex;align-items:center;gap:6px;background:none;border:0;
+  padding:7px 10px;border-radius:8px;font:inherit;font-size:var(--t-sm);
+  color:var(--muted);cursor:pointer;white-space:nowrap}
+.city-btn:hover{background:var(--surface-2);color:var(--ink)}
+.city-btn svg{color:var(--accent);flex:0 0 auto}
+.city-btn b{color:var(--ink);font-weight:600;
+  border-bottom:1px dashed var(--line-2)}
+.city-btn[aria-expanded="true"] b{border-bottom-color:var(--accent)}
+
+.city-pop{position:absolute;top:calc(100% + 6px);right:0;z-index:50;
+  min-width:210px;background:var(--surface);border:1px solid var(--line);
+  border-radius:10px;padding:5px;box-shadow:0 12px 32px rgba(0,0,0,.13)}
+.city-pop button{display:flex;align-items:center;width:100%;gap:10px;
+  background:none;border:0;padding:9px 11px;border-radius:7px;
+  font:inherit;font-size:var(--t-sm);color:var(--ink);cursor:pointer;
+  text-align:left}
+.city-pop button:hover{background:var(--surface-2)}
+.city-pop button[aria-selected]{font-weight:600;color:var(--accent)}
+.city-pop .n{margin-left:auto;color:var(--dim);font-size:var(--t-xs);
+  font-variant-numeric:tabular-nums}
+.city-pop .all{border-top:1px solid var(--line);margin-top:4px;padding-top:11px;
+  border-radius:0 0 7px 7px;color:var(--muted)}
+
+/* Догадка geoip: висит под шапкой, пока человек не ответит */
+.city-ask{position:absolute;top:calc(100% + 6px);right:0;z-index:50;width:250px;
+  background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  padding:14px;box-shadow:0 12px 32px rgba(0,0,0,.13)}
+.city-ask p{margin:0 0 11px;font-size:var(--t-sm)}
+.city-ask .row{display:flex;gap:8px}
+.city-ask .btn{flex:1;padding:8px 10px;font-size:var(--t-xs)}
+
+@media(max-width:560px){
+  /* Остаётся название города: подпись занимает место, а смысл несёт значок */
+  .city-btn .lbl{display:none}
+  .city-pop,.city-ask{right:auto;left:50%;transform:translateX(-50%)}
+  .brand img{width:28px;height:28px;flex-basis:28px}
+}
+
+/* ── Бургер и мобильное меню ───────────────────────────── */
+.burger{display:none;width:42px;height:42px;padding:0;flex:0 0 42px;
+  background:none;border:1px solid var(--line-2);border-radius:9px;
+  cursor:pointer;position:relative;margin-left:auto}
+.burger span,.burger::before,.burger::after{
+  content:"";position:absolute;left:11px;right:11px;height:2px;
+  background:currentColor;transition:transform .18s,opacity .12s}
+.burger span{top:20px}
+.burger::before{top:13px}
+.burger::after{top:27px}
+/* Крестик при открытом меню */
+.burger[aria-expanded="true"] span{opacity:0}
+.burger[aria-expanded="true"]::before{transform:translateY(7px) rotate(45deg)}
+.burger[aria-expanded="true"]::after{transform:translateY(-7px) rotate(-45deg)}
+
+@media(max-width:760px){
+  .burger{display:block}
+
+  /* Меню разворачивается под шапкой на всю ширину */
+  .site-nav{
+    position:absolute;left:0;right:0;top:100%;
+    flex-direction:column;align-items:stretch;gap:0;
+    background:var(--surface);border-bottom:1px solid var(--line);
+    padding:8px 16px 14px;margin:0;
+    box-shadow:0 12px 24px rgba(18,22,27,.08);
+    overflow:visible;max-height:none}
+  .site-nav[hidden]{display:none}
+
+  .site-nav a{padding:13px 4px;border-bottom:1px solid var(--line);
+    font-size:var(--t-md)}
+  .site-nav a:last-child{border-bottom:0}
+  .site-nav .to-admin{margin:10px 0 0;text-align:center;border-radius:9px}
+
+  .site-head{position:sticky;top:0}
+  .site-head .wrap{position:relative;flex-wrap:nowrap}
+}
+
+@media(max-width:640px){
+  .site-head .wrap{height:54px;gap:12px}
+}
+
+/* ── Подвал ────────────────────────────────────────────── */
+.site-foot{border-top:1px solid var(--line);margin-top:60px;padding:28px 0;
+  background:var(--surface)}
