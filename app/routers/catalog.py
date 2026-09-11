@@ -556,7 +556,9 @@ async def catalog_parts(
                  WHERE pc.id = c.parent_id) AS node,
                b.name AS brand, m.name AS model, g.name AS generation,
                d.year, d.code AS donor_code,
-               (SELECT path FROM part_photos ph
+               -- Миниатюра: плитка 216 px, полный снимок ей не нужен.
+               -- Остальные выборки витрины так и делают, эта отставала
+               (SELECT coalesce(ph.thumb, ph.path) FROM part_photos ph
                  WHERE ph.part_id = p.id ORDER BY sort_order LIMIT 1) AS photo,
                (SELECT b2.name || ' ' || m2.name
                   FROM part_applicability pa
