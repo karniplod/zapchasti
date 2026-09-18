@@ -1,0 +1,50 @@
+/* ─────────────────────────────────────────────────────────
+   ТЕКСТОВЫЕ СТРАНИЦЫ: /contacts, /delivery
+   Две колонки на широком экране, одна на узком. Общий словарь
+   (кнопки, поля, .notice, .hint) берётся из core.css.
+   ───────────────────────────────────────────────────────── */
+
+/* Первый экран тут ниже, чем в каталоге: под ним текст, а не выдача */
+.page-hero{padding:38px 0 30px}
+.page-hero h1{margin:0 0 10px}
+.page-hero .lead{margin:0}
+
+.page{display:grid;grid-template-columns:1fr 1fr;gap:44px;padding:34px 0 70px;
+  align-items:start}
+@media(max-width:820px){.page{grid-template-columns:1fr;gap:34px}}
+
+.page-col h2{margin:0 0 14px}
+.page-col h3{font-size:var(--t-md);text-transform:none;margin:22px 0 8px}
+.page-col p{margin:0 0 12px;color:var(--muted);font-size:var(--t-sm);line-height:1.6}
+.page-col a{color:var(--accent);text-decoration:underline}
+
+/* ── Филиалы ───────────────────────────────────────────── */
+.city-block{margin-bottom:18px}
+.city-block h3{margin:0 0 8px;font-family:var(--display);font-size:var(--t-xs);
+  letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+
+.points{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.points li{background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:2px}
+.points b{font-weight:600}
+.points span{font-size:var(--t-sm);color:var(--muted)}
+.points .tel{font-family:var(--mono);font-size:var(--t-sm);text-decoration:none}
+.points .tel:hover{text-decoration:underline}
+
+.steps-list{margin:0 0 12px;padding-left:20px;color:var(--muted);
+  font-size:var(--t-sm);line-height:1.6}
+.steps-list li{margin-bottom:6px}
+
+/* ── Форма заявки ──────────────────────────────────────── */
+.lead-form{display:grid;gap:14px;background:var(--surface);
+  border:1px solid var(--line);border-radius:var(--r);padding:20px}
+.lead-form textarea.field{resize:vertical;min-height:96px;font-family:inherit}
+.lead-form .field.bad{border-color:var(--err)}
+.lead-form .btn{width:100%}
+.lead-form .hint{margin:0}
+
+/* Сообщение о принятой заявке встаёт на место формы */
+.lead-form .notice{margin:0}
+
+.page .notice{margin-bottom:16px}
+.page .notice a{margin-left:4px}

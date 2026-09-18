@@ -93,6 +93,20 @@
 .actions{display:flex;gap:10px;margin:20px 0 0;flex-wrap:wrap}
 .actions .btn{flex:1;min-width:160px}
 
+/* Бронь: поле раскрывается по кнопке, чтобы не занимать первый экран */
+.reserve{margin:14px 0 0;background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--r);padding:16px 18px}
+.reserve label{margin-bottom:8px}
+.reserve .row{display:flex;gap:10px}
+.reserve .row .field{flex:1;min-width:0}
+.reserve .row .btn{flex:0 0 auto}
+.reserve .field.bad{border-color:var(--err)}
+.reserve .notice{margin:0}
+@media(max-width:520px){
+  .reserve .row{flex-direction:column}
+  .reserve .row .btn{width:100%}
+}
+
 /* ── Состояние ─────────────────────────────────────────── */
 /* Тот же грейд, что на карточках каталога, только крупнее */
 .cond{margin-top:22px;background:var(--surface);border:1px solid var(--line);

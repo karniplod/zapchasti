@@ -127,3 +127,54 @@ UPDATE donors SET branch_id = (SELECT id FROM branches ORDER BY sort_order LIMIT
  WHERE branch_id IS NULL;
 UPDATE parts  SET branch_id = (SELECT id FROM branches ORDER BY sort_order LIMIT 1)
  WHERE branch_id IS NULL;
+
+
+-- ------------------------------------------------------------
+-- Кроссы OEM-номеров
+-- ------------------------------------------------------------
+-- Поиск в каталоге умеет искать по аналогу: покупатель вводит номер
+-- от своего производителя, а на складе лежит номер другого. Запрос
+-- в app/routers/catalog.py это делал всегда, но таблиц под него
+-- не существовало ни в схеме, ни в миграциях — любой поиск
+-- по строке падал с UndefinedTable и отдавал 500.
+
+-- Один артикул TecDoc = один физический аналог, у него несколько
+-- номеров разных брендов. Два обращения к таблице по art_id и дают
+-- переход «чужой номер -> наш»
+CREATE TABLE IF NOT EXISTS oem_cross (
+    art_id   bigint NOT NULL,
+    code     text   NOT NULL,          -- уже нормализован: только буквы и цифры
+    brand    text,
+    name_en  text,
+    is_oe    boolean NOT NULL DEFAULT true,
+    node     text                      -- узел по названию, см. scripts/nodes.py
+);
+-- Поиск идёт по номеру, схлопывание аналогов — по артикулу
+CREATE INDEX IF NOT EXISTS oem_cross_code_idx   ON oem_cross (code);
+CREATE INDEX IF NOT EXISTS oem_cross_art_id_idx ON oem_cross (art_id);
+-- Один и тот же номер приходит из нескольких файлов выгрузки
+CREATE UNIQUE INDEX IF NOT EXISTS oem_cross_uniq ON oem_cross (art_id, code);
+
+-- По каким номерам уже ходили в архив. Архив статичный, повторный
+-- проход даст то же самое, а идёт он часами
+CREATE TABLE IF NOT EXISTS oem_cross_lookup (
+    code       text PRIMARY KEY,
+    found      int  NOT NULL DEFAULT 0,
+    checked_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Номера, приписанные детали вручную сверх основного oem_number:
+-- у детали бывает номер по каталогу производителя и номер на самой
+-- отливке, искать надо по обоим
+CREATE TABLE IF NOT EXISTS part_oem (
+    id      bigserial PRIMARY KEY,
+    part_id bigint NOT NULL REFERENCES parts(id) ON DELETE CASCADE,
+    code    text   NOT NULL,
+    UNIQUE (part_id, code)
+);
+
+-- Узел категории: тормоза, подвеска, кузов. Нужен, чтобы кросс
+-- по номеру не подсунул интеркулер вместо подшипника — один номер
+-- встречается у разных производителей на разные детали.
+-- Заполняется через python -m app.scripts.set_nodes
+ALTER TABLE part_categories ADD COLUMN IF NOT EXISTS node text;

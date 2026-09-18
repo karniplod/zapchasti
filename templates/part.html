@@ -77,13 +77,25 @@
       {%- if part.branch_phone %} · {{ part.branch_phone }}{% endif %}</p>
     {% endif %}
 
+    {# Корзины и оплаты на сайте пока нет, поэтому кнопка не делает вид,
+       что они есть: деталь откладывают по телефону. Цена «по запросу»
+       брони не мешает — как раз тогда и звонят #}
     <div class="actions">
       <button class="btn btn-primary" id="buy"
-              {% if part.status != 'in_stock' or not part.price %}disabled{% endif %}>
-        В корзину
+              {% if part.status != 'in_stock' %}disabled{% endif %}>
+        Забронировать
       </button>
-      <button class="btn btn-ghost" id="ask">Задать вопрос</button>
+      <a class="btn btn-ghost" href="/contacts?about={{ part.sku }}">Задать вопрос</a>
     </div>
+
+    <form class="reserve" id="reserve" hidden>
+      <label for="rPhone">Телефон — перезвоним и отложим деталь</label>
+      <div class="row">
+        <input class="field" id="rPhone" type="tel" inputmode="tel"
+               autocomplete="tel" placeholder="+7 900 000-00-00" required>
+        <button class="btn btn-primary" id="rSend" type="submit">Отправить</button>
+      </div>
+    </form>
 
     <div class="cond">
       <div class="top">
@@ -315,18 +327,40 @@ document.querySelectorAll('.copy').forEach(b => b.onclick = async () => {
   catch { toast('Не удалось скопировать — выделите вручную'); }
 });
 
-$('buy').onclick = async () => {
-  $('buy').disabled = true;
-  try {
-    const r = await fetch('/api/cart', {method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({sku: '{{ part.sku }}'})});
-    if (r.ok){ $('buy').textContent = 'В корзине'; toast('Деталь в корзине'); }
-    else { toast('Не получилось добавить'); $('buy').disabled = false; }
-  } catch { toast('Нет связи'); $('buy').disabled = false; }
+// Бронь = заявка с артикулом. Раньше кнопка стучалась в /api/cart,
+// которого нет, и покупатель всегда получал «Не получилось добавить»
+$('buy').onclick = () => {
+  $('reserve').hidden = !$('reserve').hidden;
+  if (!$('reserve').hidden) $('rPhone').focus();
 };
 
-$('ask').onclick = () => location.href = '/contacts?about={{ part.sku }}';
+$('reserve').onsubmit = async e => {
+  e.preventDefault();
+  const phone = $('rPhone').value.trim();
+  if (phone.replace(/\D/g, '').length < 10){
+    $('rPhone').classList.add('bad'); $('rPhone').focus();
+    toast('Проверьте номер телефона'); return;
+  }
+  $('rPhone').classList.remove('bad');
+
+  $('rSend').disabled = true;
+  try {
+    const r = await fetch('/api/leads', {method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({phone, sku: '{{ part.sku }}'})});
+    if (r.ok){
+      $('reserve').innerHTML =
+        '<div class="notice notice-accent"><b>Заявка принята.</b> '
+        + 'Перезвоним и отложим деталь.</div>';
+      $('buy').disabled = true;
+      $('buy').textContent = 'Забронирована';
+      return;
+    }
+    const d = await r.json().catch(() => ({}));
+    toast(d.detail || 'Не получилось отправить');
+  } catch { toast('Нет связи с сервером'); }
+  $('rSend').disabled = false;
+};
 
 let t;
 function toast(m){ $('toast').textContent = m; $('toast').classList.add('show');

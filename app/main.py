@@ -21,7 +21,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .auth import authenticate, drop_session, issue_session
 from .config import settings
 from .database import check_connection, dispose, get_session
-from .routers import admin, catalog, dismantle, intake, manage, reference, stock
+from .routers import (
+    admin,
+    catalog,
+    dismantle,
+    intake,
+    manage,
+    pages,
+    reference,
+    stock,
+)
 from .templating import templates
 
 logging.basicConfig(
@@ -63,6 +72,7 @@ app.mount("/static", StaticFiles(directory=settings.static_root), name="static")
 app.mount("/media", StaticFiles(directory=settings.media_root), name="media")
 
 app.include_router(catalog.router)
+app.include_router(pages.router)
 app.include_router(intake.router)
 app.include_router(dismantle.router)
 app.include_router(reference.router)

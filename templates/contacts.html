@@ -1,0 +1,124 @@
+{% extends "_base.html" %}
+{% block title %}Контакты{% endblock %}
+{% block description %}Адреса филиалов и форма заявки: оставьте телефон, перезвоним и подберём деталь.{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ asset('css/pages.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="hero page-hero">
+  <div class="wrap">
+    <h1>Контакты</h1>
+    <p class="lead">Заберите деталь сами или оставьте телефон — перезвоним
+      и скажем, есть ли она в наличии.</p>
+  </div>
+</section>
+
+<div class="wrap page">
+  <section class="page-col">
+    <h2>Где мы</h2>
+    {# Филиалы берутся из базы: добавили филиал в админке — он тут же
+       появился здесь, править шаблон не нужно #}
+    {% for city, rows in branches %}
+    <div class="city-block">
+      <h3>{{ city }}</h3>
+      <ul class="points">
+        {% for b in rows %}
+        <li>
+          <b>{{ b.name }}</b>
+          {% if b.address %}<span>{{ b.address }}</span>{% endif %}
+          {% if b.phone %}<a class="tel" href="tel:{{ b.phone | replace(' ', '') }}">{{ b.phone }}</a>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% else %}
+    <p class="hint">Филиалы пока не заведены.</p>
+    {% endfor %}
+  </section>
+
+  <section class="page-col">
+    <h2>Написать нам</h2>
+
+    {% if part %}
+    <div class="notice notice-accent">
+      Вопрос по детали <b>{{ part.name }}</b>,
+      артикул <span class="mono">{{ part.sku }}</span>
+    </div>
+    {% endif %}
+
+    <form class="lead-form" id="leadForm" novalidate>
+      <div>
+        <label for="lPhone">Телефон</label>
+        <input class="field" id="lPhone" type="tel" inputmode="tel"
+               autocomplete="tel" placeholder="+7 900 000-00-00" required>
+      </div>
+      <div>
+        <label for="lName">Как к вам обращаться</label>
+        <input class="field" id="lName" autocomplete="name" placeholder="Необязательно">
+      </div>
+      <div>
+        <label for="lMsg">Что нужно</label>
+        <textarea class="field" id="lMsg" rows="4"
+          placeholder="Марка, модель, год и что ищете. Или VIN — так точнее."></textarea>
+      </div>
+      <button class="btn btn-primary" id="lSend" type="submit">Отправить</button>
+      <p class="hint" id="lNote">Перезваниваем в рабочее время. Телефон нужен
+        только для ответа по вашему вопросу.</p>
+    </form>
+  </section>
+</div>
+
+<div class="toast" id="toast"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const $ = id => document.getElementById(id);
+
+let t;
+function toast(m){ $('toast').textContent = m; $('toast').classList.add('show');
+  clearTimeout(t); t = setTimeout(() => $('toast').classList.remove('show'), 3000); }
+
+$('leadForm').onsubmit = async e => {
+  e.preventDefault();
+  const phone = $('lPhone').value.trim();
+  // Проверяем здесь же, чтобы не гонять заведомо пустое на сервер.
+  // Сервер проверяет ещё раз — форму можно обойти
+  if (phone.replace(/\D/g, '').length < 10){
+    $('lPhone').classList.add('bad');
+    $('lPhone').focus();
+    toast('Проверьте номер телефона');
+    return;
+  }
+  $('lPhone').classList.remove('bad');
+
+  const btn = $('lSend');
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/leads', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        phone,
+        name: $('lName').value.trim() || null,
+        message: $('lMsg').value.trim() || null,
+        {% if part %}sku: '{{ part.sku }}',{% endif %}
+      })});
+
+    if (r.ok){
+      // Форму убираем: повторная отправка того же — только лишний звонок
+      $('leadForm').innerHTML =
+        '<div class="notice notice-accent"><b>Заявка принята.</b> '
+        + 'Перезвоним на указанный номер.</div>';
+      return;
+    }
+    const d = await r.json().catch(() => ({}));
+    toast(d.detail || 'Не получилось отправить');
+  } catch {
+    toast('Нет связи с сервером');
+  }
+  btn.disabled = false;
+};
+</script>
+{% endblock %}
