@@ -51,6 +51,10 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
 .ghost{padding:14px 16px}
 .toast{bottom:96px}
 
+/* Тип детали: та же плитка, что у состояния, но в три колонки */
+.cond.origin{grid-template-columns:repeat(3,1fr)}
+.cond.origin button b{font-size:14px;font-weight:600}
+
 /* Подсказка каталожного номера */
 .oem-hints{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .oem-hints button{background:var(--panel-2);border:1px solid var(--line);
@@ -102,6 +106,25 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
       <div class="path" id="pickedPath"></div>
     </div>
     <button type="button" id="catClear" aria-label="Выбрать другую категорию">×</button>
+  </div>
+
+  {# Тип детали спрашиваем до номера: у оригинала, ОЕМ и аналога
+     номера разных производителей, и подсказка ищет их по-разному #}
+  <div style="margin-top:18px">
+    <label>Что за деталь</label>
+    <div class="cond origin" id="origin">
+      <button type="button" data-o="original" class="on">
+        <b>Оригинал</b><small>номер автозавода</small></button>
+      <button type="button" data-o="oem">
+        <b>ОЕМ</b><small>конвейерный поставщик</small></button>
+      <button type="button" data-o="aftermarket">
+        <b>Аналог</b><small>ставили до нас</small></button>
+    </div>
+    <div id="brandBox" hidden style="margin-top:10px">
+      <label for="partBrand">Бренд детали</label>
+      <input type="text" id="partBrand" autocomplete="off"
+             placeholder="Bosch, Hella, Valeo…">
+    </div>
   </div>
 
   <div style="margin-top:18px">
@@ -172,6 +195,7 @@ const DONOR_ID = {{ donor.id }};
 const $ = id => document.getElementById(id);
 
 let category = null, condition = null, files = [], lastLoc = '';
+let origin = 'original';   // снятая с машины деталь чаще всего оригинал
 
 // --- подсказка каталожного номера ------------------------------------
 // Ядро подсказки живёт на сервере (app/services/oem.py): оно опрашивает
@@ -266,6 +290,16 @@ $('catClear').onclick = () => {
 };
 
 // --- состояние -------------------------------------------------------
+// Бренд нужен только там, где номер не автозаводской
+$('origin').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  origin = b.dataset.o;
+  [...$('origin').children].forEach(x => x.classList.toggle('on', x === b));
+  $('brandBox').hidden = origin === 'original';
+  if (origin === 'original') $('partBrand').value = '';
+});
+
 $('cond').addEventListener('click', e => {
   const b = e.target.closest('button');
   if (!b) return;
@@ -328,6 +362,8 @@ $('save').onclick = async () => {
     if ($(id).value) fd.append(map[id], $(id).value);
   });
   if ($('oem').value && oemSource) fd.append('oem_source', oemSource);
+  fd.append('origin', origin);
+  if ($('partBrand').value.trim()) fd.append('part_brand', $('partBrand').value.trim());
   if ($('note').value) fd.append('condition_note', $('note').value);
   files.forEach(f => fd.append('files', f));
 
@@ -356,7 +392,10 @@ function clearForm(){
   // Место хранения и состояние не сбрасываем: подряд снимают
   // однотипные детали и кладут на ту же полку
   lastLoc = $('loc').value;
-  ['name','oem','price','note','weight'].forEach(id => $(id).value = '');
+  ['name','oem','price','note','weight','partBrand'].forEach(id => $(id).value = '');
+  origin = 'original';
+  [...$('origin').children].forEach((x, i) => x.classList.toggle('on', i === 0));
+  $('brandBox').hidden = true;
   category = null;
   $('catBox').hidden = false; $('catPicked').hidden = true;
   $('catSearch').value = '';

@@ -127,6 +127,8 @@
 .specs dt{color:var(--muted);flex:0 0 44%;margin:0}
 .specs dd{margin:0;flex:1}
 .specs dd.mono{font-family:var(--mono);font-size:var(--t-xs)}
+.specs .ihint{display:block;font-family:var(--body);font-size:var(--t-xs);
+  color:var(--dim);margin-top:2px}
 .copy{background:none;border:0;padding:0 0 0 8px;font:inherit;font-size:var(--t-xs);
   color:var(--accent);text-decoration:underline;cursor:pointer}
 

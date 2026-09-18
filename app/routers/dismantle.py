@@ -36,6 +36,12 @@ EXT_BY_TYPE = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 MAX_PHOTO_BYTES = 12 * 1024 * 1024
 
 PUBLIC_BASE_URL = "https://example.ru"  # вынести в settings
+ORIGINS = {
+    "original": "Оригинал",
+    "oem": "ОЕМ",
+    "aftermarket": "Аналог",
+}
+
 CONDITIONS = {"A", "B", "C", "D"}
 
 
@@ -207,6 +213,9 @@ async def create_part(
     oem_number: str | None = Form(None),
     # Какую подсказку нажал разборщик; пусто — набрал руками
     oem_source: str | None = Form(None),
+    # Оригинал / ОЕМ / аналог: от этого зависит, чей номер искать
+    origin: str = Form("original"),
+    part_brand: str | None = Form(None),
     condition_note: str | None = Form(None),
     price: Decimal | None = Form(None),
     location: str | None = Form(None),
@@ -217,6 +226,8 @@ async def create_part(
 ):
     if condition not in CONDITIONS:
         raise HTTPException(422, "Состояние должно быть A, B, C или D")
+    if origin not in ORIGINS:
+        raise HTTPException(422, "Тип детали: оригинал, ОЕМ или аналог")
 
     # Атомарный счётчик деталей донора: UPDATE ... RETURNING держит блокировку
     # строки, поэтому два разборщика на одной машине не получат один артикул.
@@ -255,13 +266,13 @@ async def create_part(
             text("""
         INSERT INTO parts (sku, donor_id, category_id, name, oem_number, condition,
                            condition_note, price, location, weight_kg, status, published,
-                           oem_source, oem_verified,
+                           oem_source, oem_verified, origin, part_brand,
                            branch_id)
         VALUES (:sku, :donor, :cat, :name, :oem, CAST(:cond AS part_condition),
                 :note, :price, :loc, :weight, CAST(:status AS part_status), :pub,
                 -- Номер пришёл из формы приёмки: его набрал человек,
                 -- у которого деталь была в руках. Это и есть проверка
-                :oem_source, :oem_verified,
+                :oem_source, :oem_verified, :origin, :part_brand,
                 -- Деталь появляется там же, где стоит машина. Дальше её
                 -- можно перевезти, и филиал детали разойдётся с машиной
                 (SELECT branch_id FROM donors WHERE id = :donor))
@@ -282,6 +293,9 @@ async def create_part(
                 "pub": bool(files and price),
                 "oem_source": (oem_source or "manual") if oem else None,
                 "oem_verified": bool(oem),
+                "origin": origin,
+                # У оригинала бренд — это марка машины, отдельно не храним
+                "part_brand": (part_brand or "").strip() or None,
             },
         )
     ).scalar_one()

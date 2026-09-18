@@ -16,6 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth import current_user, require_role
 from ..config import settings
 from ..database import get_session
+from ..services import oem as oem_service
+from .dismantle import ORIGINS
 from ..vin_decoder import normalize
 from ..templating import templates
 
@@ -96,6 +98,7 @@ async def parts_list(
         SELECT p.id, p.sku, p.name, p.condition::text AS condition, p.price,
                p.status::text AS status, p.location, p.published, p.oem_number,
                p.condition_note, p.weight_kg, p.category_id, p.branch_id,
+               p.origin, p.part_brand, p.oem_verified,
                (SELECT br.city || ', ' || br.name FROM branches br
                  WHERE br.id = p.branch_id) AS branch,
                p.source, c.name AS category,
@@ -142,6 +145,9 @@ class PartPatch(BaseModel):
     weight_kg: Decimal | None = None
     # Деталь можно перевезти в другой филиал независимо от машины
     branch_id: int | None = None
+    # Оригинал / ОЕМ / аналог и бренд детали для двух последних
+    origin: str | None = None
+    part_brand: str | None = None
 
 
 class DonorPatch(BaseModel):
@@ -233,9 +239,27 @@ async def patch_part(
     if payload.oem_number is not None:
         # Тот же разбор, что и при создании: номера сверяют по буквам
         # и цифрам, разделители у каждого каталога свои
-        oem = "".join(c for c in payload.oem_number.upper() if c.isalnum()) or None
+        oem = oem_service.normalize(payload.oem_number) or None
         sets.append("oem_number = :oem")
         params["oem"] = oem
+        # Номер правил человек, глядя на деталь, — это и есть проверка
+        sets.append("oem_verified = :oemv")
+        params["oemv"] = bool(oem)
+        sets.append("oem_source = :oems")
+        params["oems"] = "manual" if oem else None
+
+    if payload.origin is not None:
+        if payload.origin not in ORIGINS:
+            raise HTTPException(422, "Тип детали: оригинал, ОЕМ или аналог")
+        sets.append("origin = :origin")
+        params["origin"] = payload.origin
+        # У оригинала своего бренда нет — он равен марке машины
+        if payload.origin == "original":
+            sets.append("part_brand = NULL")
+
+    if payload.part_brand is not None and payload.origin != "original":
+        sets.append("part_brand = :pbrand")
+        params["pbrand"] = payload.part_brand.strip() or None
 
     if payload.condition_note is not None:
         sets.append("condition_note = :note")

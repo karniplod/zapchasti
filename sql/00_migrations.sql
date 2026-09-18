@@ -288,3 +288,30 @@ CREATE INDEX IF NOT EXISTS part_number_candidates_source_idx
 -- и самый дешёвый источник, но по нему не было индекса
 CREATE INDEX IF NOT EXISTS parts_oem_lookup_idx
     ON parts (category_id, oem_number) WHERE oem_number IS NOT NULL;
+
+
+-- ------------------------------------------------------------
+-- Происхождение детали: оригинал / ОЕМ / аналог
+-- ------------------------------------------------------------
+-- Это не украшение карточки, а условие для поиска номера. У трёх типов
+-- номера принадлежат разным производителям:
+--   original    — номер автозавода (8450039385 у АвтоВАЗа)
+--   oem         — деталь того же поставщика, что шёл на конвейер,
+--                 но под его брендом и его номером (Bosch, Hella, Valeo)
+--   aftermarket — неоригинальный заменитель, номер бренда-изготовителя
+-- Снятая с машины деталь обычно оригинал, но не всегда: до нас её мог
+-- кто-то заменить аналогом, и тогда на ней чужой номер.
+ALTER TABLE parts ADD COLUMN IF NOT EXISTS origin text NOT NULL DEFAULT 'original';
+
+DO $$
+BEGIN
+    ALTER TABLE parts ADD CONSTRAINT parts_origin_check
+        CHECK (origin IN ('original', 'oem', 'aftermarket'));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- Бренд детали: у оригинала это марка машины, у ОЕМ и аналога — свой
+-- производитель. Без него номер ОЕМ не с чем сверять
+ALTER TABLE parts ADD COLUMN IF NOT EXISTS part_brand text;
+
+CREATE INDEX IF NOT EXISTS parts_origin_idx ON parts (origin);

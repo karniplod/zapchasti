@@ -104,9 +104,22 @@
       {% if part.oem_number %}
       <div><dt>Каталожный номер</dt>
         <dd class="mono">{{ part.oem_number }}
-          <button class="copy" data-copy="{{ part.oem_number }}">копировать</button></dd></div>
+          <button class="copy" data-copy="{{ part.oem_number }}">копировать</button>
+          {% if not part.oem_verified %}
+          {# Номер не сверен с деталью — говорим об этом, а не молчим:
+             покупатель заказывает по номеру и вправе знать #}
+          <small class="ihint">номер уточняется, сверьте перед заказом</small>
+          {% endif %}</dd></div>
       {% endif %}
       {% if part.node %}<div><dt>Узел</dt><dd>{{ part.node }}</dd></div>{% endif %}
+      {# Оригинал или аналог — вопрос, из-за которого покупатель звонит #}
+      <div><dt>Тип детали</dt>
+        <dd>{% if part.origin == 'oem' %}ОЕМ{% if part.part_brand %}, {{ part.part_brand }}{% endif %}
+              <small class="ihint">деталь конвейерного поставщика</small>
+            {% elif part.origin == 'aftermarket' %}Аналог{% if part.part_brand %}, {{ part.part_brand }}{% endif %}
+              <small class="ihint">стояла на машине до нас</small>
+            {% else %}Оригинал
+              <small class="ihint">номер автопроизводителя</small>{% endif %}</dd></div>
       {% if part.donor_code %}
       <div><dt>Снята с</dt>
         <dd>{{ part.brand }} {{ part.model }}{% if part.year %}, {{ part.year }} г.{% endif %}</dd></div>

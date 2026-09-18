@@ -141,6 +141,7 @@ async def part_page(sku: str, request: Request, session: AsyncSession = Depends(
             text("""
         SELECT p.id, p.sku, p.name, p.oem_number, p.condition::text AS condition,
                p.condition_note, p.price, p.status::text AS status, p.weight_kg,
+               p.origin, p.part_brand, p.oem_verified,
                c.name AS category,
                parent.name AS node,
                d.code AS donor_code, d.year, d.color, d.mileage_km,
