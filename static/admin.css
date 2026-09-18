@@ -121,7 +121,10 @@ button{font-family:inherit}
 }
 
 /* Логотип в шапке бэкенда бьётся так же, как на витрине */
-.nav .logo img{transform-origin:center;animation:heartbeat 1s ease-in-out infinite}
+/* Размер тут, а не только атрибутами в разметке: иначе на двух
+   страницах логотип однажды окажется разного размера */
+.nav .logo img{width:34px;height:34px;flex:0 0 34px;object-fit:contain;
+  transform-origin:center;animation:heartbeat 1s ease-in-out infinite}
 
 /* ── Превью машины ─────────────────────────────────────── */
 /* Одна плитка на сводку и на список машин: снимок помогает узнать
