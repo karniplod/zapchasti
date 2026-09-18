@@ -12,7 +12,7 @@
 на закупку следующей машины.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
@@ -608,25 +608,67 @@ async def catalog_parts(
         item["condition_label"] = CONDITION_LABELS.get(item["condition"])
         items.append(item)
 
-    # История поиска в кабинете. Пишем только первую страницу и только
-    # вошедшим: листание — это тот же запрос, а анонимные строки в личной
-    # истории всё равно никто не увидит
-    if q and customer and page == 1:
-        await session.execute(
-            text("""
-            INSERT INTO search_queries (customer_id, query, results_count)
-            VALUES (:c, :q, :n)
-        """),
-            {"c": customer["id"], "q": q.strip()[:200], "n": total},
-        )
-        await session.commit()
-
     return {
         "total": total,
         "page": page,
         "pages": -(-total // PAGE_SIZE),
         "items": items,
     }
+
+
+class SearchLog(BaseModel):
+    query: str = Field(max_length=200)
+    results_count: int = Field(default=0, ge=0, le=1_000_000)
+
+
+@router.post("/api/catalog/searches", status_code=204)
+async def log_search(
+    payload: SearchLog,
+    session: AsyncSession = Depends(get_session),
+    customer: dict | None = Depends(optional_customer),
+):
+    """Запись в личную историю поиска.
+
+    Раньше строка писалась на каждый запрос выдачи, а выдача обновляется
+    на каждую букву — в истории оседало «д», «дв», «две», «двер».
+    Теперь зовёт фронт и только когда человек показал намерение: нажал
+    Enter, нажал «Искать» или выбрал деталь из того, что предложил поиск.
+
+    Анонимных не пишем: такую историю всё равно некому показать.
+    """
+    if not customer:
+        return Response(status_code=204)
+
+    query = payload.query.strip()
+    if len(query) < 2:
+        return Response(status_code=204)
+
+    # Тот же запрос за последние десять минут — это уточнение
+    # (нажал Enter, посмотрел, кликнул деталь), а не новый поиск
+    recent = (
+        await session.execute(
+            text("""
+        SELECT 1 FROM search_queries
+         WHERE customer_id = :c
+           AND lower(query) = lower(:q)
+           AND created_at > now() - interval '10 minutes'
+         LIMIT 1
+    """),
+            {"c": customer["id"], "q": query},
+        )
+    ).first()
+    if recent:
+        return Response(status_code=204)
+
+    await session.execute(
+        text("""
+        INSERT INTO search_queries (customer_id, query, results_count)
+        VALUES (:c, :q, :n)
+    """),
+        {"c": customer["id"], "q": query, "n": payload.results_count},
+    )
+    await session.commit()
+    return Response(status_code=204)
 
 
 @router.get("/api/catalog/facets")

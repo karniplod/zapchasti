@@ -67,8 +67,13 @@
   </aside>
 
   <main>
-    <input class="field search" id="q" placeholder="Название или каталожный номер"
-           autocomplete="off" aria-label="Поиск по названию или номеру">
+    {# Форма, а не одинокое поле: Enter в форме — это отправка,
+       её не нужно ловить отдельным обработчиком клавиш #}
+    <form class="search" id="searchForm">
+      <input class="field" id="q" placeholder="Название или каталожный номер"
+             autocomplete="off" aria-label="Поиск по названию или номеру">
+      <button class="btn btn-primary btn-sm" type="submit">Искать</button>
+    </form>
     <div class="toolbar">
       <span class="count" id="count"></span>
       <select id="sort" aria-label="Сортировка">
@@ -282,9 +287,46 @@ let debounce;
     state.price_max = $('pmax').value || null;
     state.page = 1; loadParts(); }, 450);
 }));
+// Набор текста только подсказывает: выдача обновляется, история — нет.
+// Иначе от слова «дверь» в ней оседало бы «д», «дв», «две», «двер»
 $('q').addEventListener('input', () => {
   clearTimeout(debounce);
   debounce = setTimeout(() => { state.q = $('q').value.trim(); state.page = 1; loadParts(); }, 350);
+});
+
+// ── Что считается поиском ────────────────────────────────────────
+// Три намерения: нажал Enter, нажал «Искать», выбрал деталь из того,
+// что предложил поиск. Всё остальное — ещё не поиск, а печатание
+let lastLogged = '';
+
+function rememberSearch(keepalive = false){
+  const q = $('q').value.trim();
+  // Повтор подряд не пишем: сервер тоже схлопывает такое за 10 минут,
+  // но незачем гонять запрос
+  if (q.length < 2 || q === lastLogged) return;
+  lastLogged = q;
+  fetch('/api/catalog/searches', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({query: q, results_count: lastTotal}),
+    // keepalive — когда уходим со страницы по клику на деталь:
+    // обычный fetch браузер оборвёт вместе с выгрузкой страницы
+    keepalive,
+  }).catch(() => {});
+}
+
+$('searchForm').onsubmit = e => {
+  e.preventDefault();
+  clearTimeout(debounce);
+  state.q = $('q').value.trim();
+  state.page = 1;
+  // Сначала выдача, потом запись: в историю идёт то, что человек увидел
+  loadParts().then(() => rememberSearch());
+};
+
+// Выбор детали из предложенного — тоже поиск, и самый ценный:
+// он говорит, что по этому запросу нашлось нужное
+$('grid').addEventListener('click', e => {
+  if (e.target.closest('.tag-card')) rememberSearch(true);
 });
 $('sort').onchange = () => { state.sort = $('sort').value; state.page = 1; loadParts(); };
 $('reset').onclick = () => {
@@ -298,6 +340,7 @@ $('reset').onclick = () => {
 
 // ── Выдача ───────────────────────────────────────────────
 let partsRun = 0;
+let lastTotal = 0;   // сколько нашлось — уходит в историю поиска
 
 async function loadParts(){
   const run = ++partsRun;
@@ -310,6 +353,7 @@ async function loadParts(){
   const d = await (await fetch('/api/catalog/parts?'+p)).json();
   if (run !== partsRun) return;   // пока ждали, фильтры успели поменяться
 
+  lastTotal = d.total;
   $('count').textContent = d.total
     ? `${d.total} ${plural(d.total,'деталь','детали','деталей')}` : '';
 
