@@ -19,7 +19,7 @@
   font-family:var(--display);font-weight:700;font-size:17px;
   letter-spacing:.02em;text-transform:uppercase;white-space:nowrap}
 .brand i{font-style:normal;color:var(--accent)}
-.brand img{width:44px;height:44px;object-fit:contain;flex:0 0 44px;
+.brand img{width:53px;height:53px;object-fit:contain;flex:0 0 53px;
   transform-origin:center;animation:heartbeat 1s ease-in-out infinite}
 
 
@@ -98,7 +98,7 @@
   /* Остаётся название города: подпись занимает место, а смысл несёт значок */
   .city-btn .lbl{display:none}
   .city-pop,.city-ask{right:auto;left:50%;transform:translateX(-50%)}
-  .brand img{width:36px;height:36px;flex-basis:36px}
+  .brand img{width:43px;height:43px;flex-basis:43px}
 }
 
 /* ── Корзина и кабинет ─────────────────────────────────── */

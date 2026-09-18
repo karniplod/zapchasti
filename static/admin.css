@@ -123,7 +123,7 @@ button{font-family:inherit}
 /* Логотип в шапке бэкенда бьётся так же, как на витрине */
 /* Размер тут, а не только атрибутами в разметке: иначе на двух
    страницах логотип однажды окажется разного размера */
-.nav .logo img{width:34px;height:34px;flex:0 0 34px;object-fit:contain;
+.nav .logo img{width:41px;height:41px;flex:0 0 41px;object-fit:contain;
   transform-origin:center;animation:heartbeat 1s ease-in-out infinite}
 
 /* ── Превью машины ─────────────────────────────────────── */
@@ -202,7 +202,7 @@ button{font-family:inherit}
    чтобы он не зависел от того, какая страница его подключает */
 .nav{background:var(--panel);border-bottom:1px solid var(--line);margin-bottom:18px;
   position:sticky;top:0;z-index:30}
-.nav .in{max-width:900px;margin:0 auto;padding:12px 16px;
+.nav .in{max-width:900px;margin:0 auto;padding:9px 16px;
   display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .nav .logo{font-weight:700;font-size:15px;letter-spacing:-.01em;white-space:nowrap}
 .nav .logo span{color:var(--amber)}
