@@ -122,6 +122,7 @@
 
 /* ── Свежие поступления ────────────────────────────────── */
 .fresh{padding-top:26px}
+.fresh-note{margin:-4px 0 12px}
 @media(min-width:641px){
   /* Ровно три в ряд: это витрина, а не выдача */
   .fresh .grid{grid-template-columns:repeat(3,1fr)}

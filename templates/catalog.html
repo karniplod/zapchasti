@@ -50,6 +50,9 @@
 
 <section class="wrap fresh" id="fresh" hidden>
   <p class="eyebrow">Свежие поступления</p>
+  {# Если в выбранном городе пусто, показываем склад целиком и говорим
+     об этом: молча исчезнувший блок выглядит поломкой сайта #}
+  <p class="hint fresh-note" id="freshNote" hidden></p>
   <div class="grid" id="freshGrid"></div>
 </section>
 
@@ -431,13 +434,34 @@ let freshRun = 0;
 
 async function loadFresh(){
   const run = ++freshRun;
-  try {
+
+  const ask = async city => {
     const p = new URLSearchParams({sort:'new', page:1});
-    if (state.city) p.set('city', state.city);
-    const d = await (await fetch('/api/catalog/parts?'+p)).json();
+    if (city) p.set('city', city);
+    return (await fetch('/api/catalog/parts?'+p)).json();
+  };
+
+  try {
+    let d = await ask(state.city);
+    let wider = false;
+
+    // В выбранном городе может не быть вообще ничего — например,
+    // филиал только открыли. Прятать блок нельзя: человек решит, что
+    // магазин пустой. Показываем весь склад и объясняем, почему
+    if (!d.items.length && state.city){
+      d = await ask(null);
+      wider = true;
+    }
     if (run !== freshRun) return;
+
     $('fresh').hidden = !d.items.length;
     if (!d.items.length) return;
+
+    $('freshNote').hidden = !wider;
+    if (wider){
+      $('freshNote').textContent =
+        `В городе ${state.city} пока ничего не выложено — показываем склад целиком.`;
+    }
     $('freshGrid').innerHTML = d.items.slice(0, 3).map(card).join('');
   } catch { /* каталог ниже всё равно загрузится */ }
 }
@@ -463,14 +487,36 @@ window.onCityChange = city => {
 };
 
 loadFresh();
-// VIN может прийти с главной — сразу подбираем
+
+// Каталог открыт сразу, без выбора машины.
+// Раньше страница каталога до подбора не показывала ничего: фильтры
+// спрятаны, выдача пуста, и всё содержимое — три плитки «свежего».
+// Стоило им не найтись, и каталог выглядел пустым сайтом
+function showEverything(){
+  $('side').hidden = false;
+  state.page = 1;
+  loadFacets();
+  loadParts();
+}
+
+// VIN может прийти с главной — тогда сразу подбираем под машину
 const fromHome = new URLSearchParams(location.search).get('vin');
+const fromSearch = new URLSearchParams(location.search).get('q');
+
 if (fromHome){
   $('vin').value = fromHome;
   $('vinGo').disabled = fromHome.length !== 17;
   findByVin();
 } else {
-  $('vin').focus();
+  showEverything();
+  // Запрос из истории поиска в кабинете: /catalog?q=дверь
+  if (fromSearch){
+    $('q').value = fromSearch;
+    state.q = fromSearch;
+    loadParts();
+  } else {
+    $('vin').focus();
+  }
 }
 </script>
 {% endblock %}
