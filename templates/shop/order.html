@@ -1,0 +1,118 @@
+{% extends "_base.html" %}
+{% block title %}Заказ № {{ order.number }}{% endblock %}
+{% block description %}Состав заказа, статус и оплата.{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ asset('css/shop.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="wrap shop narrow">
+  <p class="crumbs"><a href="/account">Кабинет</a> → заказ № {{ order.number }}</p>
+
+  <div class="acct-head">
+    <div>
+      <h1>Заказ № {{ order.number }}</h1>
+      <p class="hint">от {{ order.created_at.strftime('%d.%m.%Y, %H:%M') }}</p>
+    </div>
+    <span class="st st-{{ order.status }}">{{ order.label }}</span>
+  </div>
+
+  <article class="order">
+    <ul class="items">
+      {% for i in order.lines %}
+      <li>
+        <a class="pic" href="/p/{{ i.sku }}">
+          {% if i.photo %}<img src="{{ i.photo }}" alt="" loading="lazy">
+          {% else %}<span class="none"></span>{% endif %}
+        </a>
+        <span class="nm"><a href="/p/{{ i.sku }}">{{ i.name }}</a>
+          <small class="mono">{{ i.sku }}</small>
+          {% if i.branch %}<small>{{ i.branch }}</small>{% endif %}</span>
+        <span class="cond">{{ i.condition }}</span>
+        <span class="sum">{{ "{:,.0f}".format(i.price).replace(",", " ") }} ₽</span>
+      </li>
+      {% endfor %}
+    </ul>
+
+    <div class="order-sum">
+      <span>Итого</span>
+      <b>{{ "{:,.0f}".format(order.total).replace(",", " ") }} ₽</b>
+    </div>
+  </article>
+
+  <section class="block">
+    <h2>Получение</h2>
+    <p>{% if order.delivery_method == 'shipping' %}
+        Доставка{% if order.delivery_address %} — {{ order.delivery_address }}{% endif %}
+       {% else %}Самовывоз со склада{% endif %}</p>
+    {% if order.comment %}<p class="hint">Комментарий: {{ order.comment }}</p>{% endif %}
+  </section>
+
+  <section class="block">
+    <h2>Оплата</h2>
+
+    {% if order.paid_at %}
+      <div class="notice notice-accent">
+        Оплачен {{ order.paid_at.strftime('%d.%m.%Y') }}.
+      </div>
+    {% elif not payable %}
+      <p class="hint">Заказ {{ order.label }} — оплата к нему больше не относится.</p>
+    {% elif methods %}
+      {# Сюда попадём, когда в PAYMENT_METHODS появится хоть один способ #}
+      <div class="pay-methods">
+        {% for m in methods %}
+        <button class="btn btn-ghost pay" data-method="{{ m.code }}">{{ m.title }}</button>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="notice notice-warn">
+        <b>Онлайн-оплата пока не подключена.</b>
+        Заказ закреплён за вами, детали сняты с витрины. Оплатить можно
+        при получении — наличными или картой на складе. Если нужен счёт
+        для юрлица, напишите в <a href="/contacts">контактах</a>.
+      </div>
+      <p class="hint">Когда подключим оплату картой и СБП, кнопка появится
+        здесь же, а заказ оплатится без звонка.</p>
+    {% endif %}
+
+    {% if payments %}
+    <h3>Попытки оплаты</h3>
+    <ul class="hist">
+      {% for p in payments %}
+      <li>
+        <span class="what">{{ p.method }}</span>
+        <span class="n">{{ "{:,.0f}".format(p.amount).replace(",", " ") }} ₽</span>
+        <span class="date">{{ p.status }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+</div>
+
+<div class="toast" id="toast"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const $ = id => document.getElementById(id);
+let t;
+function toast(m){ $('toast').textContent = m; $('toast').classList.add('show');
+  clearTimeout(t); t = setTimeout(() => $('toast').classList.remove('show'), 3200); }
+
+document.querySelectorAll('.pay').forEach(b => b.onclick = async () => {
+  b.disabled = true;
+  try {
+    const r = await fetch('/api/orders/{{ order.number }}/pay', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({method: b.dataset.method})});
+    const d = await r.json().catch(() => ({}));
+    // Провайдер вернёт ссылку на оплату — тогда уходим на неё
+    if (r.ok && d.redirect_url){ location.href = d.redirect_url; return; }
+    toast(d.detail || 'Оплата недоступна');
+  } catch { toast('Нет связи с сервером'); }
+  b.disabled = false;
+});
+</script>
+{% endblock %}

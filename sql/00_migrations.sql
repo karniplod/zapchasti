@@ -178,3 +178,72 @@ CREATE TABLE IF NOT EXISTS part_oem (
 -- встречается у разных производителей на разные детали.
 -- Заполняется через python -m app.scripts.set_nodes
 ALTER TABLE part_categories ADD COLUMN IF NOT EXISTS node text;
+
+
+-- ------------------------------------------------------------
+-- Личный кабинет покупателя
+-- ------------------------------------------------------------
+-- Покупатель в схеме был (customers), но войти ему было нечем:
+-- строка заводилась бы менеджером при заказе по телефону.
+-- Пароль здесь отдельный от сотрудников: это разные люди, разные
+-- сессии и разные права, общая таблица users им не подходит.
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS password_hash text;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS last_login_at timestamptz;
+
+-- Корзина.
+-- Деталь штучная, поэтому строка корзины = одна деталь, без количества.
+-- cart_token — кука браузера: корзину собирают до входа, а привязывают
+-- к покупателю в момент входа. Без этого всё, что человек выбрал,
+-- пропадало бы на форме регистрации.
+CREATE TABLE IF NOT EXISTS cart_items (
+    id          bigserial PRIMARY KEY,
+    cart_token  text   NOT NULL,
+    customer_id bigint REFERENCES customers(id) ON DELETE CASCADE,
+    part_id     bigint NOT NULL REFERENCES parts(id) ON DELETE CASCADE,
+    added_at    timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (cart_token, part_id)
+);
+CREATE INDEX IF NOT EXISTS cart_items_customer_idx ON cart_items (customer_id);
+
+-- Номер заказа человеку, а не id из базы: его диктуют по телефону
+CREATE SEQUENCE IF NOT EXISTS order_number_seq START 1;
+
+-- Заказ уже есть в схеме, но покупателя в нём не было видно с витрины
+CREATE INDEX IF NOT EXISTS orders_customer_idx ON orders (customer_id, created_at DESC);
+
+-- История поиска.
+-- VIN-запросы пишутся в vin_queries с самого начала, но обезличенно —
+-- для отчёта о спросе. Чтобы показать человеку его собственные поиски,
+-- добавляем ссылку на покупателя: у анонимного она пустая, и такой
+-- запрос виден только в отчёте.
+ALTER TABLE vin_queries ADD COLUMN IF NOT EXISTS customer_id bigint
+    REFERENCES customers(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS vin_queries_customer_idx
+    ON vin_queries (customer_id, created_at DESC) WHERE customer_id IS NOT NULL;
+
+-- Поиск по названию и номеру своей таблицы не имел вовсе
+CREATE TABLE IF NOT EXISTS search_queries (
+    id            bigserial PRIMARY KEY,
+    customer_id   bigint REFERENCES customers(id) ON DELETE SET NULL,
+    query         text NOT NULL,
+    results_count int  NOT NULL DEFAULT 0,
+    created_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS search_queries_customer_idx
+    ON search_queries (customer_id, created_at DESC) WHERE customer_id IS NOT NULL;
+
+-- Оплата.
+-- Способы оплаты пока не подключены, но заказ уже проходит через
+-- попытку оплаты: провайдер добавляется строкой в PAYMENT_METHODS
+-- и обработчиком, схема при этом не меняется.
+CREATE TABLE IF NOT EXISTS payments (
+    id          bigserial PRIMARY KEY,
+    order_id    bigint NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    method      text   NOT NULL,          -- card / sbp / invoice / cash
+    amount      numeric(12,2) NOT NULL,
+    status      text   NOT NULL DEFAULT 'pending',  -- pending / paid / failed
+    external_id text,                     -- идентификатор на стороне банка
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    paid_at     timestamptz
+);
+CREATE INDEX IF NOT EXISTS payments_order_idx ON payments (order_id);

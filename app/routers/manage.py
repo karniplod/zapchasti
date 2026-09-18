@@ -595,3 +595,129 @@ async def delete_donor_photo(
         rel = row.path.removeprefix("/media/")
         f = settings.media_root / _P(rel).with_stem(_P(rel).stem + suffix)
         f.unlink(missing_ok=True)
+
+
+# ------------------------------------------------------------------
+# Заказы с витрины
+# ------------------------------------------------------------------
+
+
+@router.get("/orders", response_class=HTMLResponse)
+async def orders_page(request: Request, user=Depends(current_user)):
+    return templates.TemplateResponse("admin/orders.html", {"request": request, "user": user})
+
+
+@router.get("/api/manage/orders")
+async def orders_list(
+    status: str | None = None,
+    session: AsyncSession = Depends(get_session),
+    user=Depends(current_user),
+):
+    rows = await session.execute(
+        text("""
+        SELECT o.id, o.number, o.status::text AS status, o.total, o.created_at,
+               o.paid_at, o.delivery_method, o.delivery_address, o.comment,
+               c.phone, c.name AS customer_name,
+               (SELECT count(*) FROM order_items oi WHERE oi.order_id = o.id) AS items
+          FROM orders o
+          LEFT JOIN customers c ON c.id = o.customer_id
+         WHERE (CAST(:st AS text) IS NULL OR o.status::text = CAST(:st AS text))
+         ORDER BY o.created_at DESC
+         LIMIT 200
+    """),
+        {"st": status},
+    )
+    orders = [dict(r._mapping) for r in rows]
+    if not orders:
+        return []
+
+    items = await session.execute(
+        text("""
+        SELECT oi.order_id, oi.price, p.sku, p.name, p.status::text AS status,
+               (SELECT br.city || ', ' || br.name FROM branches br
+                 WHERE br.id = p.branch_id) AS branch
+          FROM order_items oi
+          JOIN parts p ON p.id = oi.part_id
+         WHERE oi.order_id = ANY(:ids)
+         ORDER BY oi.id
+    """),
+        {"ids": [o["id"] for o in orders]},
+    )
+    by_order: dict[int, list] = {}
+    for r in items:
+        by_order.setdefault(r.order_id, []).append(dict(r._mapping))
+    for o in orders:
+        o["items"] = by_order.get(o["id"], [])
+    return orders
+
+
+class OrderPatch(BaseModel):
+    status: str
+
+
+# Куда можно перевести заказ. Список, а не свободный переход: «отменён»
+# возвращает детали на витрину, и случайный клик из «выдан» в «новый»
+# выложил бы проданное обратно
+ORDER_FLOW = {"new", "confirmed", "paid", "shipped", "completed", "cancelled"}
+
+
+@router.patch("/api/manage/orders/{order_id}")
+async def patch_order(
+    order_id: int,
+    payload: OrderPatch,
+    session: AsyncSession = Depends(get_session),
+    user=Depends(require_role("manager")),
+):
+    """Статус заказа ведёт менеджер: онлайн-оплаты нет, оплату он
+    отмечает руками после того, как деньги получены."""
+    if payload.status not in ORDER_FLOW:
+        raise HTTPException(422, "Неизвестный статус")
+
+    order = (
+        await session.execute(
+            text("SELECT id, status::text AS status FROM orders WHERE id = :id"),
+            {"id": order_id},
+        )
+    ).first()
+    if not order:
+        raise HTTPException(404, "Заказ не найден")
+
+    await session.execute(
+        text("""
+        UPDATE orders
+           SET status = CAST(:st AS order_status),
+               paid_at = CASE WHEN :st IN ('paid', 'shipped', 'completed')
+                              THEN coalesce(paid_at, now()) ELSE paid_at END
+         WHERE id = :id
+    """),
+        {"st": payload.status, "id": order_id},
+    )
+
+    parts = [
+        r.part_id
+        for r in await session.execute(
+            text("SELECT part_id FROM order_items WHERE order_id = :id"), {"id": order_id}
+        )
+    ]
+
+    if payload.status == "cancelled":
+        # Деталь возвращается на витрину — но только та, что лежит
+        # в резерве под этот заказ, а не уже проданная кому-то ещё
+        await session.execute(
+            text("""
+            UPDATE parts SET status = 'in_stock', updated_at = now()
+             WHERE id = ANY(:ids) AND status = 'reserved'
+        """),
+            {"ids": parts},
+        )
+    elif payload.status in ("paid", "shipped", "completed"):
+        await session.execute(
+            text("""
+            UPDATE parts SET status = 'sold', updated_at = now()
+             WHERE id = ANY(:ids) AND status IN ('reserved', 'in_stock')
+        """),
+            {"ids": parts},
+        )
+
+    await session.commit()
+    return {"ok": True}

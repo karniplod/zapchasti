@@ -29,6 +29,7 @@ from .routers import (
     manage,
     pages,
     reference,
+    shop,
     stock,
 )
 from .templating import templates
@@ -73,6 +74,7 @@ app.mount("/media", StaticFiles(directory=settings.media_root), name="media")
 
 app.include_router(catalog.router)
 app.include_router(pages.router)
+app.include_router(shop.router)
 app.include_router(intake.router)
 app.include_router(dismantle.router)
 app.include_router(reference.router)
@@ -213,7 +215,12 @@ async def http_error(request: Request, exc: StarletteHTTPException):
         return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
 
     if exc.status_code == 401:
-        return RedirectResponse(f"/login?next={request.url.path}", status_code=303)
+        # У покупателя и у сотрудника разные входы. Без этой развилки
+        # человек из кабинета попадал на форму для сотрудников и там
+        # честно не мог войти своим телефоном
+        path = request.url.path
+        login = "/account/login" if path.startswith(("/account", "/cart")) else "/login"
+        return RedirectResponse(f"{login}?next={path}", status_code=303)
 
     return templates.TemplateResponse(
         "error.html",

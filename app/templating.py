@@ -49,3 +49,17 @@ templates.env.globals["admin_css_version"] = _admin_css_version
 templates.env.globals["app_name"] = settings.app_name
 templates.env.globals["base_url"] = settings.base_url
 templates.env.globals["chosen_city"] = _chosen_city
+
+
+def _plural(n: int, one: str, few: str, many: str) -> str:
+    """«1 заказ, 2 заказа, 5 заказов». В кабинете числа на виду,
+    и «5 заказа» бросается в глаза сразу."""
+    a, b = n % 10, n % 100
+    if a == 1 and b != 11:
+        return one
+    if 2 <= a <= 4 and not 12 <= b <= 14:
+        return few
+    return many
+
+
+templates.env.filters["plural"] = _plural

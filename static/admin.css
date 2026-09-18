@@ -16,6 +16,11 @@
   --sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
 }
 *{box-sizing:border-box}
+
+/* Человеку, который выключил анимации в системе, они не нужны и здесь */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
      font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
 a{color:inherit;text-decoration:none}
@@ -93,6 +98,30 @@ button{font-family:inherit}
 
 /* Ряд кнопок под содержимым карточки */
 .actions-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px}
+
+
+/* ── Пульс логотипа ────────────────────────────────────── */
+/* Сердце бьётся не синусоидой, а «тук-тук»: сильный систолический
+   толчок, через мгновение второй послабее, потом пауза диастолы.
+   Поэтому не плавное дыхание, а два всплеска в начале цикла.
+
+   Один цикл = 1 с, то есть 60 ударов в минуту — пульс спокойного
+   человека. Анимируем transform: он не трогает раскладку, шапка
+   не дёргается вместе с логотипом.
+
+   Отключать не нужно: в admin.css есть общее правило
+   для prefers-reduced-motion, оно гасит и эту анимацию. */
+@keyframes heartbeat{
+   0%  {transform:scale(1)}
+   8%  {transform:scale(1.13)}   /* «тук» — систола */
+  16%  {transform:scale(1.01)}
+  24%  {transform:scale(1.08)}   /* «тук» послабее — закрытие клапанов */
+  34%  {transform:scale(1)}
+ 100%  {transform:scale(1)}      /* диастола: пауза до следующего удара */
+}
+
+/* Логотип в шапке бэкенда бьётся так же, как на витрине */
+.nav .logo img{transform-origin:center;animation:heartbeat 1s ease-in-out infinite}
 
 /* ── Превью машины ─────────────────────────────────────── */
 /* Одна плитка на сводку и на список машин: снимок помогает узнать

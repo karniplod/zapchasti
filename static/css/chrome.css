@@ -19,7 +19,29 @@
   font-family:var(--display);font-weight:700;font-size:17px;
   letter-spacing:.02em;text-transform:uppercase;white-space:nowrap}
 .brand i{font-style:normal;color:var(--accent)}
-.brand img{width:34px;height:34px;object-fit:contain;flex:0 0 34px}
+.brand img{width:34px;height:34px;object-fit:contain;flex:0 0 34px;
+  transform-origin:center;animation:heartbeat 1s ease-in-out infinite}
+
+
+/* ── Пульс логотипа ────────────────────────────────────── */
+/* Сердце бьётся не синусоидой, а «тук-тук»: сильный систолический
+   толчок, через мгновение второй послабее, потом пауза диастолы.
+   Поэтому не плавное дыхание, а два всплеска в начале цикла.
+
+   Один цикл = 1 с, то есть 60 ударов в минуту — пульс спокойного
+   человека. Анимируем transform: он не трогает раскладку, шапка
+   не дёргается вместе с логотипом.
+
+   Отключать не нужно: в core.css (и в admin.css) есть общее правило
+   для prefers-reduced-motion, оно гасит и эту анимацию. */
+@keyframes heartbeat{
+   0%  {transform:scale(1)}
+   8%  {transform:scale(1.13)}   /* «тук» — систола */
+  16%  {transform:scale(1.01)}
+  24%  {transform:scale(1.08)}   /* «тук» послабее — закрытие клапанов */
+  34%  {transform:scale(1)}
+ 100%  {transform:scale(1)}      /* диастола: пауза до следующего удара */
+}
 
 /* ── Меню ──────────────────────────────────────────────── */
 /* Не прижато вправо: правый край держит блок города, меню идёт за ним */
@@ -77,6 +99,27 @@
   .city-btn .lbl{display:none}
   .city-pop,.city-ask{right:auto;left:50%;transform:translateX(-50%)}
   .brand img{width:28px;height:28px;flex-basis:28px}
+}
+
+/* ── Корзина и кабинет ─────────────────────────────────── */
+/* Стоят после меню и не прячутся в бургер: на телефоне корзина
+   нужнее пунктов «Доставка» и «Контакты» */
+.cart-link{position:relative;display:flex;align-items:center;flex:0 0 auto;
+  padding:8px;border-radius:8px;color:var(--muted)}
+.cart-link:hover{background:var(--surface-2);color:var(--ink)}
+.cart-n{position:absolute;top:1px;right:0;min-width:16px;height:16px;padding:0 4px;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--accent);color:#fff;border-radius:9px;
+  font-size:10px;font-weight:600;line-height:1}
+
+.acct-link{flex:0 0 auto;padding:8px 12px;border-radius:8px;
+  font-size:var(--t-sm);color:var(--muted);max-width:150px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct-link:hover{background:var(--surface-2);color:var(--ink)}
+
+@media(max-width:560px){
+  /* Имя покупателя длинное, а места нет — остаётся корзина и вход */
+  .acct-link{max-width:88px}
 }
 
 /* ── Бургер и мобильное меню ───────────────────────────── */

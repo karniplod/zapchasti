@@ -1,0 +1,140 @@
+{% extends "_base.html" %}
+{% block title %}Корзина{% endblock %}
+{% block description %}Детали, отложенные к покупке.{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ asset('css/shop.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="wrap shop">
+  <h1>Корзина</h1>
+
+  {% if not items %}
+    <div class="empty">
+      <h3>Пока пусто</h3>
+      <p>Найдите деталь по VIN или марке — и она появится здесь.</p>
+      <p><a class="btn btn-primary" href="/catalog">В каталог</a></p>
+    </div>
+  {% else %}
+
+  {% if gone %}
+  <div class="notice notice-warn">
+    <b>Часть деталей уже забрали.</b> Деталь штучная: кто первый оформил,
+    того и деталь. Уберите их из корзины, остальное оформится.
+  </div>
+  {% endif %}
+
+  {% if no_price %}
+  <div class="notice notice-warn">
+    По некоторым деталям цена не проставлена — такие не оформить онлайн.
+    <a href="/contacts">Оставьте заявку</a>, менеджер назовёт цену.
+  </div>
+  {% endif %}
+
+  <div class="cart">
+    <div class="cart-list">
+      {% for i in items %}
+      <div class="cart-row {% if i.status != 'in_stock' %}is-gone{% endif %}"
+           data-part="{{ i.part_id }}">
+        <a class="pic" href="/p/{{ i.sku }}">
+          {% if i.photo %}<img src="{{ i.photo }}" alt="" loading="lazy">
+          {% else %}<span class="none">нет фото</span>{% endif %}
+        </a>
+        <div class="info">
+          <a class="nm" href="/p/{{ i.sku }}">{{ i.name }}</a>
+          <span class="sku mono">{{ i.sku }}</span>
+          <span class="sub">состояние {{ i.condition }}{% if i.branch %} · {{ i.branch }}{% endif %}</span>
+          {% if i.status != 'in_stock' %}<span class="gone-note">уже продана</span>{% endif %}
+        </div>
+        <div class="price">
+          {% if i.price %}{{ "{:,.0f}".format(i.price).replace(",", " ") }} ₽
+          {% else %}<span class="ask">по запросу</span>{% endif %}
+        </div>
+        <button class="drop" title="Убрать" aria-label="Убрать из корзины">×</button>
+      </div>
+      {% endfor %}
+    </div>
+
+    <aside class="checkout">
+      <div class="sum">
+        <span>К оплате</span>
+        <b>{{ "{:,.0f}".format(total).replace(",", " ") }} ₽</b>
+      </div>
+
+      {% if customer %}
+      <form id="orderForm">
+        <label for="dm">Как получить</label>
+        <select class="field" id="dm">
+          <option value="pickup">Заберу сам со склада</option>
+          <option value="shipping">Отправьте в мой город</option>
+        </select>
+
+        <div id="addrBox" hidden>
+          <label for="addr">Адрес или город и транспортная компания</label>
+          <input class="field" id="addr" placeholder="Город, ТК, пункт выдачи">
+        </div>
+
+        <label for="cmt">Комментарий</label>
+        <textarea class="field" id="cmt" rows="3"
+                  placeholder="Необязательно"></textarea>
+
+        <button class="btn btn-primary" id="place" type="submit">Оформить заказ</button>
+        <p class="hint">Деталь закрепится за вами сразу после оформления.
+          Оплата — при получении: онлайн-оплату пока не подключили.</p>
+      </form>
+      {% else %}
+      <div class="notice notice-accent">
+        Чтобы оформить заказ, войдите — так покупка попадёт в вашу историю,
+        а деталь закрепится за вами.
+      </div>
+      <a class="btn btn-primary" href="/account/login?next=/cart">Войти или создать кабинет</a>
+      {% endif %}
+    </aside>
+  </div>
+  {% endif %}
+</div>
+
+<div class="toast" id="toast"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const $ = id => document.getElementById(id);
+let t;
+function toast(m){ $('toast').textContent = m; $('toast').classList.add('show');
+  clearTimeout(t); t = setTimeout(() => $('toast').classList.remove('show'), 2600); }
+
+document.querySelectorAll('.cart-row .drop').forEach(b => b.onclick = async () => {
+  const row = b.closest('.cart-row');
+  b.disabled = true;
+  const r = await fetch('/api/cart/' + row.dataset.part, {method: 'DELETE'});
+  // Перезагружаем, а не убираем строку руками: сумма, предупреждения
+  // и счётчик в шапке считаются на сервере
+  if (r.ok) location.reload(); else { toast('Не получилось убрать'); b.disabled = false; }
+});
+
+const form = $('orderForm');
+if (form){
+  $('dm').onchange = () => { $('addrBox').hidden = $('dm').value !== 'shipping'; };
+
+  form.onsubmit = async e => {
+    e.preventDefault();
+    $('place').disabled = true;
+    try {
+      const r = await fetch('/api/orders', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          delivery_method: $('dm').value,
+          delivery_address: $('addr').value.trim() || null,
+          comment: $('cmt').value.trim() || null,
+        })});
+      const d = await r.json().catch(() => ({}));
+      if (r.ok){ location.href = '/account/orders/' + d.number; return; }
+      toast(d.detail || 'Не получилось оформить');
+    } catch { toast('Нет связи с сервером'); }
+    $('place').disabled = false;
+  };
+}
+</script>
+{% endblock %}

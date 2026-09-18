@@ -19,6 +19,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import optional_user, require_role
+from ..customer_auth import optional_customer
 from ..config import settings
 from ..database import get_session
 from ..services.geo import detect_city
@@ -245,11 +246,17 @@ class VinSearch(BaseModel):
 
 
 @router.post("/api/catalog/vin")
-async def catalog_vin(payload: VinSearch, session: AsyncSession = Depends(get_session)):
+async def catalog_vin(
+    payload: VinSearch,
+    session: AsyncSession = Depends(get_session),
+    customer: dict | None = Depends(optional_customer),
+):
     wmi_map = {
         r.code: r.manufacturer
         for r in await session.execute(text("SELECT code, manufacturer FROM wmi"))
     }
+
+    cid = customer["id"] if customer else None
 
     info = decode(payload.vin, wmi_lookup=wmi_map)
     if not info.valid:
@@ -294,7 +301,8 @@ async def catalog_vin(payload: VinSearch, session: AsyncSession = Depends(get_se
             result.update(resolution="exact", confidence=hit.confidence, **dict(chain._mapping))
             count = await count_fitting(session, chain.generation_id, hit.modification_id)
             result["results_count"] = count
-            await log_query(session, info, "exact", chain.generation_id, count)
+            await log_query(session, info, "exact", chain.generation_id, count,
+                            customer_id=cid)
             return result
 
     # 2. Знаем завод и год — предлагаем выбрать модель из этой марки
@@ -331,12 +339,13 @@ async def catalog_vin(payload: VinSearch, session: AsyncSession = Depends(get_se
                 "brand_year",
                 None,
                 sum(c["parts_count"] for c in candidates),
+                customer_id=cid,
             )
             return result
 
     # 3. Ничего не знаем
     result["resolution"] = "unknown"
-    await log_query(session, info, "unknown", None, 0)
+    await log_query(session, info, "unknown", None, 0, customer_id=cid)
     return result
 
 
@@ -355,12 +364,21 @@ async def count_fitting(
 
 
 async def log_query(
-    session: AsyncSession, info, resolution: str, generation_id: int | None, count: int
+    session: AsyncSession,
+    info,
+    resolution: str,
+    generation_id: int | None,
+    count: int,
+    customer_id: int | None = None,
 ):
+    """Запрос пишется всегда — это отчёт о спросе. Покупатель
+    проставляется, только если он вошёл: в кабинете человек видит
+    свои поиски, а анонимные остаются в общей статистике."""
     await session.execute(
         text("""
-        INSERT INTO vin_queries (vin, wmi, vds, resolution, generation_id, results_count)
-        VALUES (:vin, :wmi, :vds, :res, :gen, :cnt)
+        INSERT INTO vin_queries (vin, wmi, vds, resolution, generation_id,
+                                 results_count, customer_id)
+        VALUES (:vin, :wmi, :vds, :res, :gen, :cnt, :cid)
     """),
         {
             "vin": info.vin,
@@ -369,6 +387,7 @@ async def log_query(
             "res": resolution,
             "gen": generation_id,
             "cnt": count,
+            "cid": customer_id,
         },
     )
     await session.commit()
@@ -468,6 +487,7 @@ async def catalog_parts(
     sort: str = "new",
     page: int = 1,
     session: AsyncSession = Depends(get_session),
+    customer: dict | None = Depends(optional_customer),
 ):
     where = ["p.status = 'in_stock'", "p.published"]
     params: dict = {"gen": generation_id, "mod": modification_id}
@@ -587,6 +607,19 @@ async def catalog_parts(
         item = dict(r._mapping)
         item["condition_label"] = CONDITION_LABELS.get(item["condition"])
         items.append(item)
+
+    # История поиска в кабинете. Пишем только первую страницу и только
+    # вошедшим: листание — это тот же запрос, а анонимные строки в личной
+    # истории всё равно никто не увидит
+    if q and customer and page == 1:
+        await session.execute(
+            text("""
+            INSERT INTO search_queries (customer_id, query, results_count)
+            VALUES (:c, :q, :n)
+        """),
+            {"c": customer["id"], "q": q.strip()[:200], "n": total},
+        )
+        await session.commit()
 
     return {
         "total": total,

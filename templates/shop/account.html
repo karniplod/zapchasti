@@ -1,0 +1,112 @@
+{% extends "_base.html" %}
+{% block title %}Личный кабинет{% endblock %}
+{% block description %}История покупок, заказы и история поиска.{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ asset('css/shop.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="wrap shop">
+  <div class="acct-head">
+    <div>
+      <h1>{{ customer.name or 'Кабинет' }}</h1>
+      <p class="hint">{{ customer.phone }}{% if customer.email %} · {{ customer.email }}{% endif %}</p>
+    </div>
+    <a class="btn btn-ghost btn-sm" href="/account/logout">Выйти</a>
+  </div>
+
+  <div class="figures">
+    <div><b>{{ orders | length }}</b><span>{{ orders | length | plural('заказ', 'заказа', 'заказов') }}</span></div>
+    <div><b>{{ "{:,.0f}".format(spent).replace(",", " ") }} ₽</b><span>на покупки</span></div>
+    <div><b>{{ (vins | length) + (searches | length) }}</b><span>поисков сохранено</span></div>
+  </div>
+
+  <section class="block">
+    <h2>Покупки</h2>
+    {% if not orders %}
+      <div class="empty">
+        <h3>Покупок пока нет</h3>
+        <p>Здесь появится каждая покупка: что взяли, за сколько и когда.</p>
+        <p><a class="btn btn-primary" href="/catalog">В каталог</a></p>
+      </div>
+    {% else %}
+      <div class="orders">
+        {% for o in orders %}
+        <article class="order">
+          <header>
+            <a class="num mono" href="/account/orders/{{ o.number }}">№ {{ o.number }}</a>
+            <span class="date">{{ o.created_at.strftime('%d.%m.%Y') }}</span>
+            <span class="st st-{{ o.status }}">{{ o.label }}</span>
+            <span class="total">{{ "{:,.0f}".format(o.total).replace(",", " ") }} ₽</span>
+          </header>
+
+          {# Состав показываем сразу: «подробная история» — это когда
+             не надо кликать, чтобы вспомнить, что именно ты покупал #}
+          <ul class="items">
+            {% for i in o.lines %}
+            <li>
+              <a class="pic" href="/p/{{ i.sku }}">
+                {% if i.photo %}<img src="{{ i.photo }}" alt="" loading="lazy">
+                {% else %}<span class="none"></span>{% endif %}
+              </a>
+              <span class="nm"><a href="/p/{{ i.sku }}">{{ i.name }}</a>
+                <small class="mono">{{ i.sku }}</small></span>
+              <span class="cond">{{ i.condition }}</span>
+              <span class="sum">{{ "{:,.0f}".format(i.price).replace(",", " ") }} ₽</span>
+            </li>
+            {% endfor %}
+          </ul>
+
+          <footer>
+            {% if o.delivery_method == 'shipping' %}
+              Доставка{% if o.delivery_address %}: {{ o.delivery_address }}{% endif %}
+            {% else %}Самовывоз{% endif %}
+            {% if o.paid_at %} · оплачен {{ o.paid_at.strftime('%d.%m.%Y') }}{% endif %}
+            <a class="more" href="/account/orders/{{ o.number }}">Подробнее</a>
+          </footer>
+        </article>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </section>
+
+  <section class="block">
+    <h2>Что вы искали</h2>
+    {% if not vins and not searches %}
+      <p class="hint">Поиски сохраняются, когда вы вошли в кабинет.
+        Так проще вернуться к тому, что не нашлось с первого раза.</p>
+    {% endif %}
+
+    {% if vins %}
+    <h3>По VIN</h3>
+    <ul class="hist">
+      {% for q in vins %}
+      <li>
+        <span class="mono">{{ q.vin }}</span>
+        <span class="what">
+          {%- if q.brand %}{{ q.brand }} {{ q.model }}, {{ q.generation }}
+          {%- elif q.resolution == 'brand_year' %}определилась только марка
+          {%- else %}машина не определилась{% endif %}</span>
+        <span class="n">{{ q.results_count }} дет.</span>
+        <span class="date">{{ q.created_at.strftime('%d.%m.%Y') }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if searches %}
+    <h3>По названию и номеру</h3>
+    <ul class="hist">
+      {% for s in searches %}
+      <li>
+        <a class="what" href="/catalog?q={{ s.query | urlencode }}">{{ s.query }}</a>
+        <span class="n">{{ s.results_count }} дет.</span>
+        <span class="date">{{ s.created_at.strftime('%d.%m.%Y') }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
