@@ -50,6 +50,17 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
 .primary{padding:14px 20px;flex:1}
 .ghost{padding:14px 16px}
 .toast{bottom:96px}
+
+/* Подсказка каталожного номера */
+.oem-hints{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.oem-hints button{background:var(--panel-2);border:1px solid var(--line);
+  border-radius:7px;padding:7px 11px;font-family:var(--mono);font-size:13px;
+  color:var(--ink);cursor:pointer;display:flex;align-items:baseline;gap:7px}
+.oem-hints button:hover{border-color:var(--amber)}
+.oem-hints button.sure{border-color:var(--amber);background:rgba(255,194,51,.1)}
+.oem-hints button small{font-family:var(--sans);font-size:11px;color:var(--dim)}
+.oem-hints .lbl{font-size:12px;color:var(--dim);align-self:center;margin-right:2px}
+.oem-warn{margin:8px 0 0;font-size:12.5px;color:var(--warn)}
 </style>
 </head>
 <body>
@@ -120,6 +131,10 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
     <div style="margin-top:14px">
       <label for="oem">Каталожный номер</label>
       <input type="text" id="oem" autocomplete="off">
+      {# Подсказка, а не автозаполнение: номер отлит на детали,
+         и последнее слово всегда за тем, кто держит её в руках #}
+      <div class="oem-hints" id="oemHints" hidden></div>
+      <p class="oem-warn" id="oemWarn" hidden></p>
     </div>
     <div style="margin-top:14px">
       <label for="note">Дефекты</label>
@@ -158,6 +173,46 @@ const $ = id => document.getElementById(id);
 
 let category = null, condition = null, files = [], lastLoc = '';
 
+// --- подсказка каталожного номера ------------------------------------
+// Ядро подсказки живёт на сервере (app/services/oem.py): оно опрашивает
+// источники и решает, можно ли подставить номер само. Здесь только показ
+let oemSource = null;   // какую подсказку нажали; пусто — набрали руками
+
+function clearOemHints(){
+  $('oemHints').hidden = true;
+  $('oemHints').innerHTML = '';
+  $('oemWarn').hidden = true;
+  oemSource = null;
+}
+
+async function loadOemHints(categoryId){
+  clearOemHints();
+  try {
+    const d = await (await fetch(
+      `/api/oem/suggest?category_id=${categoryId}&donor_id=${DONOR_ID}`)).json();
+    if (!d.candidates.length) return;
+
+    $('oemHints').innerHTML = '<span class="lbl">Было раньше:</span>' +
+      d.candidates.map(c => `
+        <button type="button" data-code="${c.code}" data-src="${c.sources[0]}"
+                class="${c.code === d.confident ? 'sure' : ''}"
+                title="${c.notes.join('; ')}">
+          ${c.code}<small>${c.sources.length > 1 ? c.sources.length + ' источника' : c.notes[0]}</small>
+        </button>`).join('');
+
+    $('oemHints').querySelectorAll('button').forEach(b => b.onclick = () => {
+      $('oem').value = b.dataset.code;
+      oemSource = b.dataset.src;
+      $('oemHints').querySelectorAll('button').forEach(x => x.classList.remove('sure'));
+      b.classList.add('sure');
+    });
+    $('oemHints').hidden = false;
+  } catch { /* без подсказки приёмка работает как раньше */ }
+}
+
+// Набрал руками — источник больше не подсказка
+$('oem').addEventListener('input', () => { oemSource = null; });
+
 // --- поиск категории -------------------------------------------------
 let searchTimer;
 $('catSearch').addEventListener('input', e => {
@@ -190,6 +245,7 @@ async function searchCats(q){
 
 function pick(r){
   category = r;
+  loadOemHints(r.id);
   $('catBox').hidden = true;
   $('catPicked').hidden = false;
   $('pickedName').textContent = r.name;
@@ -201,6 +257,7 @@ function pick(r){
 
 $('catClear').onclick = () => {
   category = null;
+  clearOemHints();
   $('catBox').hidden = false;
   $('catPicked').hidden = true;
   $('catSearch').value = '';
@@ -270,6 +327,7 @@ $('save').onclick = async () => {
     const map = {oem:'oem_number', price:'price', loc:'location', weight:'weight_kg'};
     if ($(id).value) fd.append(map[id], $(id).value);
   });
+  if ($('oem').value && oemSource) fd.append('oem_source', oemSource);
   if ($('note').value) fd.append('condition_note', $('note').value);
   files.forEach(f => fd.append('files', f));
 

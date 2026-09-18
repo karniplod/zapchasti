@@ -247,3 +247,44 @@ CREATE TABLE IF NOT EXISTS payments (
     paid_at     timestamptz
 );
 CREATE INDEX IF NOT EXISTS payments_order_idx ON payments (order_id);
+
+
+-- ------------------------------------------------------------
+-- Подсказка каталожного номера
+-- ------------------------------------------------------------
+-- Номер вводится руками, и это самое узкое место приёмки: ошибка
+-- в номере — это возврат. Ядро подсказки собирает кандидатов из
+-- нескольких источников и решает, можно ли подставить номер сам.
+
+-- Откуда взялся номер и подтверждал ли его человек. Номер, который
+-- подставил автомат и никто не сверил с деталью, не должен уезжать
+-- в выгрузку на площадки: ошибиться внутри склада дёшево, в объявлении —
+-- нет.
+ALTER TABLE parts ADD COLUMN IF NOT EXISTS oem_source text;
+ALTER TABLE parts ADD COLUMN IF NOT EXISTS oem_verified boolean NOT NULL DEFAULT false;
+
+-- Уже заведённое вводили руками, глядя на деталь
+UPDATE parts SET oem_verified = true, oem_source = 'manual'
+ WHERE oem_number IS NOT NULL AND oem_source IS NULL;
+
+-- Что предложил каждый источник и что в итоге выбрали.
+-- Это разметка для самокалибровки: через пару сотен деталей видно,
+-- какой источник врёт, и веса можно считать, а не задавать на глаз.
+CREATE TABLE IF NOT EXISTS part_number_candidates (
+    id         bigserial PRIMARY KEY,
+    part_id    bigint NOT NULL REFERENCES parts(id) ON DELETE CASCADE,
+    code       text   NOT NULL,
+    source     text   NOT NULL,
+    weight     numeric(6,2) NOT NULL DEFAULT 1,
+    chosen     boolean NOT NULL DEFAULT false,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS part_number_candidates_part_idx
+    ON part_number_candidates (part_id);
+CREATE INDEX IF NOT EXISTS part_number_candidates_source_idx
+    ON part_number_candidates (source, chosen);
+
+-- Подсказка ищет «такой же узел на такой же машине» — это главный
+-- и самый дешёвый источник, но по нему не было индекса
+CREATE INDEX IF NOT EXISTS parts_oem_lookup_idx
+    ON parts (category_id, oem_number) WHERE oem_number IS NOT NULL;

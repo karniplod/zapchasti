@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import require_role
 from ..database import get_session
+from ..services import oem as oem_service
 from ..templating import templates
 
 router = APIRouter(tags=["dismantle"])
@@ -146,6 +147,57 @@ def save_upload(upload: UploadFile, folder: Path) -> str:
     return name
 
 
+@router.get("/api/oem/suggest")
+async def oem_suggest(
+    category_id: int,
+    donor_id: int | None = None,
+    generation_id: int | None = None,
+    modification_id: int | None = None,
+    session: AsyncSession = Depends(get_session),
+    user=Depends(require_role("dismantler")),
+):
+    """Кандидаты в каталожный номер для этой машины и этого узла.
+
+    Машину можно задать донором — так зовёт рабочее место разборщика,
+    ему известен только id машины.
+    """
+    if donor_id and not (generation_id and modification_id):
+        row = (
+            await session.execute(
+                text("""
+            SELECT d.generation_id, d.modification_id, b.name AS brand
+              FROM donors d
+              JOIN generations g ON g.id = d.generation_id
+              JOIN models m      ON m.id = g.model_id
+              JOIN brands b      ON b.id = m.brand_id
+             WHERE d.id = :id
+        """),
+                {"id": donor_id},
+            )
+        ).first()
+        if row:
+            generation_id = generation_id or row.generation_id
+            modification_id = modification_id or row.modification_id
+
+    result = await oem_service.suggest(
+        session,
+        category_id=category_id,
+        generation_id=generation_id,
+        modification_id=modification_id,
+    )
+    return result
+
+
+@router.get("/api/oem/accuracy")
+async def oem_accuracy(
+    session: AsyncSession = Depends(get_session),
+    user=Depends(require_role("manager")),
+):
+    """Попадание источников подсказки. Это и есть ответ на вопрос,
+    нужен ли платный каталог: будет цифра, а не ощущение."""
+    return await oem_service.accuracy(session)
+
+
 @router.post("/api/parts", status_code=201)
 async def create_part(
     donor_id: int = Form(...),
@@ -153,6 +205,8 @@ async def create_part(
     name: str = Form(...),
     condition: str = Form(...),
     oem_number: str | None = Form(None),
+    # Какую подсказку нажал разборщик; пусто — набрал руками
+    oem_source: str | None = Form(None),
     condition_note: str | None = Form(None),
     price: Decimal | None = Form(None),
     location: str | None = Form(None),
@@ -179,7 +233,7 @@ async def create_part(
                              THEN 'dismantling'::donor_status
                              ELSE status END
          WHERE id = :id
-        RETURNING code, part_counter
+        RETURNING code, part_counter, generation_id, modification_id
     """),
             {"id": donor_id},
         )
@@ -191,7 +245,7 @@ async def create_part(
 
     # Нормализация каталожного номера: в базе он должен быть без пробелов,
     # дефисов и точек, иначе применимость не найдётся
-    oem = "".join(ch for ch in (oem_number or "").upper() if ch.isalnum()) or None
+    oem = oem_service.normalize(oem_number) or None
 
     # Без фото — черновик. Каталог такие не показывает.
     status = "in_stock" if files else "draft"
@@ -201,9 +255,13 @@ async def create_part(
             text("""
         INSERT INTO parts (sku, donor_id, category_id, name, oem_number, condition,
                            condition_note, price, location, weight_kg, status, published,
+                           oem_source, oem_verified,
                            branch_id)
         VALUES (:sku, :donor, :cat, :name, :oem, CAST(:cond AS part_condition),
                 :note, :price, :loc, :weight, CAST(:status AS part_status), :pub,
+                -- Номер пришёл из формы приёмки: его набрал человек,
+                -- у которого деталь была в руках. Это и есть проверка
+                :oem_source, :oem_verified,
                 -- Деталь появляется там же, где стоит машина. Дальше её
                 -- можно перевезти, и филиал детали разойдётся с машиной
                 (SELECT branch_id FROM donors WHERE id = :donor))
@@ -222,9 +280,22 @@ async def create_part(
                 "weight": weight_kg,
                 "status": status,
                 "pub": bool(files and price),
+                "oem_source": (oem_source or "manual") if oem else None,
+                "oem_verified": bool(oem),
             },
         )
     ).scalar_one()
+
+    # Что предлагали источники и что выбрал человек — разметка, по которой
+    # считается точность каждого источника
+    await oem_service.record(
+        session,
+        part_id,
+        oem,
+        category_id=category_id,
+        generation_id=row.generation_id,
+        modification_id=row.modification_id,
+    )
 
     folder = MEDIA_ROOT / str(part_id)
     saved = []
