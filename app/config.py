@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     order_notify_to: str = ""
 
+    # --- внешние источники ---
+    # Парсеры выключены по умолчанию: поднятый где-то стенд не должен
+    # начать ходить на чужие сайты сам по себе
+    parsers_enabled: bool = False
+
     # --- магазин ---
     currency: str = "₽"
     reserve_hours: int = 48  # сколько держим деталь под заказ

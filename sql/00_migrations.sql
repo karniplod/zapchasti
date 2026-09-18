@@ -315,3 +315,22 @@ END $$;
 ALTER TABLE parts ADD COLUMN IF NOT EXISTS part_brand text;
 
 CREATE INDEX IF NOT EXISTS parts_origin_idx ON parts (origin);
+
+
+-- ------------------------------------------------------------
+-- Кеш внешних запросов
+-- ------------------------------------------------------------
+-- Парсер ходит наружу, а внешние источники нестабильны и не любят
+-- частоты. Один и тот же вопрос задаём один раз: ответ живёт в кеше,
+-- в том числе отрицательный — «ничего не нашлось» тоже результат,
+-- и переспрашивать его каждый раз бессмысленно.
+CREATE TABLE IF NOT EXISTS external_lookups (
+    id         bigserial PRIMARY KEY,
+    source     text NOT NULL,
+    query      text NOT NULL,
+    payload    jsonb,                       -- что вернул источник
+    found      int  NOT NULL DEFAULT 0,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (source, query)
+);
+CREATE INDEX IF NOT EXISTS external_lookups_age_idx ON external_lookups (created_at);

@@ -52,6 +52,9 @@ class Candidate:
     family: str          # источник данных: голоса внутри family не складываются
     weight: float
     note: str            # человеку: почему этот номер предложен
+    # Сколько раз это подтверждалось независимо. Для своей истории —
+    # сколько живых людей заводило такую деталь; для внешних — 1
+    cases: int = 1
 
 
 # ------------------------------------------------------------------
@@ -92,6 +95,7 @@ async def from_same_modification(session: AsyncSession, ctx: dict) -> list[Candi
             # не делают номер в десять раз вернее
             weight=6 + min(r.n - 1, 4),
             note=f"этот узел с такой же модификации, случаев: {r.n}",
+            cases=r.n,
         )
         for r in rows
     ]
@@ -128,6 +132,7 @@ async def from_same_generation(session: AsyncSession, ctx: dict) -> list[Candida
             family="own",
             weight=4 + min(r.n - 1, 3),
             note=f"этот узел с того же поколения, случаев: {r.n}",
+            cases=r.n,
         )
         for r in rows
     ]
@@ -161,6 +166,23 @@ async def from_applicability(session: AsyncSession, ctx: dict) -> list[Candidate
     ]
 
 
+async def from_web(session: AsyncSession, ctx: dict) -> list[Candidate]:
+    """Поиск в вебе по машине и узлу.
+
+    Самый слабый источник: он не знает вашей комплектации и выдаёт
+    номер той версии, что чаще попадается в интернете. Своим весом
+    автоподстановку не даёт никогда — только подсказывает кандидата.
+    """
+    from .parsers import search as web
+
+    filled = await web.context_for(session, ctx)
+    return [
+        Candidate(code=f.code, source="web_search", family="web",
+                  weight=f.weight, note=f.note)
+        for f in await web.fetch(session, filled)
+    ]
+
+
 async def from_ocr(session: AsyncSession, ctx: dict) -> list[Candidate]:
     """Номер, отлитый на самой детали, с её фотографии.
 
@@ -182,6 +204,7 @@ SOURCES = [
     ("history_modification", from_same_modification),
     ("history_generation", from_same_generation),
     ("applicability", from_applicability),
+    ("web_search", from_web),
     ("ocr", from_ocr),
 ]
 
@@ -215,19 +238,34 @@ async def suggest(session: AsyncSession, **ctx) -> dict:
     totals: dict[str, dict] = {}
     for (code, _family), c in best.items():
         item = totals.setdefault(
-            code, {"code": code, "weight": 0.0, "sources": [], "notes": []}
+            code,
+            {"code": code, "weight": 0.0, "sources": [], "notes": [],
+             "families": [], "own_cases": 0},
         )
         item["weight"] += c.weight
         item["sources"].append(c.source)
         item["notes"].append(c.note)
+        item["families"].append(c.family)
+        if c.family == "own":
+            item["own_cases"] = max(item["own_cases"], c.cases)
 
     items = sorted(totals.values(), key=lambda x: -x["weight"])
 
+    # Выделяем номер, только если за него есть два независимых
+    # подтверждения. Два — это либо две разные family, либо два случая
+    # в своей истории: одну и ту же деталь дважды заводил живой человек,
+    # глядя на неё. Один веб-источник не годится никогда, сколько бы раз
+    # он ни повторил номер: он цитирует те же магазины, что и соседний
     confident = None
     if items:
         top = items[0]
         second = items[1]["weight"] if len(items) > 1 else 0.0
-        if top["weight"] >= CONFIDENT_WEIGHT and top["weight"] >= second * CONFIDENT_RATIO:
+        independent = len(set(top["families"])) >= 2 or top["own_cases"] >= 2
+        if (
+            independent
+            and top["weight"] >= CONFIDENT_WEIGHT
+            and top["weight"] >= second * CONFIDENT_RATIO
+        ):
             confident = top["code"]
 
     return {"candidates": items[:6], "confident": confident}
