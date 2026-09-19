@@ -126,6 +126,20 @@ button{font-family:inherit}
 .nav .logo img{width:41px;height:41px;flex:0 0 41px;object-fit:contain;
   transform-origin:center;animation:heartbeat 1s ease-in-out infinite}
 
+/* ── Подсказка каталожного номера ──────────────────────── */
+/* Нужна и при разборе машины, и при приёме отдельной детали,
+   поэтому лежит здесь, а не в одной из страниц */
+/* Подсказка каталожного номера */
+.oem-hints{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.oem-hints button{background:var(--panel-2);border:1px solid var(--line);
+  border-radius:7px;padding:7px 11px;font-family:var(--mono);font-size:13px;
+  color:var(--ink);cursor:pointer;display:flex;align-items:baseline;gap:7px}
+.oem-hints button:hover{border-color:var(--amber)}
+.oem-hints button.sure{border-color:var(--amber);background:rgba(255,194,51,.1)}
+.oem-hints button small{font-family:var(--sans);font-size:11px;color:var(--dim)}
+.oem-hints .lbl{font-size:12px;color:var(--dim);align-self:center;margin-right:2px}
+.oem-warn{margin:8px 0 0;font-size:12.5px;color:var(--warn)}
+
 /* ── Превью машины ─────────────────────────────────────── */
 /* Одна плитка на сводку и на список машин: снимок помогает узнать
    свою машину быстрее, чем код D-0007.

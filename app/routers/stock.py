@@ -72,6 +72,8 @@ async def create_standalone(
     donor_id: int | None = Form(None),
     generations: str = Form(""),  # id поколений через запятую
     oem_number: str | None = Form(None),
+    # Какую подсказку нажал приёмщик; пусто — набрал руками
+    oem_source: str | None = Form(None),
     condition_note: str | None = Form(None),
     price: Decimal | None = Form(None),
     location: str | None = Form(None),
@@ -127,9 +129,12 @@ async def create_standalone(
             text("""
         INSERT INTO parts (sku, donor_id, category_id, name, oem_number, condition,
                            condition_note, price, location, status, published, source,
+                           oem_source, oem_verified,
                            branch_id)
         VALUES (:sku, :donor, :cat, :name, :oem, CAST(:cond AS part_condition),
                 :note, :price, :loc, CAST(:st AS part_status), :pub, :src,
+                -- Номер набрал человек, у которого деталь в руках
+                :oem_src, :oem_ver,
                 -- С машины — её филиал, со стороны — филиал приёмщика
                 COALESCE((SELECT branch_id FROM donors WHERE id = :donor), :branch))
         RETURNING id
@@ -147,6 +152,8 @@ async def create_standalone(
                 "st": "in_stock" if files else "draft",
                 "pub": bool(files and price),
                 "src": source,
+                "oem_src": (oem_source or "manual") if oem else None,
+                "oem_ver": bool(oem),
                 "branch": user.get("branch_id"),
             },
         )

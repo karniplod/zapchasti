@@ -83,7 +83,11 @@ border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-ins
   </div>
 
   <div class="row" style="margin-top:14px">
-    <div><label for="oem">Каталожный номер</label><input type="text" id="oem" autocomplete="off"></div>
+    <div><label for="oem">Каталожный номер</label>
+      <input type="text" id="oem" autocomplete="off">
+      {# Подсказка появляется, когда известны и узел, и машина:
+         без машины спрашивать нечего — номер зависит от неё #}
+      <div class="oem-hints" id="oemHints" hidden></div></div>
     <div><label for="loc">Место хранения</label><input type="text" id="loc" autocomplete="off"></div>
   </div>
 
@@ -125,6 +129,41 @@ border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-ins
 <script>
 const $ = id => document.getElementById(id);
 let category=null, condition=null, files=[], fits=[];
+let oemSource=null;   // какую подсказку нажали; пусто — набрали руками
+
+// Подсказка каталожного номера. Здесь машина известна не заранее,
+// а из списка применимости: первое поколение в нём и есть та машина,
+// с которой деталь снята
+function clearOemHints(){
+  $('oemHints').hidden = true; $('oemHints').innerHTML = ''; oemSource = null;
+}
+
+async function loadOemHints(){
+  clearOemHints();
+  if (!category || !fits.length) return;
+  try {
+    const d = await (await fetch(
+      `/api/oem/suggest?category_id=${category.id}&generation_id=${fits[0].id}`)).json();
+    if (!d.candidates.length) return;
+
+    $('oemHints').innerHTML = '<span class="lbl">Похоже на:</span>' +
+      d.candidates.map(c => `
+        <button type="button" data-code="${c.code}" data-src="${c.sources[0]}"
+                class="${c.code === d.confident ? 'sure' : ''}"
+                title="${c.notes.join('; ')}">
+          ${c.code}<small>${c.notes[0]}</small></button>`).join('');
+
+    $('oemHints').querySelectorAll('button').forEach(b => b.onclick = () => {
+      $('oem').value = b.dataset.code;
+      oemSource = b.dataset.src;
+      $('oemHints').querySelectorAll('button').forEach(x => x.classList.remove('sure'));
+      b.classList.add('sure');
+    });
+    $('oemHints').hidden = false;
+  } catch { /* без подсказки приём детали работает как раньше */ }
+}
+
+$('oem').addEventListener('input', () => { oemSource = null; });
 
 // --- фото ---
 $('shoot').onclick = () => $('photos').click();
@@ -163,9 +202,10 @@ async function searchCats(q){
   box.classList.toggle('open', rows.length>0);
 }
 function pick(r){ category=r; $('catBox').hidden=true; $('catPicked').hidden=false;
+  setTimeout(loadOemHints, 0);
   $('pickedName').textContent=r.name; $('pickedPath').textContent=parentPath(r.path);
   $('catResults').classList.remove('open'); refresh(); }
-$('catClear').onclick=()=>{category=null;$('catBox').hidden=false;$('catPicked').hidden=true;
+$('catClear').onclick=()=>{category=null;clearOemHints();$('catBox').hidden=false;$('catPicked').hidden=true;
   $('catSearch').value='';refresh();};
 
 // --- состояние ---
@@ -195,7 +235,7 @@ $('addFit').onclick = () => {
   if (fits.some(f=>f.id===id)) return toast('Эта модель уже в списке');
   const label = `${$('brand').selectedOptions[0].text} ${$('model').selectedOptions[0].text} `
               + `${$('generation').selectedOptions[0].text}`;
-  fits.push({id, label}); drawFits(); refresh();
+  fits.push({id, label}); drawFits(); refresh(); loadOemHints();
 };
 
 function drawFits(){
@@ -271,6 +311,7 @@ $('save').onclick = async () => {
   $('save').disabled=true;
   const fd=new FormData();
   fd.append('category_id',category.id);
+  if ($('oem').value && oemSource) fd.append('oem_source', oemSource);
   fd.append('name',category.name);
   fd.append('condition',condition);
   fd.append('source', fromDonor() ? 'donor' : $('source').value);
