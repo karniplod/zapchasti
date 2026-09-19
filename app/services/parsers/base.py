@@ -94,6 +94,29 @@ def fetch_html(url: str, source: str) -> str | None:
     return None
 
 
+def fetch_json(url: str, source: str) -> tuple[dict | None, int | None]:
+    """GET с разбором JSON. Возвращает (данные, код ответа).
+
+    Код нужен вызывающему, чтобы отличить исчерпанную квоту (429)
+    от неверного ключа (403) — в логе это разные беды.
+    """
+    wait = MIN_INTERVAL - (time.monotonic() - _last_call.get(source, 0))
+    if wait > 0:
+        time.sleep(wait)
+    _last_call[source] = time.monotonic()
+
+    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+            return json.loads(r.read().decode("utf-8", "replace")), r.status
+    except urllib.error.HTTPError as e:
+        log.info("%s ответил %s", source, e.code)
+        return None, e.code
+    except Exception as e:
+        log.info("%s недоступен: %s", source, type(e).__name__)
+        return None, None
+
+
 async def cached(session: AsyncSession, source: str, query: str, worker) -> list[dict]:
     """Ответ из кеша или свежий.
 

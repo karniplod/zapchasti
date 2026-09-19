@@ -53,6 +53,15 @@ class Settings(BaseSettings):
     # начать ходить на чужие сайты сам по себе
     parsers_enabled: bool = False
 
+    # Поисковик для подсказки каталожного номера.
+    # google — Custom Search JSON API: нужен ключ и cx поискового движка,
+    #          отвечает разметкой JSON и не банит за частоту, пока есть квота
+    # duckduckgo — без ключа, но глушит по IP после десятка запросов;
+    #          годится посмотреть, не годится для работы
+    search_provider: str = "duckduckgo"
+    search_api_key: str = ""
+    search_engine_id: str = ""
+
     # --- магазин ---
     currency: str = "₽"
     reserve_hours: int = 48  # сколько держим деталь под заказ

@@ -15,10 +15,17 @@
   • Один поисковик — одна family. Сколько бы он ни повторил номер, это
     один голос: ответ он собирает из тех же магазинов, что и сосед.
 
-Источник — DuckDuckGo: его html-выдача отвечает без ключа и без капчи,
-в отличие от Яндекса и Google, которые на программный запрос сразу
-показывают проверку. Если понадобится стабильность — тот же код
-переключается на Яндекс XML или Google CSE, когда появится ключ.
+Поисковик выбирается настройкой SEARCH_PROVIDER:
+
+  google      — Custom Search JSON API. Отдаёт разметку JSON, не банит
+                за частоту, пока есть квота, и не ломается при смене
+                вёрстки. Нужен ключ и cx поискового движка.
+  duckduckgo  — без ключа, но глушит по IP после десятка запросов подряд
+                (отвечает 202 с пустой страницей). Годится посмотреть,
+                не годится для работы на потоке.
+
+Разбор номеров, маски и правило двух независимых источников общие:
+меняется только способ получить выдачу.
 """
 
 import logging
@@ -28,8 +35,9 @@ from urllib.parse import quote_plus
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ...config import settings
 from ..oem import BRAND_MASKS, normalize
-from .base import Found, cached, enabled, extract_numbers, fetch_html
+from .base import Found, cached, enabled, extract_numbers, fetch_html, fetch_json
 
 log = logging.getLogger("razbor.parsers.search")
 
@@ -63,9 +71,69 @@ def build_query(ctx: dict) -> str | None:
 
 
 def parse_results(html: str) -> list[str]:
-    """Заголовки и описания результатов: номера лежат в них."""
+    """Заголовки и описания результатов DuckDuckGo: номера лежат в них."""
     raw = re.findall(r'class="result__(?:a|snippet)"[^>]*>(.*?)</a>', html, re.S)
     return [re.sub(r"<[^>]+>", " ", r) for r in raw]
+
+
+# ------------------------------------------------------------------
+# Поисковики
+# ------------------------------------------------------------------
+# Каждый возвращает (куски текста, ответил ли). Второе — не то же самое,
+# что «ничего не нашлось»: отказ не должен попасть в кеш
+
+
+def ask_google(query: str) -> tuple[list[str], bool]:
+    """Custom Search JSON API.
+
+    Квота считается по дням; когда она кончилась, приходит 429 —
+    это не «номера нет», а «спросите завтра», и кешировать это нельзя.
+    """
+    if not settings.search_api_key or not settings.search_engine_id:
+        log.warning(
+            "SEARCH_PROVIDER=google, но ключ или cx не заданы — поиск отключён"
+        )
+        return [], False
+
+    url = (
+        "https://www.googleapis.com/customsearch/v1"
+        f"?key={quote_plus(settings.search_api_key)}"
+        f"&cx={quote_plus(settings.search_engine_id)}"
+        f"&q={quote_plus(query)}"
+        # Русская выдача: номера ищем на наших магазинах, а не на eBay
+        "&hl=ru&lr=lang_ru&num=10"
+    )
+    data, code = fetch_json(url, SOURCE)
+
+    if data is None:
+        if code == 429:
+            log.warning("Google: дневная квота исчерпана")
+        elif code == 403:
+            log.warning("Google: ключ отклонён — проверьте ключ и включён ли Custom Search API")
+        return [], False
+
+    items = data.get("items") or []
+    # Пустой ответ от Google — честный: он отвечает 200 и говорит,
+    # что ничего не нашёл. Такое кешировать можно
+    return [f"{i.get('title', '')} {i.get('snippet', '')}" for i in items], True
+
+
+def ask_duckduckgo(query: str) -> tuple[list[str], bool]:
+    html = fetch_html("https://html.duckduckgo.com/html/?q=" + quote_plus(query), SOURCE)
+    if not html:
+        return [], False
+
+    results = parse_results(html)
+    if not results:
+        # Пустая страница без единого результата — это не «ничего
+        # не нашлось», а мягкий отказ: поисковик отвечает 202
+        # и пустотой, когда считает, что мы частим
+        log.info("%s: пустая выдача, похоже на ограничение частоты", SOURCE)
+        return [], False
+    return results, True
+
+
+PROVIDERS = {"google": ask_google, "duckduckgo": ask_duckduckgo}
 
 
 def looks_like_brand(code: str, brand: str | None) -> bool:
@@ -90,25 +158,21 @@ async def fetch(session: AsyncSession, ctx: dict) -> list[Found]:
     if not query:
         return []
 
+    ask = PROVIDERS.get(settings.search_provider)
+    if ask is None:
+        log.warning("Неизвестный SEARCH_PROVIDER=%s", settings.search_provider)
+        return []
+
     def work():
-        html = fetch_html(
-            "https://html.duckduckgo.com/html/?q=" + quote_plus(query), SOURCE
-        )
-        if not html:
+        results, ok = ask(query)
+        if not ok:
             return [], False
-
-        results = parse_results(html)
-        if not results:
-            # Пустая страница без единого результата — это не «ничего
-            # не нашлось», а мягкий отказ: поисковик отвечает 202
-            # и пустотой, когда считает, что мы частим
-            log.info("%s: пустая выдача, похоже на ограничение частоты", SOURCE)
-            return [], False
-
         counts = extract_numbers(results)
         return [{"code": c, "hits": n} for c, n in counts.items()], True
 
-    items = await cached(session, SOURCE, query, work)
+    # Поисковик входит в ключ кеша: сменили провайдера — прежние ответы
+    # не выдаём за новые
+    items = await cached(session, f"{SOURCE}:{settings.search_provider}", query, work)
 
     brand = ctx.get("brand")
     out: list[Found] = []
