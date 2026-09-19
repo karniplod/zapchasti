@@ -54,10 +54,22 @@ async def main() -> None:
 
     results, ok = await asyncio.to_thread(ask, query)
     if not ok:
-        print("\nИсточник не ответил. Причина — в логе приложения:")
-        print("  429 — кончилась дневная квота")
-        print("  403 — ключ отклонён или не включён Custom Search API")
-        print("  пусто у DuckDuckGo — он глушит по частоте, это не ключ")
+        code = web.LAST_ERROR.get("code")
+        said = web.LAST_ERROR.get("message")
+        print("\nИсточник не ответил.")
+        if said:
+            print(f"  Google ({code}): {said}")
+
+        if code == 403:
+            print("\n  Почти всегда это значит: Custom Search API не включён")
+            print("  в том проекте, которому принадлежит ключ. Открыть")
+            print("  console.cloud.google.com/apis/library/customsearch.googleapis.com,")
+            print("  выбрать вверху нужный проект и нажать Enable.")
+        elif code == 429:
+            print("\n  Дневная квота кончилась — значит настроено верно.")
+        elif code is None:
+            print("  Сети нет или поисковик молчит. У DuckDuckGo так")
+            print("  выглядит ограничение по частоте — это не про ключ.")
         return
 
     print(f"\nОтвет: {len(results)} результатов")

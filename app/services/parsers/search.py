@@ -83,6 +83,9 @@ def parse_results(html: str) -> list[str]:
 # что «ничего не нашлось»: отказ не должен попасть в кеш
 
 
+LAST_ERROR: dict = {"code": None, "message": None}
+
+
 def ask_google(query: str) -> tuple[list[str], bool]:
     """Custom Search JSON API.
 
@@ -105,11 +108,11 @@ def ask_google(query: str) -> tuple[list[str], bool]:
     )
     data, code = fetch_json(url, SOURCE)
 
-    if data is None:
-        if code == 429:
-            log.warning("Google: дневная квота исчерпана")
-        elif code == 403:
-            log.warning("Google: ключ отклонён — проверьте ключ и включён ли Custom Search API")
+    if code != 200:
+        said = ((data or {}).get("error") or {}).get("message")
+        LAST_ERROR["code"] = code
+        LAST_ERROR["message"] = said
+        log.warning("Google отказал (%s): %s", code, said or "без пояснения")
         return [], False
 
     items = data.get("items") or []

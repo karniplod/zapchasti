@@ -97,8 +97,10 @@ def fetch_html(url: str, source: str) -> str | None:
 def fetch_json(url: str, source: str) -> tuple[dict | None, int | None]:
     """GET с разбором JSON. Возвращает (данные, код ответа).
 
-    Код нужен вызывающему, чтобы отличить исчерпанную квоту (429)
-    от неверного ключа (403) — в логе это разные беды.
+    При ошибке возвращается разобранное тело ответа, а не None:
+    поставщик объясняет причину словами («This project does not have
+    the access to Custom Search JSON API»), и пересказывать её своими
+    догадками — значит гонять человека по кругу.
     """
     wait = MIN_INTERVAL - (time.monotonic() - _last_call.get(source, 0))
     if wait > 0:
@@ -110,8 +112,13 @@ def fetch_json(url: str, source: str) -> tuple[dict | None, int | None]:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
             return json.loads(r.read().decode("utf-8", "replace")), r.status
     except urllib.error.HTTPError as e:
-        log.info("%s ответил %s", source, e.code)
-        return None, e.code
+        try:
+            body = json.loads(e.read().decode("utf-8", "replace"))
+        except Exception:
+            body = None
+        message = ((body or {}).get("error") or {}).get("message")
+        log.info("%s ответил %s: %s", source, e.code, message or "без пояснения")
+        return body, e.code
     except Exception as e:
         log.info("%s недоступен: %s", source, type(e).__name__)
         return None, None
