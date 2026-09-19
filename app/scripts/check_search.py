@@ -37,6 +37,7 @@ async def main() -> None:
     print(f"  поисковик        : {settings.search_provider}")
     print(f"  ключ             : {mask_state(settings.search_api_key)}")
     print(f"  cx / folder      : {mask_state(settings.search_engine_id)}")
+    print(f"  потолок в сутки  : {settings.search_daily_limit}")
 
     if not settings.parsers_enabled:
         print("\nPARSERS_ENABLED=false — в сеть не пойдём. Это не ошибка,")

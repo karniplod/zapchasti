@@ -124,6 +124,25 @@ def fetch_json(url: str, source: str) -> tuple[dict | None, int | None]:
         return None, None
 
 
+async def spent_today(session: AsyncSession, source: str) -> int:
+    """Сколько раз сегодня реально ходили наружу.
+
+    Считаем по кешу: строка появляется только после живого запроса,
+    ответы из кеша сюда не попадают. Повторный запрос той же строки
+    после протухания кеша обновляет строку, а не добавляет, — значит
+    счёт слегка занижен. Для потолка это в безопасную сторону.
+    """
+    return (
+        await session.execute(
+            text("""
+        SELECT count(*) FROM external_lookups
+         WHERE source = :s AND created_at >= date_trunc('day', now())
+    """),
+            {"s": source},
+        )
+    ).scalar_one()
+
+
 async def cached(session: AsyncSession, source: str, query: str, worker) -> list[dict]:
     """Ответ из кеша или свежий.
 
@@ -149,6 +168,13 @@ async def cached(session: AsyncSession, source: str, query: str, worker) -> list
     ).first()
     if row is not None:
         return row.payload or []
+
+    # Потолок проверяем перед запросом, а не после: деньги тратит
+    # именно поход наружу
+    limit = getattr(settings, "search_daily_limit", 0)
+    if limit and await spent_today(session, source) >= limit:
+        log.warning("%s: дневной потолок %s запросов исчерпан", source, limit)
+        return []
 
     items, ok = await run_in_threadpool(worker)
     items = items or []
