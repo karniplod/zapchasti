@@ -483,6 +483,29 @@ async def account(
     )
 
 
+@router.delete("/api/account/searches", status_code=204)
+async def clear_searches(
+    session: AsyncSession = Depends(get_session),
+    customer: dict = Depends(ca.current_customer),
+):
+    """Очистить историю поиска в кабинете.
+
+    Строки не удаляем, а обезличиваем: по ним считается отчёт
+    о несостоявшемся спросе — что искали и не нашли. Это основание
+    покупать машины на разбор, и терять его из-за того, что человек
+    прибрался у себя в кабинете, нельзя. Связь с покупателем при этом
+    рвётся полностью: в кабинете не остаётся ничего, и обратно
+    сопоставить записи не с чем.
+    """
+    for table in ("search_queries", "vin_queries"):
+        await session.execute(
+            text(f"UPDATE {table} SET customer_id = NULL WHERE customer_id = :c"),
+            {"c": customer["id"]},
+        )
+    await session.commit()
+    return Response(status_code=204)
+
+
 @router.get("/account/orders/{number}", response_class=HTMLResponse)
 async def order_page(
     number: str,

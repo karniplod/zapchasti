@@ -12,6 +12,11 @@
 
 .block{padding:26px 0 0}
 .block h2{margin:0 0 14px}
+/* Заголовок с действием справа: кнопка относится к разделу, а не
+   к странице, поэтому стоит рядом с ним */
+.block-head{display:flex;align-items:baseline;gap:14px;margin-bottom:14px}
+.block-head h2{margin:0}
+.block-head .linkish{margin-left:auto;font-size:var(--t-sm)}
 .block h3{font-family:var(--display);font-size:var(--t-xs);letter-spacing:.16em;
   text-transform:uppercase;color:var(--dim);margin:20px 0 8px}
 
