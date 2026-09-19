@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ru"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Справочник на проверку</title>
+<link rel="stylesheet" href="/static/admin.css?v={{ admin_css_version() }}">
+<style>
+.gen{background:var(--panel);border:1px solid var(--line);border-radius:11px;
+  padding:14px 16px;margin-bottom:10px}
+.gen .h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.gen .nm{font-size:15.5px}
+.gen .cnt{margin-left:auto;font-size:13px;color:var(--muted);white-space:nowrap}
+.gen .meta{font-size:13px;color:var(--dim);margin-top:5px}
+.gen .src{font-size:11px;padding:3px 9px;border-radius:5px;
+  background:var(--panel-2);color:var(--muted)}
+.lead-note{color:var(--dim);font-size:13.5px;margin:0 0 18px;max-width:60ch}
+</style></head><body>
+
+{% include "admin/_nav.html" %}
+
+<div class="wrap">
+  <p class="eyebrow">Справочник на проверку</p>
+  {# Поколения, заведённые приёмщиком на бегу: машина стояла во дворе,
+     а в справочнике её не было. Проверить их надо, потому что на
+     поколении висит применимость всех снятых деталей #}
+  <p class="lead-note">Эти поколения завели руками во время приёмки.
+    На поколении держится применимость снятых деталей: ошибка здесь —
+    это деталь, которую покупатель не найдёт или купит не ту.
+    Сверху те, у которых больше машин.</p>
+
+  <div id="list"><p class="blank">Загружаю…</p></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+async function load(){
+  const rows = await (await fetch('/api/reference/review')).json();
+  if (!rows.length){
+    $('list').innerHTML = '<p class="blank">Всё проверено — заведённого вручную нет</p>';
+    return;
+  }
+
+  $('list').innerHTML = rows.map(g => `
+    <div class="gen" data-id="${g.id}">
+      <div class="h">
+        <span class="nm">${g.brand} ${g.model}</span>
+        <span class="src">${g.source === 'manual' ? 'завели руками' : g.source}</span>
+        <span class="cnt">машин: ${g.donors}</span>
+      </div>
+      <div class="meta">${g.generation}${g.body_type ? ', ' + g.body_type : ''}
+        ${g.year_from ? ' · ' + g.year_from + '—' + (g.year_to || 'н.в.') : ''}</div>
+      <div class="actions-row">
+        <button class="btn btn-accent ok">Всё верно</button>
+        <a class="btn" href="/donors">Посмотреть машины</a>
+      </div>
+    </div>`).join('');
+
+  document.querySelectorAll('.gen').forEach(el => {
+    el.querySelector('.ok').onclick = async () => {
+      const b = el.querySelector('.ok');
+      b.disabled = true;
+      const r = await fetch(`/api/reference/generations/${el.dataset.id}/approve`,
+                            {method: 'POST'});
+      if (r.ok){ toast('Проверено', 'ok'); load(); }
+      else { toast('Не удалось сохранить', 'err'); b.disabled = false; }
+    };
+  });
+}
+
+let tt;
+function toast(m, k=''){ const el = $('toast'); el.textContent = m;
+  el.className = `toast show ${k}`;
+  clearTimeout(tt); tt = setTimeout(() => el.className = 'toast', 2400); }
+
+load();
+</script>
+</body></html>

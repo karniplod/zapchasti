@@ -10,13 +10,15 @@
 применимость в каталоге и найти ошибку потом невозможно.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import current_user, require_role
 from ..database import get_session
+from ..templating import templates
 from ..scripts.import_catalog import slugify
 
 router = APIRouter(prefix="/api/reference", tags=["reference"])
@@ -247,6 +249,15 @@ async def body_types(user: dict = Depends(current_user)):
 # ------------------------------------------------------------------
 # Проверка добавленного
 # ------------------------------------------------------------------
+
+
+@router.get("/review/page", response_class=HTMLResponse)
+async def review_page(request: Request, user=Depends(require_role("manager"))):
+    """Страница проверки справочника. Плитка в сводке вела сюда
+    с самого начала, но страницы не существовало."""
+    return templates.TemplateResponse(
+        "admin/review.html", {"request": request, "user": user}
+    )
 
 
 @router.get("/review")

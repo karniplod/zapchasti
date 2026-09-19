@@ -90,6 +90,9 @@ async def parts_list(
     status: str | None = None,
     donor_id: int | None = None,
     problems: bool = False,
+    # Со сводки приходят по конкретной проблеме: без цены, скрытые,
+    # без номера, с несверенным номером
+    issue: str | None = None,
     session: AsyncSession = Depends(get_session),
     user=Depends(current_user),
 ):
@@ -123,9 +126,16 @@ async def parts_list(
            AND (NOT CAST(:pr AS boolean) OR p.price IS NULL
                 OR p.status = 'draft'
                 OR NOT EXISTS (SELECT 1 FROM part_photos ph WHERE ph.part_id = p.id))
+           AND (CAST(:issue AS text) IS NULL OR CASE CAST(:issue AS text)
+                    WHEN 'no_price'   THEN p.status = 'in_stock' AND p.price IS NULL
+                    WHEN 'hidden'     THEN p.status = 'in_stock' AND NOT p.published
+                    WHEN 'no_number'  THEN p.status = 'in_stock' AND p.oem_number IS NULL
+                    WHEN 'unverified' THEN p.status = 'in_stock'
+                                       AND p.oem_number IS NOT NULL AND NOT p.oem_verified
+                    ELSE true END)
          ORDER BY p.id DESC LIMIT 300
     """),
-        {"q": q, "st": status, "d": donor_id, "pr": problems},
+        {"q": q, "st": status, "d": donor_id, "pr": problems, "issue": issue},
     )
     return [dict(r._mapping) for r in rows]
 
@@ -743,5 +753,59 @@ async def patch_order(
             {"ids": parts},
         )
 
+    await session.commit()
+    return {"ok": True}
+
+
+# ------------------------------------------------------------------
+# Заявки с витрины
+# ------------------------------------------------------------------
+# Заявки собирались, но прочитать их было негде: плитка в сводке вела
+# на несуществующий адрес. Живут на странице заказов вкладкой — работа
+# одна и та же: человек оставил обращение, на него надо ответить.
+
+
+@router.get("/api/manage/leads")
+async def leads_list(
+    processed: bool | None = None,
+    session: AsyncSession = Depends(get_session),
+    user=Depends(current_user),
+):
+    rows = await session.execute(
+        text("""
+        SELECT l.id, l.phone, l.name, l.message, l.processed, l.created_at,
+               p.sku, p.name AS part_name, p.status::text AS part_status
+          FROM leads l
+          LEFT JOIN parts p ON p.id = l.part_id
+         WHERE (CAST(:pr AS boolean) IS NULL OR l.processed = CAST(:pr AS boolean))
+         ORDER BY l.processed, l.created_at DESC
+         LIMIT 200
+    """),
+        {"pr": processed},
+    )
+    return [dict(r._mapping) for r in rows]
+
+
+class LeadPatch(BaseModel):
+    processed: bool
+
+
+@router.patch("/api/manage/leads/{lead_id}")
+async def patch_lead(
+    lead_id: int,
+    payload: LeadPatch,
+    session: AsyncSession = Depends(get_session),
+    user=Depends(require_role("manager")),
+):
+    """Отметка «обработана». Заявку не удаляем: по ней видно, о чём
+    спрашивают и чего не хватает на складе."""
+    row = (
+        await session.execute(
+            text("UPDATE leads SET processed = :p WHERE id = :id RETURNING id"),
+            {"p": payload.processed, "id": lead_id},
+        )
+    ).first()
+    if not row:
+        raise HTTPException(404, "Заявка не найдена")
     await session.commit()
     return {"ok": True}

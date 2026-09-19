@@ -38,6 +38,14 @@ gap:11px;margin-bottom:24px}
 .empty-note{color:var(--dim);font-size:13.5px;margin:0}
 .act{display:inline-block;background:var(--amber);color:#1a1408;border-radius:9px;
 padding:12px 20px;font-weight:600;font-size:14.5px;margin-bottom:22px}
+
+/* Плитка проблемы поясняет, чем она мешает: «12 без цены» само по себе
+   ни о чём не говорит тому, кто зашёл первый раз */
+.tiles.attention{grid-template-columns:repeat(auto-fill,minmax(184px,1fr))}
+.tile .why{margin-top:5px;font-size:11px;color:var(--dim);line-height:1.35}
+.all-clear{background:var(--panel);border:1px solid var(--line);
+  border-radius:11px;padding:16px 18px;color:var(--ok);font-size:14px;
+  margin-bottom:22px}
 </style></head><body>
 
 {% include "admin/_nav.html" %}
@@ -64,13 +72,36 @@ padding:12px 20px;font-weight:600;font-size:14.5px;margin-bottom:22px}
      border:1px solid var(--line)" href="/stock/new">Принять запчасть</a>
 </div>
 
+{# Требует внимания: показываем только то, что действительно требует.
+   Плитки с нулями раньше занимали строку и приучали не смотреть сюда
+   вовсе — теперь пусто значит пусто #}
+{% set attention = [
+     (s.new_orders,  'новых заказов',        '/orders?s=new',      'деньги ждут ответа'),
+     (s.leads,       'заявок без ответа',    '/orders?tab=leads',  'человек оставил телефон'),
+     (s.no_price,    'деталей без цены',     '/parts?f=no_price',  'лежит, но не продаётся'),
+     (s.unpublished, 'не опубликованы',      '/parts?f=hidden',    'на складе есть, в каталоге нет'),
+     (s.drafts,      'черновиков без фото',  '/parts?f=draft',     'без фото деталь не выложить'),
+     (s.no_number,   'без каталожного номера', '/parts?f=no_number', 'не найдут поиском по номеру'),
+     (s.unverified,  'номер не сверен',      '/parts?f=unverified', 'номер не подтверждён с деталью'),
+     (s.to_review,   'справочник на проверку', '/api/reference/review/page', 'машины, заведённые на бегу'),
+] %}
+{% set open_items = attention | selectattr('0') | list %}
+
 <p class="eyebrow">Требует внимания</p>
-<div class="tiles">
-  <a class="tile {% if s.drafts %}hot{% endif %}" href="/parts?f=draft"><div class="n">{{ s.drafts }}</div><div class="l">черновиков без фото</div></a>
-  <a class="tile {% if s.no_price %}hot{% endif %}" href="/parts?f=problems"><div class="n">{{ s.no_price }}</div><div class="l">деталей без цены</div></a>
-  <a class="tile {% if s.to_review %}hot{% endif %}" href="/reference/review"><div class="n">{{ s.to_review }}</div><div class="l">справочник на проверку</div></a>
-  <a class="tile {% if s.leads %}hot{% endif %}" href="/leads"><div class="n">{{ s.leads }}</div><div class="l">новых заявок</div></a>
+{% if open_items %}
+<div class="tiles attention">
+  {% for n, label, href, why in open_items %}
+  <a class="tile hot" href="{{ href }}">
+    <div class="n">{{ n }}</div>
+    <div class="l">{{ label }}</div>
+    <div class="why">{{ why }}</div>
+  </a>
+  {% endfor %}
 </div>
+{% else %}
+<div class="all-clear">Всё разобрано: нет ни заказов без ответа, ни деталей
+  без цены и номера.</div>
+{% endif %}
 
 <p class="eyebrow">Склад</p>
 <div class="tiles">

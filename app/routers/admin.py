@@ -31,6 +31,17 @@ async def dashboard(
           (SELECT count(*) FROM parts WHERE status = 'draft')        AS drafts,
           (SELECT count(*) FROM parts
             WHERE status = 'in_stock' AND price IS NULL)             AS no_price,
+          -- Лежит на складе, но покупатель её не видит
+          (SELECT count(*) FROM parts
+            WHERE status = 'in_stock' AND NOT published)             AS unpublished,
+          -- Без номера деталь не найти поиском по каталогу
+          (SELECT count(*) FROM parts
+            WHERE status = 'in_stock' AND oem_number IS NULL)        AS no_number,
+          -- Номер есть, но с деталью его никто не сверил
+          (SELECT count(*) FROM parts
+            WHERE status = 'in_stock' AND oem_number IS NOT NULL
+              AND NOT oem_verified)                                  AS unverified,
+          (SELECT count(*) FROM orders WHERE status = 'new')         AS new_orders,
           (SELECT count(*) FROM generations
             WHERE needs_review AND source = 'manual')            AS to_review,
           (SELECT count(*) FROM leads WHERE NOT processed)           AS leads

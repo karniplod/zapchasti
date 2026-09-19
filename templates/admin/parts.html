@@ -57,6 +57,10 @@ padding:13px 15px;margin-bottom:9px}
   <div class="tabs" id="tabs">
     <button class="on" data-f="">Все</button>
     <button data-f="problems">Проблемные</button>
+    <button data-f="no_price">Без цены</button>
+    <button data-f="hidden">Скрытые</button>
+    <button data-f="no_number">Без номера</button>
+    <button data-f="unverified">Номер не сверен</button>
     <button data-f="in_stock">В наличии</button>
     <button data-f="draft">Черновики</button>
     <button data-f="sold">Проданные</button>
@@ -90,7 +94,10 @@ const ST = {draft:'черновик',in_stock:'в наличии',reserved:'бр
 async function load(){
   const p = new URLSearchParams();
   if (q) p.set('q', q);
+  // Три вида фильтра: общая куча проблем, конкретная беда и статус
+  const ISSUES = ['no_price', 'hidden', 'no_number', 'unverified'];
   if (filter === 'problems') p.set('problems', 'true');
+  else if (ISSUES.includes(filter)) p.set('issue', filter);
   else if (filter) p.set('status', filter);
 
   const rows = await (await fetch('/api/manage/parts?' + p)).json();

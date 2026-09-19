@@ -207,8 +207,8 @@ button{font-family:inherit}
 .nav .logo{font-weight:700;font-size:15px;letter-spacing:-.01em;white-space:nowrap}
 .nav .logo span{color:var(--amber)}
 .nav ul{list-style:none;display:flex;gap:4px;margin:0;padding:0;
-  overflow-x:auto;flex:1;min-width:0}
-.nav a{display:block;padding:7px 11px;border-radius:7px;font-size:14px;
+  flex:1;min-width:0;flex-wrap:wrap}
+.nav a{display:block;padding:7px 9px;border-radius:7px;font-size:13.5px;
   color:var(--muted);text-decoration:none;white-space:nowrap}
 .nav a:hover{color:var(--ink);background:var(--panel-2)}
 .nav a.on{color:var(--ink);background:var(--panel-2);font-weight:600;
@@ -216,6 +216,10 @@ button{font-family:inherit}
 .nav .me{font-size:12px;color:var(--dim);white-space:nowrap}
 .nav .me a{display:inline;padding:0;color:var(--dim);text-decoration:underline}
 @media(max-width:560px){.nav .logo{font-size:14px}.nav .me{width:100%;order:3}}
+
+/* Меню не прокручивается вбок: пункт, уехавший за край, всё равно
+   что отсутствует — его не видно и никто его не ищет. Не помещается —
+   переносим на вторую строку */
 
 /* Бургер — только мобильное меню, на широком экране скрыт */
 .nav .burger{display:none;width:38px;height:38px;padding:0;flex:0 0 38px;
