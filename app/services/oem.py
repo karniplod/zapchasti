@@ -199,14 +199,21 @@ async def from_ocr(session: AsyncSession, ctx: dict) -> list[Candidate]:
     return []
 
 
-# Порядок важен только для показа; вес решает всё остальное
-SOURCES = [
+# Свои источники — запрос к своей же базе, они бесплатны и мгновенны
+LOCAL_SOURCES = [
     ("history_modification", from_same_modification),
     ("history_generation", from_same_generation),
     ("applicability", from_applicability),
-    ("web_search", from_web),
     ("ocr", from_ocr),
 ]
+
+# Внешние стоят денег и времени: у поисковиков запросы считаются
+# и тарифицируются. К ним обращаемся, только если свои не справились
+REMOTE_SOURCES = [
+    ("web_search", from_web),
+]
+
+SOURCES = LOCAL_SOURCES + REMOTE_SOURCES
 
 # Сколько голосов нужно, чтобы подставить номер без вопросов, и во
 # сколько раз победитель должен оторваться от второго места
@@ -214,15 +221,34 @@ CONFIDENT_WEIGHT = 6.0
 CONFIDENT_RATIO = 2.0
 
 
-async def suggest(session: AsyncSession, **ctx) -> dict:
-    """Кандидаты по убыванию уверенности плюс решение об автоподстановке."""
+async def collect(session: AsyncSession, sources, ctx: dict) -> list[Candidate]:
     raw: list[Candidate] = []
-    for name, fn in SOURCES:
+    for name, fn in sources:
         try:
             raw.extend(await fn(session, ctx))
         except Exception:
             # Один сломанный источник не должен ронять приёмку детали
             log.exception("Источник подсказки %s упал", name)
+    return raw
+
+
+async def suggest(session: AsyncSession, **ctx) -> dict:
+    """Кандидаты по убыванию уверенности плюс решение об автоподстановке.
+
+    Сначала спрашиваем своё — это запрос к своей же базе, бесплатный
+    и мгновенный. В интернет идём, только если своего не хватило:
+    у поисковиков запросы тарифицируются, и платить за то, что мы уже
+    знаем, незачем. Заодно форма не ждёт сеть там, где ответ был рядом.
+    """
+    raw = await collect(session, LOCAL_SOURCES, ctx)
+
+    # Два независимых подтверждения из своей истории — это и есть
+    # «знаем точно». Тот же порог, что и для автоподстановки
+    settled = any(
+        c.family == "own" and c.cases >= 2 and c.weight >= CONFIDENT_WEIGHT for c in raw
+    )
+    if not settled:
+        raw += await collect(session, REMOTE_SOURCES, ctx)
 
     # Голоса одной family не складываются: зеркала одного первоисточника
     # не делают ответ вернее
