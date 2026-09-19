@@ -56,14 +56,15 @@ padding:13px 15px;margin-bottom:9px}
   <input id="q" placeholder="Артикул, название или каталожный номер" autocomplete="off">
   <div class="tabs" id="tabs">
     <button class="on" data-f="">Все</button>
-    <button data-f="problems">Проблемные</button>
-    <button data-f="no_price">Без цены</button>
-    <button data-f="hidden">Скрытые</button>
-    <button data-f="no_number">Без номера</button>
-    <button data-f="unverified">Номер не сверен</button>
     <button data-f="in_stock">В наличии</button>
     <button data-f="draft">Черновики</button>
     <button data-f="sold">Проданные</button>
+    <span class="sep"></span>
+    <button class="issue" data-f="problems">Проблемные</button>
+    <button class="issue" data-f="no_price">Без цены</button>
+    <button class="issue" data-f="hidden">Скрытые</button>
+    <button class="issue" data-f="no_number">Без номера</button>
+    <button class="issue" data-f="unverified">Номер не сверен</button>
   </div>
   <div id="list"><p class="blank">Загружаю…</p></div>
 </div>

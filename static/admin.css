@@ -143,11 +143,21 @@ button{font-family:inherit}
 .car-pic-lg{width:64px;height:64px;flex-basis:64px}
 
 /* ── Список вкладок-фильтров (Машины, Детали) ─────────────── */
-.tabs{display:flex;gap:8px;margin:12px 0 16px;overflow-x:auto;padding-bottom:4px}
+/* Вкладки переносятся, а не уезжают вбок: фильтр за краем экрана
+   всё равно что отсутствует. Их стало девять — две группы в одной
+   строке, поэтому между группами разделитель */
+.tabs{display:flex;gap:8px;margin:12px 0 16px;flex-wrap:wrap;align-items:center}
 .tabs button{background:var(--panel);border:1px solid var(--line);border-radius:8px;
   padding:9px 14px;color:var(--muted);cursor:pointer;font-family:inherit;font-size:14px;
   white-space:nowrap}
 .tabs button.on{background:var(--amber);color:#1a1408;border-color:var(--amber);font-weight:600}
+
+/* Фильтры по беде — второй ряд смыслов: не «что это», а «что не так» */
+.tabs .sep{width:1px;align-self:stretch;background:var(--line);margin:2px 4px}
+.tabs button.issue{background:transparent;border-style:dashed;color:var(--dim)}
+.tabs button.issue:hover{color:var(--ink);border-color:var(--dim)}
+.tabs button.issue.on{background:rgba(255,159,46,.14);border-style:solid;
+  border-color:var(--warn);color:var(--warn)}
 
 .blank{color:var(--dim);font-size:14px;text-align:center;padding:40px 20px}
 
