@@ -64,6 +64,8 @@ razbor/
 │       ├── labels.html          печать этикеток
 │       ├── orders.html          заказы с витрины
 │       ├── _nav.html, _cropper.html, _quickadd.html   общие фрагменты
+├── tools/
+│   └── check_js.py          синтаксис встроенных скриптов страниц
 ├── sql/                     схема и миграции
 ├── deploy/                  systemd, Caddyfile, cron
 ├── docs/                    развёртывание, карта проекта
