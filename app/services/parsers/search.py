@@ -17,9 +17,12 @@
 
 Поисковик выбирается настройкой SEARCH_PROVIDER:
 
-  google      — Custom Search JSON API. Отдаёт разметку JSON, не банит
-                за частоту, пока есть квота, и не ломается при смене
-                вёрстки. Нужен ключ и cx поискового движка.
+  brave       — Brave Search API. Свой индекс, не перепродажа чужой
+                выдачи; ключ в заголовке, ответ в JSON. Рабочий вариант.
+  google      — Custom Search JSON API. НЕ РАБОТАЕТ для новых проектов:
+                Google закрыл его для новых клиентов, а 1 января 2027
+                выключает совсем. Оставлен для тех, у кого доступ есть
+                с прежних времён.
   duckduckgo  — без ключа, но глушит по IP после десятка запросов подряд
                 (отвечает 202 с пустой страницей). Годится посмотреть,
                 не годится для работы на потоке.
@@ -121,6 +124,44 @@ def ask_google(query: str) -> tuple[list[str], bool]:
     return [f"{i.get('title', '')} {i.get('snippet', '')}" for i in items], True
 
 
+def ask_brave(query: str) -> tuple[list[str], bool]:
+    """Brave Search API.
+
+    Ключ передаётся заголовком, а не в адресе, — он не осядет в логах
+    прокси и в истории запросов. На бесплатном тарифе ограничение
+    примерно запрос в секунду; наша пауза между обращениями больше,
+    так что в него мы не упрёмся.
+    """
+    if not settings.search_api_key:
+        log.warning("SEARCH_PROVIDER=brave, но ключ не задан — поиск отключён")
+        return [], False
+
+    url = (
+        "https://api.search.brave.com/res/v1/web/search"
+        f"?q={quote_plus(query)}&count=20"
+        # Русская выдача: номера ищем на наших магазинах и форумах
+        "&search_lang=ru&country=RU"
+    )
+    data, code = fetch_json(
+        url, SOURCE, headers={"X-Subscription-Token": settings.search_api_key}
+    )
+
+    if code != 200:
+        said = ((data or {}).get("error") or {}).get("detail") if isinstance(data, dict) else None
+        LAST_ERROR["code"] = code
+        LAST_ERROR["message"] = said or (
+            "ключ не принят" if code in (401, 403)
+            else "превышена частота или месячная квота" if code == 429
+            else None
+        )
+        log.warning("Brave отказал (%s): %s", code, LAST_ERROR["message"] or "без пояснения")
+        return [], False
+
+    results = (data or {}).get("web", {}).get("results") or []
+    # Пустая выдача от Brave — честная: он ответил 200 и ничего не нашёл
+    return [f"{r.get('title', '')} {r.get('description', '')}" for r in results], True
+
+
 def ask_duckduckgo(query: str) -> tuple[list[str], bool]:
     html = fetch_html("https://html.duckduckgo.com/html/?q=" + quote_plus(query), SOURCE)
     if not html:
@@ -136,7 +177,11 @@ def ask_duckduckgo(query: str) -> tuple[list[str], bool]:
     return results, True
 
 
-PROVIDERS = {"google": ask_google, "duckduckgo": ask_duckduckgo}
+PROVIDERS = {
+    "brave": ask_brave,
+    "google": ask_google,
+    "duckduckgo": ask_duckduckgo,
+}
 
 
 def looks_like_brand(code: str, brand: str | None) -> bool:

@@ -59,15 +59,18 @@ async def main() -> None:
         said = web.LAST_ERROR.get("message")
         print("\nИсточник не ответил.")
         if said:
-            print(f"  Google ({code}): {said}")
+            print(f"  {settings.search_provider} ({code}): {said}")
 
-        if code == 403:
-            print("\n  Почти всегда это значит: Custom Search API не включён")
-            print("  в том проекте, которому принадлежит ключ. Открыть")
-            print("  console.cloud.google.com/apis/library/customsearch.googleapis.com,")
-            print("  выбрать вверху нужный проект и нажать Enable.")
-        elif code == 429:
-            print("\n  Дневная квота кончилась — значит настроено верно.")
+        if settings.search_provider == "brave":
+            if code in (401, 403):
+                print("\n  Ключ не принят. Проверьте, что он скопирован целиком")
+                print("  и что подписка на api.search.brave.com активна.")
+            elif code == 429:
+                print("\n  Слишком часто или кончилась месячная квота.")
+        elif settings.search_provider == "google" and code == 403:
+            print("\n  Custom Search JSON API закрыт для новых проектов")
+            print("  (см. developers.google.com/custom-search/v1/overview).")
+            print("  Для новых аккаунтов он не откроется — берите другой поисковик.")
         elif code is None:
             print("  Сети нет или поисковик молчит. У DuckDuckGo так")
             print("  выглядит ограничение по частоте — это не про ключ.")

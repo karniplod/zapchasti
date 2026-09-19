@@ -94,7 +94,9 @@ def fetch_html(url: str, source: str) -> str | None:
     return None
 
 
-def fetch_json(url: str, source: str) -> tuple[dict | None, int | None]:
+def fetch_json(
+    url: str, source: str, headers: dict | None = None
+) -> tuple[dict | None, int | None]:
     """GET с разбором JSON. Возвращает (данные, код ответа).
 
     При ошибке возвращается разобранное тело ответа, а не None:
@@ -107,7 +109,9 @@ def fetch_json(url: str, source: str) -> tuple[dict | None, int | None]:
         time.sleep(wait)
     _last_call[source] = time.monotonic()
 
-    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
+    req = urllib.request.Request(
+        url, headers={"User-Agent": UA, "Accept": "application/json", **(headers or {})}
+    )
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
             return json.loads(r.read().decode("utf-8", "replace")), r.status

@@ -292,5 +292,10 @@ cp .env.example .env
 8. Кроссы OEM пусты: таблицы созданы, но выгрузку TecDoc
    (`import_cross.py`) ещё не прогоняли — поиск по аналогам вернёт
    только точные совпадения номера
+9. Подсказка каталожного номера работает на собственной истории.
+   Веб-поиск как дополнительный источник требует ключа: Brave Search
+   API (`SEARCH_PROVIDER=brave`). Google Custom Search JSON API для
+   новых проектов закрыт и выключается 1 января 2027 —
+   см. developers.google.com/custom-search/v1/overview
 
 Подробнее — в `docs/structure.md`.
