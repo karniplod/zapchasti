@@ -334,3 +334,27 @@ CREATE TABLE IF NOT EXISTS external_lookups (
     UNIQUE (source, query)
 );
 CREATE INDEX IF NOT EXISTS external_lookups_age_idx ON external_lookups (created_at);
+
+
+-- ------------------------------------------------------------
+-- Объединение дублей справочника
+-- ------------------------------------------------------------
+-- Странице проверки нужен model_id: сливать поколение можно только
+-- внутри своей модели, иначе применимость снятых деталей разъедется.
+-- Во вью его не было, потому что до появления интерфейса объединение
+-- вызывали руками, зная идентификаторы.
+--
+-- Колонка дописана в конец: CREATE OR REPLACE не позволяет менять
+-- имена и порядок существующих, а вставка в середину читается именно
+-- как переименование.
+CREATE OR REPLACE VIEW reference_review AS
+SELECT g.id,
+       b.name AS brand, m.name AS model, g.name AS generation,
+       g.body_type, g.year_from, g.year_to, g.source,
+       (SELECT count(*) FROM donors d WHERE d.generation_id = g.id) AS donors,
+       g.model_id
+  FROM generations g
+  JOIN models m ON m.id = g.model_id
+  JOIN brands b ON b.id = m.brand_id
+ WHERE g.needs_review
+ ORDER BY donors DESC, b.name, m.name;

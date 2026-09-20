@@ -36,6 +36,8 @@ gap:11px;margin-bottom:24px}
   .car .actions-row{width:100%;margin-top:6px}
 }
 .empty-note{color:var(--dim);font-size:13.5px;margin:0}
+.reports-link{font-size:13.5px;color:var(--dim);margin:0 0 22px}
+.reports-link a{color:var(--amber);text-decoration:underline}
 .act{display:inline-block;background:var(--amber);color:#1a1408;border-radius:9px;
 padding:12px 20px;font-weight:600;font-size:14.5px;margin-bottom:22px}
 
@@ -110,6 +112,12 @@ padding:12px 20px;font-weight:600;font-size:14.5px;margin-bottom:22px}
   <a class="tile" href="/catalog"><div class="n">{{ s.brands }}</div><div class="l">марок в справочнике</div></a>
   <div class="tile flat"><div class="n">{{ s.categories }}</div><div class="l">категорий</div></div>
 </div>
+
+{# Отчёты не имеют счётчика: они не про «сколько», а про «что дальше».
+   Ссылкой, чтобы не соревновались за внимание с плитками #}
+<p class="reports-link">
+  <a href="/reports">Отчёты</a> — что искали и не нашли, точность подсказки номера
+</p>
 
 <div class="panel">
   <h3>Машины в работе</h3>

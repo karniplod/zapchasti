@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ru"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Отчёты</title>
+<link rel="stylesheet" href="/static/admin.css?v={{ admin_css_version() }}">
+<style>
+.rep{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:18px;margin-bottom:16px}
+.rep h3{margin:0 0 6px;font-size:16px}
+.rep .why{color:var(--dim);font-size:13px;margin:0 0 14px;max-width:62ch;line-height:1.5}
+
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-weight:600;color:var(--muted);font-size:11px;
+  letter-spacing:.08em;text-transform:uppercase;padding:0 10px 8px 0}
+td{padding:9px 10px 9px 0;border-top:1px solid var(--line);vertical-align:baseline}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+tr:hover td{background:var(--panel-2)}
+.car{font-size:14px}
+.wmi{font-family:var(--mono);font-size:12px;color:var(--dim)}
+
+/* Полоска попадания источника: цифру в процентах глазом не сравнить,
+   а длину полоски видно сразу */
+.bar{display:block;height:5px;border-radius:3px;background:var(--panel-2);
+  margin-top:5px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--amber)}
+.muted{color:var(--dim)}
+.blank{color:var(--dim);font-size:13.5px;padding:18px 0}
+</style></head><body>
+
+{% include "admin/_nav.html" %}
+
+<div class="wrap">
+
+<section class="rep">
+  <h3>Что искали и не нашли</h3>
+  <p class="why">Покупатель ввёл VIN, а деталей к этой машине у нас не оказалось.
+     Сверху те, по которым приходили чаще — это и есть список машин,
+     которые выгодно взять на разбор следующими. Считается за полгода.</p>
+
+  {% if demand %}
+  <table>
+    <tr>
+      <th>Машина</th><th>Завод по VIN</th>
+      <th class="num">Запросов</th><th class="num">Разных VIN</th><th class="num">Последний</th>
+    </tr>
+    {% for d in demand %}
+    <tr>
+      <td class="car">{{ d.car }}</td>
+      <td class="wmi">{{ d.wmi }}{% if d.manufacturer %} · {{ d.manufacturer }}{% endif %}</td>
+      <td class="num">{{ d.queries }}</td>
+      <td class="num">{{ d.unique_vins }}</td>
+      <td class="num muted">{{ d.last_query.strftime('%d.%m.%Y') }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="blank">Пока пусто. Записи появятся, когда покупатели начнут искать
+     по VIN машины, которых у нас нет.</p>
+  {% endif %}
+</section>
+
+<section class="rep">
+  <h3>Точность подсказки каталожного номера</h3>
+  <p class="why">Сколько раз каждый источник предлагал номер и сколько раз
+     оказался прав — считается по тому, что в итоге выбрал человек.
+     Это и есть ответ на вопрос, стоит ли платить за каталог: цифра,
+     а не ощущение.</p>
+
+  {% if accuracy %}
+  <table>
+    <tr><th>Источник</th><th class="num">Предлагал</th><th class="num">Попал</th><th class="num">Точность</th></tr>
+    {% for a in accuracy %}
+    <tr>
+      <td>{{ a.source }}
+        <span class="bar"><i style="width:{{ a.pct }}%"></i></span></td>
+      <td class="num">{{ a.offered }}</td>
+      <td class="num">{{ a.hit }}</td>
+      <td class="num">{{ a.pct }}%</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="blank">Данных пока нет. Они копятся сами: каждая заведённая деталь
+     записывает, что предлагали источники и что выбрал разборщик.</p>
+  {% endif %}
+
+  {% if totals and totals.with_number %}
+  <p class="why" style="margin:14px 0 0">
+    Деталей с номером: {{ totals.with_number }} из {{ totals.total }}.
+    Из них набрано руками {{ totals.manual }}, взято из подсказки {{ totals.hinted }}.
+  </p>
+  {% endif %}
+</section>
+
+</div>
+</body></html>

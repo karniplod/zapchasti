@@ -5,8 +5,9 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..auth import current_user
+from ..auth import current_user, require_role
 from ..database import get_session
+from ..services import oem as oem_service
 from ..templating import templates
 
 router = APIRouter(tags=["admin"])
@@ -84,5 +85,55 @@ async def dashboard(
             "s": s,
             "active": active,
             "empty": s["brands"] == 0 or s["categories"] == 0,
+        },
+    )
+
+
+# ------------------------------------------------------------------
+# Отчёты
+# ------------------------------------------------------------------
+# Оба отчёта считались с самого начала, но смотреть их было негде:
+# ручки были, интерфейса не было. Отчёт, который никто не видит,
+# всё равно что отсутствует.
+
+
+@router.get("/reports", response_class=HTMLResponse)
+async def reports_page(
+    request: Request,
+    user: dict = Depends(require_role("manager")),
+    session: AsyncSession = Depends(get_session),
+):
+    """Две вещи, на которые смотрят, когда решают, куда вкладываться:
+    чего не хватает на складе и стоит ли платить за каталог номеров."""
+    demand = [
+        dict(r._mapping)
+        for r in await session.execute(text("SELECT * FROM unmet_demand LIMIT 50"))
+    ]
+
+    accuracy = await oem_service.accuracy(session)
+
+    # Сколько раз подсказка вообще срабатывала и сколько номеров
+    # в итоге ввели руками — без этого проценты не с чем сравнить
+    totals = (
+        await session.execute(
+            text("""
+        SELECT count(*) FILTER (WHERE oem_source = 'manual')            AS manual,
+               count(*) FILTER (WHERE oem_source IS NOT NULL
+                                  AND oem_source <> 'manual')           AS hinted,
+               count(*) FILTER (WHERE oem_number IS NOT NULL)           AS with_number,
+               count(*)                                                 AS total
+          FROM parts
+    """)
+        )
+    ).mappings().first()
+
+    return templates.TemplateResponse(
+        "admin/reports.html",
+        {
+            "request": request,
+            "user": user,
+            "demand": demand,
+            "accuracy": accuracy,
+            "totals": totals,
         },
     )
