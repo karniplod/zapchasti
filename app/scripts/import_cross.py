@@ -41,8 +41,7 @@ def members(zf: zipfile.ZipFile, all_files: bool):
 def rows(zf: zipfile.ZipFile, name: str):
     with zf.open(name) as raw:
         stream = io.TextIOWrapper(raw, encoding="utf-8", errors="replace", newline="")
-        for row in csv.DictReader(stream, delimiter=";"):
-            yield row
+        yield from csv.DictReader(stream, delimiter=";")
 
 
 async def targets(session, force: bool) -> set[str]:

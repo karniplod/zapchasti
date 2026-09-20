@@ -3,7 +3,7 @@
     python tools/check_js.py        (сервер должен быть поднят)
 
 Зачем: разметка и скрипты живут в одном шаблоне, и правка скрипта
-через замену текста легко превращает 
+через замену текста легко превращает
  внутри строки в настоящий
 перенос. Для JavaScript это синтаксическая ошибка: молча перестаёт
 работать весь блок, а внешне страница выглядит целой.
@@ -11,7 +11,14 @@
 Нужен пакет esprima: pip install esprima. Он не знает catch без
 переменной (ES2019), такие срабатывания отсеиваются.
 """
-import io, json, re, http.cookiejar, urllib.request, urllib.error, sys
+import http.cookiejar
+import io
+import json
+import re
+import sys
+import urllib.error
+import urllib.request
+
 import esprima
 
 B = "http://127.0.0.1:8100"
@@ -20,7 +27,8 @@ web = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
 
 def call(path, data=None):
     req = urllib.request.Request(B + path, data=json.dumps(data).encode() if data else None)
-    if data: req.add_header("Content-Type", "application/json")
+    if data:
+        req.add_header("Content-Type", "application/json")
     try:
         with web.open(req) as r:
             return r.read().decode()

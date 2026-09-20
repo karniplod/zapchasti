@@ -4,10 +4,12 @@
 место, публикация. Без этого экрана любая опечатка остаётся навсегда.
 """
 
+import shutil
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -17,9 +19,10 @@ from ..auth import current_user, require_role
 from ..config import settings
 from ..database import get_session
 from ..services import oem as oem_service
-from .dismantle import ORIGINS
-from ..vin_decoder import normalize
+from ..services.images import save_images
 from ..templating import templates
+from ..vin_decoder import normalize
+from .dismantle import ORIGINS
 
 router = APIRouter(tags=["manage"])
 
@@ -429,23 +432,12 @@ async def delete_part(
 
     # Фото убираем после удаления записи: если удаление не прошло,
     # снимки останутся на месте
-    import shutil
-    from pathlib import Path as P
-
-    shutil.rmtree(P("media/parts") / str(part_id), ignore_errors=True)
+    shutil.rmtree(settings.media_root / "parts" / str(part_id), ignore_errors=True)
 
 
 # ------------------------------------------------------------------
 # Фото деталей и машин
 # ------------------------------------------------------------------
-
-import shutil
-from pathlib import Path as _P
-
-from fastapi import File, UploadFile
-
-from ..services.images import save_images
-
 
 @router.get("/api/manage/parts/{part_id}/photos")
 async def part_photos(
@@ -554,7 +546,7 @@ async def delete_photo(
     # path хранится как /media/parts/42/имя.webp — отрезаем префикс
     for suffix in ("", "_t"):
         rel = row.path.removeprefix("/media/")
-        f = settings.media_root / _P(rel).with_stem(_P(rel).stem + suffix)
+        f = settings.media_root / Path(rel).with_stem(Path(rel).stem + suffix)
         f.unlink(missing_ok=True)
 
 
@@ -627,7 +619,7 @@ async def delete_donor_photo(
     # path хранится как /media/parts/42/имя.webp — отрезаем префикс
     for suffix in ("", "_t"):
         rel = row.path.removeprefix("/media/")
-        f = settings.media_root / _P(rel).with_stem(_P(rel).stem + suffix)
+        f = settings.media_root / Path(rel).with_stem(Path(rel).stem + suffix)
         f.unlink(missing_ok=True)
 
 

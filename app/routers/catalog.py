@@ -19,8 +19,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import optional_user, require_role
-from ..customer_auth import optional_customer
 from ..config import settings
+from ..customer_auth import optional_customer
 from ..database import get_session
 from ..services.geo import detect_city
 from ..templating import templates

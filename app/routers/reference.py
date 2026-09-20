@@ -18,8 +18,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import current_user, require_role
 from ..database import get_session
-from ..templating import templates
 from ..scripts.import_catalog import slugify
+from ..templating import templates
 
 router = APIRouter(prefix="/api/reference", tags=["reference"])
 

@@ -161,8 +161,13 @@ def normalize(vin: str) -> str:
 
 
 def check_digit(vin: str) -> str:
-    """Вычислить контрольную цифру (позиция 9)."""
-    total = sum(TRANSLIT[ch] * w for ch, w in zip(vin, WEIGHTS))
+    """Вычислить контрольную цифру (позиция 9).
+
+    strict=True намеренно: весов ровно семнадцать, и VIN сюда попадает
+    только после проверки длины. Короткая строка молча дала бы неверную
+    цифру, а это хуже исключения — ошибка ушла бы в данные.
+    """
+    total = sum(TRANSLIT[ch] * w for ch, w in zip(vin, WEIGHTS, strict=True))
     rem = total % 11
     return "X" if rem == 10 else str(rem)
 
