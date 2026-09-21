@@ -191,20 +191,27 @@ let origin = 'original';   // снятая с машины деталь чаще
 // Ядро подсказки живёт на сервере (app/services/oem.py): оно опрашивает
 // источники и решает, можно ли подставить номер само. Здесь только показ
 let oemSource = null;   // какую подсказку нажали; пусто — набрали руками
+// Номер, который подставили сами. Пока человек его не тронул, он наш:
+// сменили деталь — убираем, иначе номер двери уедет вместе с фарой
+let oemAuto = null;
+let oemSeq = 0;         // ответ на старый запрос не должен лечь поверх нового
 
 function clearOemHints(){
   $('oemHints').hidden = true;
   $('oemHints').innerHTML = '';
   $('oemWarn').hidden = true;
+  if (oemAuto && $('oem').value === oemAuto) $('oem').value = '';
+  oemAuto = null;
   oemSource = null;
 }
 
 async function loadOemHints(categoryId){
   clearOemHints();
+  const seq = ++oemSeq;
   try {
     const d = await (await fetch(
       `/api/oem/suggest?category_id=${categoryId}&donor_id=${DONOR_ID}`)).json();
-    if (!d.candidates.length) return;
+    if (seq !== oemSeq || !d.candidates.length) return;
 
     $('oemHints').innerHTML = '<span class="lbl">Было раньше:</span>' +
       d.candidates.map(c => `
@@ -217,15 +224,27 @@ async function loadOemHints(categoryId){
     $('oemHints').querySelectorAll('button').forEach(b => b.onclick = () => {
       $('oem').value = b.dataset.code;
       oemSource = b.dataset.src;
+      oemAuto = null;   // выбрал человек — теперь это его номер
       $('oemHints').querySelectorAll('button').forEach(x => x.classList.remove('sure'));
       b.classList.add('sure');
     });
+
+    // Уверенный номер (сошлись два независимых источника) ставим сами,
+    // но только в пустое поле: набранное человеком не перезаписываем
+    const sure = d.candidates.find(c => c.code === d.confident);
+    if (sure && !$('oem').value.trim()){
+      $('oem').value = sure.code;
+      oemAuto = sure.code;
+      oemSource = sure.sources[0];
+      $('oemHints').insertAdjacentHTML('beforeend',
+        '<span class="lbl">подставлен сам — проверьте</span>');
+    }
     $('oemHints').hidden = false;
   } catch { /* без подсказки приёмка работает как раньше */ }
 }
 
 // Набрал руками — источник больше не подсказка
-$('oem').addEventListener('input', () => { oemSource = null; });
+$('oem').addEventListener('input', () => { oemSource = null; oemAuto = null; });
 
 // --- поиск категории -------------------------------------------------
 let searchTimer;
@@ -383,6 +402,7 @@ function clearForm(){
   // однотипные детали и кладут на ту же полку
   lastLoc = $('loc').value;
   ['name','oem','price','note','weight','partBrand'].forEach(id => $(id).value = '');
+  clearOemHints();   // подсказки прошлой детали к следующей не относятся
   origin = 'original';
   [...$('origin').children].forEach((x, i) => x.classList.toggle('on', i === 0));
   $('brandBox').hidden = true;

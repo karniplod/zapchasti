@@ -270,8 +270,7 @@ async def create_part(
                            branch_id)
         VALUES (:sku, :donor, :cat, :name, :oem, CAST(:cond AS part_condition),
                 :note, :price, :loc, :weight, CAST(:status AS part_status), :pub,
-                -- Номер пришёл из формы приёмки: его набрал человек,
-                -- у которого деталь была в руках. Это и есть проверка
+                -- Откуда номер и сверен ли он с деталью — решает код ниже
                 :oem_source, :oem_verified, :origin, :part_brand,
                 -- Деталь появляется там же, где стоит машина. Дальше её
                 -- можно перевезти, и филиал детали разойдётся с машиной
@@ -292,7 +291,11 @@ async def create_part(
                 "status": status,
                 "pub": bool(files and price),
                 "oem_source": (oem_source or "manual") if oem else None,
-                "oem_verified": bool(oem),
+                # Сверенным считается только номер, набранный руками с детали.
+                # Принятый из подсказки — эхо источника, а не новое
+                # подтверждение: иначе номер из поиска, сохранённый один раз,
+                # вернулся бы «своей историей» и сам себя подтвердил
+                "oem_verified": bool(oem) and not oem_source,
                 "origin": origin,
                 # У оригинала бренд — это марка машины, отдельно не храним
                 "part_brand": (part_brand or "").strip() or None,

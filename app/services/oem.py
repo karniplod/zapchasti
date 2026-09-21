@@ -62,6 +62,16 @@ class Candidate:
 # ------------------------------------------------------------------
 
 
+def own_part(ctx: dict) -> int:
+    """Деталь, для которой считаем, — её собственный номер не голос.
+
+    Разметка точности (record) спрашивает подсказку уже после того, как
+    деталь записана. Без исключения своя история находила бы в базе
+    саму эту деталь и «угадывала» её номер со стопроцентной точностью.
+    0 — такой детали не бывает, условие ничего не отсекает."""
+    return ctx.get("exclude_part_id") or 0
+
+
 async def from_same_modification(session: AsyncSession, ctx: dict) -> list[Candidate]:
     """Тот же узел с такой же модификации.
 
@@ -80,11 +90,12 @@ async def from_same_modification(session: AsyncSession, ctx: dict) -> list[Candi
            AND d.modification_id = :mod
            AND p.oem_number IS NOT NULL
            AND p.oem_verified
+           AND p.id <> :self
          GROUP BY p.oem_number
          ORDER BY count(*) DESC
          LIMIT 5
     """),
-        {"cat": ctx["category_id"], "mod": ctx["modification_id"]},
+        {"cat": ctx["category_id"], "mod": ctx["modification_id"], "self": own_part(ctx)},
     )
     return [
         Candidate(
@@ -119,11 +130,12 @@ async def from_same_generation(session: AsyncSession, ctx: dict) -> list[Candida
            AND d.generation_id = :gen
            AND p.oem_number IS NOT NULL
            AND p.oem_verified
+           AND p.id <> :self
          GROUP BY p.oem_number
          ORDER BY count(*) DESC
          LIMIT 5
     """),
-        {"cat": ctx["category_id"], "gen": ctx["generation_id"]},
+        {"cat": ctx["category_id"], "gen": ctx["generation_id"], "self": own_part(ctx)},
     )
     return [
         Candidate(
@@ -309,7 +321,7 @@ async def record(session: AsyncSession, part_id: int, chosen: str | None, **ctx)
     локальные запросы, это дешевле, чем доверять клиенту. Через пару
     сотен деталей отсюда видно, какой источник врёт.
     """
-    result = await suggest(session, **ctx)
+    result = await suggest(session, exclude_part_id=part_id, **ctx)
     if not result["candidates"]:
         return
 

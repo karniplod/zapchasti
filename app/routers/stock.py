@@ -133,7 +133,7 @@ async def create_standalone(
                            branch_id)
         VALUES (:sku, :donor, :cat, :name, :oem, CAST(:cond AS part_condition),
                 :note, :price, :loc, CAST(:st AS part_status), :pub, :src,
-                -- Номер набрал человек, у которого деталь в руках
+                -- Откуда номер и сверен ли он с деталью
                 :oem_src, :oem_ver,
                 -- С машины — её филиал, со стороны — филиал приёмщика
                 COALESCE((SELECT branch_id FROM donors WHERE id = :donor), :branch))
@@ -153,7 +153,9 @@ async def create_standalone(
                 "pub": bool(files and price),
                 "src": source,
                 "oem_src": (oem_source or "manual") if oem else None,
-                "oem_ver": bool(oem),
+                # Сверен — только набранный руками; принятый из подсказки
+                # ждёт проверки (см. то же место в dismantle.py)
+                "oem_ver": bool(oem) and not oem_source,
                 "branch": user.get("branch_id"),
             },
         )

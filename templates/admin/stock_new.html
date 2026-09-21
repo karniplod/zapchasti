@@ -130,21 +130,28 @@ border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-ins
 const $ = id => document.getElementById(id);
 let category=null, condition=null, files=[], fits=[];
 let oemSource=null;   // какую подсказку нажали; пусто — набрали руками
+// Номер, подставленный самой системой: пока человек его не тронул,
+// при смене детали или машины он убирается вместе с подсказкой
+let oemAuto=null;
+let oemSeq=0;         // ответ на старый запрос не должен лечь поверх нового
 
 // Подсказка каталожного номера. Здесь машина известна не заранее,
 // а из списка применимости: первое поколение в нём и есть та машина,
 // с которой деталь снята
 function clearOemHints(){
-  $('oemHints').hidden = true; $('oemHints').innerHTML = ''; oemSource = null;
+  $('oemHints').hidden = true; $('oemHints').innerHTML = '';
+  if (oemAuto && $('oem').value === oemAuto) $('oem').value = '';
+  oemAuto = null; oemSource = null;
 }
 
 async function loadOemHints(){
   clearOemHints();
+  const seq = ++oemSeq;
   if (!category || !fits.length) return;
   try {
     const d = await (await fetch(
       `/api/oem/suggest?category_id=${category.id}&generation_id=${fits[0].id}`)).json();
-    if (!d.candidates.length) return;
+    if (seq !== oemSeq || !d.candidates.length) return;
 
     $('oemHints').innerHTML = '<span class="lbl">Похоже на:</span>' +
       d.candidates.map(c => `
@@ -156,14 +163,26 @@ async function loadOemHints(){
     $('oemHints').querySelectorAll('button').forEach(b => b.onclick = () => {
       $('oem').value = b.dataset.code;
       oemSource = b.dataset.src;
+      oemAuto = null;   // выбрал человек — теперь это его номер
       $('oemHints').querySelectorAll('button').forEach(x => x.classList.remove('sure'));
       b.classList.add('sure');
     });
+
+    // Уверенный номер (сошлись два независимых источника) ставим сами,
+    // но только в пустое поле: набранное человеком не перезаписываем
+    const sure = d.candidates.find(c => c.code === d.confident);
+    if (sure && !$('oem').value.trim()){
+      $('oem').value = sure.code;
+      oemAuto = sure.code;
+      oemSource = sure.sources[0];
+      $('oemHints').insertAdjacentHTML('beforeend',
+        '<span class="lbl">подставлен сам — проверьте</span>');
+    }
     $('oemHints').hidden = false;
   } catch { /* без подсказки приём детали работает как раньше */ }
 }
 
-$('oem').addEventListener('input', () => { oemSource = null; });
+$('oem').addEventListener('input', () => { oemSource = null; oemAuto = null; });
 
 // --- фото ---
 $('shoot').onclick = () => $('photos').click();
@@ -336,6 +355,7 @@ function resetForm(){
   category=null; condition=null; files=[]; fits=[];
   $('catBox').hidden=false; $('catPicked').hidden=true; $('catSearch').value='';
   ['price','oem','note'].forEach(id=>$(id).value='');
+  clearOemHints();   // подсказки прошлой детали к следующей не относятся
   [...$('cond').children].forEach(x=>x.classList.remove('on'));
   $('thumbs').innerHTML=''; $('photos').value=''; $('shoot').textContent='📷 Снять деталь';
   drawFits(); refresh(); window.scrollTo({top:0,behavior:'smooth'});
