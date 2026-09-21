@@ -19,13 +19,13 @@
 
   brave       — Brave Search API. Свой индекс, не перепродажа чужой
                 выдачи; ключ в заголовке, ответ в JSON. Рабочий вариант.
-  google      — Custom Search JSON API. НЕ РАБОТАЕТ для новых проектов:
-                Google закрыл его для новых клиентов, а 1 января 2027
-                выключает совсем. Оставлен для тех, у кого доступ есть
-                с прежних времён.
   duckduckgo  — без ключа, но глушит по IP после десятка запросов подряд
                 (отвечает 202 с пустой страницей). Годится посмотреть,
                 не годится для работы на потоке.
+
+Google Custom Search JSON API здесь нет намеренно: он закрыт для новых
+клиентов (ключ получить можно, но на любой запрос приходит 403),
+а 1 января 2027 выключается совсем.
 
 Разбор номеров, маски и правило двух независимых источников общие:
 меняется только способ получить выдачу.
@@ -89,41 +89,6 @@ def parse_results(html: str) -> list[str]:
 LAST_ERROR: dict = {"code": None, "message": None}
 
 
-def ask_google(query: str) -> tuple[list[str], bool]:
-    """Custom Search JSON API.
-
-    Квота считается по дням; когда она кончилась, приходит 429 —
-    это не «номера нет», а «спросите завтра», и кешировать это нельзя.
-    """
-    if not settings.search_api_key or not settings.search_engine_id:
-        log.warning(
-            "SEARCH_PROVIDER=google, но ключ или cx не заданы — поиск отключён"
-        )
-        return [], False
-
-    url = (
-        "https://www.googleapis.com/customsearch/v1"
-        f"?key={quote_plus(settings.search_api_key)}"
-        f"&cx={quote_plus(settings.search_engine_id)}"
-        f"&q={quote_plus(query)}"
-        # Русская выдача: номера ищем на наших магазинах, а не на eBay
-        "&hl=ru&lr=lang_ru&num=10"
-    )
-    data, code = fetch_json(url, SOURCE)
-
-    if code != 200:
-        said = ((data or {}).get("error") or {}).get("message")
-        LAST_ERROR["code"] = code
-        LAST_ERROR["message"] = said
-        log.warning("Google отказал (%s): %s", code, said or "без пояснения")
-        return [], False
-
-    items = data.get("items") or []
-    # Пустой ответ от Google — честный: он отвечает 200 и говорит,
-    # что ничего не нашёл. Такое кешировать можно
-    return [f"{i.get('title', '')} {i.get('snippet', '')}" for i in items], True
-
-
 def ask_brave(query: str) -> tuple[list[str], bool]:
     """Brave Search API.
 
@@ -179,7 +144,6 @@ def ask_duckduckgo(query: str) -> tuple[list[str], bool]:
 
 PROVIDERS = {
     "brave": ask_brave,
-    "google": ask_google,
     "duckduckgo": ask_duckduckgo,
 }
 

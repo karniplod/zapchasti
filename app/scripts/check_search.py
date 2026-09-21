@@ -36,7 +36,6 @@ async def main() -> None:
     print(f"  парсеры включены : {settings.parsers_enabled}")
     print(f"  поисковик        : {settings.search_provider}")
     print(f"  ключ             : {mask_state(settings.search_api_key)}")
-    print(f"  cx / folder      : {mask_state(settings.search_engine_id)}")
     print(f"  потолок в сутки  : {settings.search_daily_limit}")
 
     if not settings.parsers_enabled:
@@ -67,10 +66,6 @@ async def main() -> None:
                 print("  и что подписка на api.search.brave.com активна.")
             elif code == 429:
                 print("\n  Слишком часто или кончилась месячная квота.")
-        elif settings.search_provider == "google" and code == 403:
-            print("\n  Custom Search JSON API закрыт для новых проектов")
-            print("  (см. developers.google.com/custom-search/v1/overview).")
-            print("  Для новых аккаунтов он не откроется — берите другой поисковик.")
         elif code is None:
             print("  Сети нет или поисковик молчит. У DuckDuckGo так")
             print("  выглядит ограничение по частоте — это не про ключ.")
