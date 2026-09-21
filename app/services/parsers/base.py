@@ -32,6 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from ...config import settings
+from ...database import SessionFactory
 
 log = logging.getLogger("razbor.parsers")
 
@@ -186,19 +187,28 @@ async def cached(session: AsyncSession, source: str, query: str, worker) -> list
         return []
 
     # Отрицательный ответ живёт меньше: источник мог просто не знать
-    # этой машины сегодня, а завтра появится
-    await session.execute(
-        text("""
-        INSERT INTO external_lookups (source, query, payload, found)
-        VALUES (:s, :q, CAST(:p AS jsonb), :n)
-        ON CONFLICT (source, query) DO UPDATE
-           SET payload = EXCLUDED.payload,
-               found = EXCLUDED.found,
-               created_at = now()
-    """),
-        {"s": source, "q": query, "p": json.dumps(items, ensure_ascii=False), "n": len(items)},
-    )
-    await session.commit()
+    # этой машины сегодня, а завтра появится.
+    #
+    # Пишем своей сессией, а не той, что пришла: её транзакция чужая.
+    # Приёмка детали вставляет строку, спрашивает подсказку и только потом
+    # сохраняет фото — commit здесь зафиксировал бы деталь на полпути,
+    # и упавшая загрузка фото оставила бы её в базе без снимков.
+    # Кеш от исхода приёмки не зависит: ответ поисковика оплачен
+    # в любом случае
+    async with SessionFactory() as own:
+        await own.execute(
+            text("""
+            INSERT INTO external_lookups (source, query, payload, found)
+            VALUES (:s, :q, CAST(:p AS jsonb), :n)
+            ON CONFLICT (source, query) DO UPDATE
+               SET payload = EXCLUDED.payload,
+                   found = EXCLUDED.found,
+                   created_at = now()
+        """),
+            {"s": source, "q": query, "p": json.dumps(items, ensure_ascii=False),
+             "n": len(items)},
+        )
+        await own.commit()
     return items
 
 
