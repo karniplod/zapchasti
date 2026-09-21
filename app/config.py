@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     )
 
     # --- основное ---
-    app_name: str = "Разбор·Партс"
+    app_name: str = "Автодонор"
     debug: bool = False
     base_url: str = "https://example.ru"  # без слэша на конце, идёт в QR
 
