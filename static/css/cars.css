@@ -1,0 +1,109 @@
+/* ─────────────────────────────────────────────────────────
+   МАШИНЫ: /cars и /cars/{code}
+   Список машин в разборе и разобранных с мини-фильтром по марке
+   и модели; карточка машины — сведения, снятые детали, вопрос
+   «что снять под заказ». Плитка детали и заголовки — в core.css.
+   ───────────────────────────────────────────────────────── */
+
+.page-hero > .wrap{padding-top:32px;padding-bottom:30px}
+.page-hero h1{margin:0 0 10px}
+.page-hero .lead{margin:0}
+
+/* ── Мини-фильтр ───────────────────────────────────────── */
+.cars-page{padding-top:var(--gap)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips + .chips{margin-top:10px}
+.chip-link{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r-pill);
+  font-size:var(--t-sm);font-weight:500;color:var(--ink);
+  transition:border-color .13s,color .13s,background .13s}
+.chip-link span{font-size:var(--t-xs);color:var(--dim);font-variant-numeric:tabular-nums}
+.chip-link:hover{border-color:var(--accent);color:var(--accent)}
+.chip-link.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.chip-link.on span{color:rgba(255,255,255,.8)}
+/* Модели — вторым рядом, мельче: уточнение к выбранной марке */
+.chips-sub .chip-link{padding:6px 12px;font-size:var(--t-xs)}
+.chips-sub .chip-link.on{background:var(--dark);border-color:var(--dark)}
+
+.cars-count{margin:22px 0 14px;font-size:var(--t-sm);color:var(--muted)}
+
+/* ── Плитка машины ─────────────────────────────────────── */
+.car-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));
+  gap:var(--gap)}
+.car-card{display:flex;flex-direction:column;background:var(--surface);
+  border-radius:var(--r);overflow:hidden;transition:box-shadow .2s}
+.car-card:hover{box-shadow:var(--shadow)}
+.car-card:hover .name{color:var(--accent)}
+/* 4:3 — как снимок машины с телефона; через padding-top, как у деталей */
+.car-card .shot{position:relative;height:0;padding-top:75%;overflow:hidden;
+  background:var(--surface-2)}
+.car-card .shot img,.car-card .shot .none{position:absolute;inset:0;width:100%;height:100%}
+.car-card .shot img{object-fit:cover;transition:transform .35s ease}
+.car-card:hover .shot img{transform:scale(1.04)}
+.car-card .shot .none{display:flex;align-items:center;justify-content:center;
+  color:var(--dim);font-size:var(--t-sm)}
+.car-card .body{display:flex;flex-direction:column;gap:4px;padding:14px 16px 16px;flex:1}
+.car-card .code{font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:.04em}
+.car-card .name{font-size:var(--t-lg);font-weight:600;line-height:1.25;transition:color .15s}
+.car-card .gen{font-size:var(--t-sm);color:var(--muted)}
+/* Плашками, а не через «·»: разделитель при переносе вставал в начало
+   строки — «· 131 000 км» */
+.facts{display:flex;flex-wrap:wrap;gap:5px;list-style:none;margin:8px 0 0;padding:0;
+  font-size:var(--t-xs);color:var(--muted)}
+.facts li{background:var(--surface-2);border-radius:3px;padding:3px 8px;white-space:nowrap}
+.car-card .parts{margin-top:auto;padding-top:12px;font-size:var(--t-sm);font-weight:600;
+  color:var(--accent)}
+.car-card .parts.none{color:var(--dim);font-weight:500}
+
+/* Статус: «В разборе» — действие ещё возможно (снять под заказ) */
+.status{display:inline-block;font-size:11px;font-weight:600;line-height:1;
+  padding:6px 9px;border-radius:3px;background:var(--dark);color:#fff}
+.status[data-s="dismantling"]{background:var(--accent)}
+.car-card .status{position:absolute;left:10px;top:10px;z-index:2}
+
+/* ── Карточка машины ───────────────────────────────────── */
+.car-top{display:grid;grid-template-columns:1.1fr 1fr;gap:40px;margin:16px 0 0;
+  padding:32px;background:var(--surface);border-radius:var(--r);align-items:start}
+@media(max-width:820px){.car-top{grid-template-columns:1fr;gap:24px;padding:20px}}
+
+.car-shots .big{position:relative;height:0;padding-top:75%;overflow:hidden;
+  border-radius:var(--r);background:var(--surface-2)}
+.car-shots .big img,.car-shots .big .none{position:absolute;inset:0;width:100%;height:100%}
+.car-shots .big img{object-fit:cover}
+.car-shots .big .none{display:flex;align-items:center;justify-content:center;color:var(--dim)}
+.car-shots .strip{display:flex;gap:8px;margin-top:10px;overflow-x:auto}
+.car-shots .strip img{flex:0 0 96px;width:96px;height:72px;object-fit:cover;
+  border-radius:var(--r)}
+
+.status-line{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 12px;
+  font-size:var(--t-sm);color:var(--muted)}
+.car-info h1{font-size:var(--t-2xl);margin:0 0 6px;line-height:1.2}
+.car-info .gen{margin:0;color:var(--muted);font-size:var(--t-sm)}
+
+.car-info .specs{margin:22px 0 0;border-top:1px solid var(--line)}
+.car-info .specs div{display:flex;gap:14px;padding:11px 0;border-bottom:1px solid var(--line);
+  font-size:var(--t-sm)}
+.car-info .specs dt{flex:0 0 38%;margin:0;color:var(--muted)}
+.car-info .specs dd{flex:1;margin:0}
+.car-info .specs dd.mono{font-family:var(--mono);letter-spacing:.06em}
+.car-info .specs small{display:block;margin-top:2px;font-family:var(--body);
+  font-size:var(--t-xs);letter-spacing:0;color:var(--dim)}
+.car-info .specs small a{color:var(--accent)}
+
+.car-info .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
+.car-info .actions .btn{flex:1;min-width:170px}
+
+section.block{padding:40px 0 0}
+
+/* ── Вопрос по машине ──────────────────────────────────── */
+.ask{display:grid;grid-template-columns:1fr 1fr;gap:40px;padding:32px;
+  background:var(--surface);border-radius:var(--r);align-items:start}
+@media(max-width:820px){.ask{grid-template-columns:1fr;gap:20px;padding:22px 20px}}
+.ask-text h2{font-weight:400;margin:0 0 14px}
+.ask-text h2 b{font-weight:600}
+.ask-text p{margin:0 0 10px;color:var(--muted);line-height:1.6}
+.ask-form{display:grid;gap:14px}
+.ask-form textarea.field{resize:vertical;min-height:90px;font-family:inherit}
+.ask-form .field.bad{border-color:var(--err)}
+.ask-form .notice{margin:0}
+.err{margin:0;color:var(--err);font-size:var(--t-sm)}

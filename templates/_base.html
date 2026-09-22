@@ -43,6 +43,7 @@
     </a>
     <nav class="site-nav" id="siteNav">
       <a href="/catalog" {% if request.url.path.startswith('/catalog') %}aria-current="page"{% endif %}>Каталог</a>
+      <a href="/cars" {% if request.url.path.startswith('/cars') %}aria-current="page"{% endif %}>Машины</a>
       <a href="/delivery" {% if request.url.path == '/delivery' %}aria-current="page"{% endif %}>Доставка</a>
       <a href="/contacts" {% if request.url.path == '/contacts' %}aria-current="page"{% endif %}>Контакты</a>
       {% if user %}<a class="to-admin" href="/admin">Бэкенд</a>{% endif %}
@@ -116,6 +117,7 @@
     <nav class="foot-col" aria-label="Покупателям">
       <h4>Покупателям</h4>
       <a href="/catalog">Каталог</a>
+      <a href="/cars">Машины на разборе</a>
       <a href="/delivery">Доставка и оплата</a>
       <a href="/contacts">Контакты и филиалы</a>
     </nav>

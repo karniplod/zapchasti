@@ -1,0 +1,116 @@
+{% extends "_base.html" %}
+{% from "_macros.html" import part_card %}
+{% block title %}{{ car.brand }} {{ car.model }}{% if car.year %}, {{ car.year }}{% endif %} на разборе{% endblock %}
+{% block description %}Разбор {{ car.brand }} {{ car.model }} {{ car.generation }}{% if car.year %} {{ car.year }} года{% endif %}: снятые детали с фото, запчасти под заказ.{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ asset('css/cars.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="wrap">
+
+<nav class="crumbs">
+  <a href="/cars">Машины</a> ·
+  <a href="/cars?brand={{ car.brand_id }}">{{ car.brand }}</a> ·
+  {{ car.model }}
+</nav>
+
+<div class="car-top">
+  <div class="car-shots">
+    {% if photos %}
+    <div class="big"><img src="{{ photos[0] }}" alt="{{ car.brand }} {{ car.model }}"></div>
+    {% if photos|length > 1 %}
+    <div class="strip">
+      {% for ph in photos[1:] %}<img src="{{ ph }}" alt="" loading="lazy">{% endfor %}
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="big"><div class="none">фото готовится</div></div>
+    {% endif %}
+  </div>
+
+  <div class="car-info">
+    <p class="status-line">
+      <span class="status" data-s="{{ car.status }}">{{ 'В разборе' if car.status == 'dismantling' else 'Разобрана' }}</span>
+      {% if car.since %}<span>на разборе с {{ car.since }}</span>{% endif %}
+    </p>
+    <h1>{{ car.brand }} {{ car.model }}{% if car.year %}, {{ car.year }}{% endif %}</h1>
+    <p class="gen">{{ car.generation }}{% if car.body_type %}, {{ car.body_type|lower }}{% endif %} · {{ car.code }}</p>
+
+    {# Только то, что помогает подобрать деталь. Госномер, цена закупки
+       и заметки приёмщика сюда не попадают #}
+    <dl class="specs">
+      {% if car.engine %}<div><dt>Двигатель</dt><dd>{{ car.engine }}</dd></div>{% endif %}
+      {% if car.transmission %}<div><dt>Коробка</dt><dd>{{ car.transmission }}</dd></div>{% endif %}
+      {% if car.drive %}<div><dt>Привод</dt><dd>{{ car.drive }}</dd></div>{% endif %}
+      {% if car.complectation %}<div><dt>Комплектация</dt><dd>{{ car.complectation }}</dd></div>{% endif %}
+      {% if car.mileage %}<div><dt>Пробег</dt><dd>{{ car.mileage }}</dd></div>{% endif %}
+      {% if car.color %}<div><dt>Цвет</dt><dd>{{ car.color }}</dd></div>{% endif %}
+      {% if car.vin_head %}<div><dt>VIN</dt><dd class="mono">{{ car.vin_head }}••••••
+        <small>первые 11 знаков — по ним сверяют модель и год</small></dd></div>{% endif %}
+      {% if car.branch %}<div><dt>Где стоит</dt><dd>{{ car.city }}, {{ car.branch }}
+        {% if car.branch_phone %}<small><a href="tel:{{ car.branch_phone }}">{{ car.branch_phone }}</a></small>{% endif %}</dd></div>{% endif %}
+    </dl>
+
+    <div class="actions">
+      <a class="btn btn-primary" href="#parts">{% if parts %}Снятые детали · {{ parts|length }}{% else %}Что снято{% endif %}</a>
+      <a class="btn btn-ghost" href="#ask">Спросить про деталь</a>
+    </div>
+  </div>
+</div>
+
+<section class="block" id="parts">
+  <div class="sec-head">
+    <h2>Снятые <b>детали</b></h2>
+    {% if parts %}<a href="/catalog?donor={{ car.code }}">В каталоге с фильтрами</a>{% endif %}
+  </div>
+  {% if parts %}
+  <div class="grid">
+    {% for i in parts %}{{ part_card(i, show_fit=False) }}{% endfor %}
+  </div>
+  {% else %}
+  <div class="empty">
+    <h3>С этой машины пока ничего не выложено</h3>
+    <p>Детали появляются здесь, как только их сняли и сфотографировали.
+       Нужна конкретная — спросите ниже.</p>
+  </div>
+  {% endif %}
+</section>
+
+{# Вопрос по машине: что ещё можно снять. Уходит в заявки бэкенда
+   с привязкой к машине — менеджер видит, о какой речь #}
+<section class="block" id="ask">
+  <div class="ask">
+    <div class="ask-text">
+      <h2>Нужна деталь, <b>которой нет в списке?</b></h2>
+      {% if car.status == 'dismantling' %}
+      <p>Машина ещё в разборе — нужная деталь, возможно, пока на ней. Напишите,
+         что ищете: проверим, снимем под заказ и сообщим цену.</p>
+      {% else %}
+      <p>Разбор этой машины закрыт, но часть деталей могла остаться на складе
+         без фото. Напишите, что ищете, — проверим и перезвоним.</p>
+      {% endif %}
+      <p class="hint">Телефон нужен только для ответа по вашему вопросу.</p>
+    </div>
+
+    <form class="ask-form" id="askForm" novalidate data-donor="{{ car.code }}">
+      <div><label for="aPhone">Телефон</label>
+        <input class="field" id="aPhone" type="tel" autocomplete="tel" placeholder="+7 900 000-00-00"></div>
+      <div><label for="aName">Как к вам обращаться</label>
+        <input class="field" id="aName" autocomplete="name" placeholder="Необязательно"></div>
+      <div><label for="aMsg">Что нужно</label>
+        <textarea class="field" id="aMsg" rows="3"
+          placeholder="Например: задняя левая дверь в сборе, стеклоподъёмник"></textarea></div>
+      <button class="btn btn-primary" id="aSend" type="submit">Спросить</button>
+      <p class="err" id="aErr" hidden></p>
+    </form>
+  </div>
+</section>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ asset('js/car.js') }}"></script>
+{% endblock %}

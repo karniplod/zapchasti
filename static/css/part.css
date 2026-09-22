@@ -4,8 +4,6 @@
    и покупатели, и кладовщик у стеллажа.
    ───────────────────────────────────────────────────────── */
 
-.crumbs{font-size:var(--t-sm);color:var(--muted);padding:18px 0 0}
-.crumbs a:hover{text-decoration:underline}
 
 /* Карточка — белый блок на серой подложке, как страница товара магазина */
 .part{display:grid;grid-template-columns:1.1fr 1fr;gap:40px;

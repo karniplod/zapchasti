@@ -128,6 +128,10 @@ p.hint{margin:4px 0 0}
 .sec-head a::after{content:" →"}
 .sec-head a:hover{color:var(--accent)}
 
+/* Хлебные крошки над карточкой детали и машины */
+.crumbs{font-size:var(--t-sm);color:var(--muted);padding:18px 0 0}
+.crumbs a:hover{color:var(--accent)}
+
 /* ── Кнопки ────────────────────────────────────────────── */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
   font-family:var(--body);font-size:14px;font-weight:600;line-height:1.2;

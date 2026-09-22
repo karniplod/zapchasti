@@ -23,6 +23,7 @@ from .config import settings
 from .database import check_connection, dispose, get_session
 from .routers import (
     admin,
+    cars,
     catalog,
     dismantle,
     intake,
@@ -73,6 +74,7 @@ app.mount("/static", StaticFiles(directory=settings.static_root), name="static")
 app.mount("/media", StaticFiles(directory=settings.media_root), name="media")
 
 app.include_router(catalog.router)
+app.include_router(cars.router)
 app.include_router(pages.router)
 app.include_router(shop.router)
 app.include_router(intake.router)

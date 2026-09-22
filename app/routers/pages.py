@@ -117,6 +117,8 @@ class Lead(BaseModel):
     name: str | None = Field(default=None, max_length=120)
     message: str | None = Field(default=None, max_length=2000)
     sku: str | None = Field(default=None, max_length=32)
+    # Вопрос со страницы машины: «что можно снять под заказ»
+    donor: str | None = Field(default=None, max_length=16)
 
 
 @router.post("/api/leads", status_code=201)
@@ -145,13 +147,25 @@ async def create_lead(
         # потеряем покупателя из-за ссылки на проданную деталь
         part_id = row.id if row else None
 
+    donor_id = None
+    if payload.donor:
+        # Так же, как с артикулом: машину могли снять с витрины, пока
+        # человек писал, — вопрос всё равно принимаем
+        donor_id = (
+            await session.execute(
+                text("SELECT id FROM donors WHERE code = :c"),
+                {"c": payload.donor.strip().upper()},
+            )
+        ).scalar()
+
     await session.execute(
         text("""
-        INSERT INTO leads (part_id, phone, name, message)
-        VALUES (:p, :phone, :name, :msg)
+        INSERT INTO leads (part_id, donor_id, phone, name, message)
+        VALUES (:p, :d, :phone, :name, :msg)
     """),
         {
             "p": part_id,
+            "d": donor_id,
             "phone": payload.phone.strip(),
             "name": (payload.name or "").strip() or None,
             "msg": (payload.message or "").strip() or None,
@@ -184,7 +198,10 @@ async def sitemap(session: AsyncSession = Depends(get_session)):
     )
 
     urls = [f"<url><loc>{settings.base_url}{p}</loc></url>"
-            for p in ("/", "/catalog", "/delivery", "/contacts")]
+            for p in ("/", "/catalog", "/cars", "/delivery", "/contacts")]
+    for r in await session.execute(text(
+            "SELECT code FROM donors WHERE status IN ('dismantling', 'dismantled')")):
+        urls.append(f"<url><loc>{settings.base_url}/cars/{r.code}</loc></url>")
     for r in rows:
         stamp = f"<lastmod>{r.updated_at.date()}</lastmod>" if r.updated_at else ""
         urls.append(f"<url><loc>{settings.base_url}/p/{r.sku}</loc>{stamp}</url>")

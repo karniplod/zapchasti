@@ -1,4 +1,5 @@
 {% extends "_base.html" %}
+{% from "_macros.html" import part_card %}
 {% block title %}Запчасти с разбора{% endblock %}
 {% block description %}Б/у автозапчасти с разбора: подбор по VIN, фото каждой детали, честная оценка состояния.{% endblock %}
 
@@ -34,7 +35,7 @@
         <span class="txt">деталей с фото и оценкой состояния</span>
         <span class="go">В каталог</span>
       </a>
-      <a class="promo" href="{{ '#cars' if cars else '/catalog' }}">
+      <a class="promo" href="/cars">
         <span class="kicker">На разборе</span>
         <b>{{ s.cars }}</b>
         <span class="txt">машин — детали с каждой уже на складе</span>
@@ -74,23 +75,7 @@
       <a href="/catalog">Весь каталог</a>
     </div>
     <div class="grid">
-      {% for i in fresh %}
-      <a class="tag-card" href="/p/{{ i.sku }}">
-        <div class="shot">
-          {% if i.photo %}<img src="{{ i.photo }}" alt="{{ i.name }}" loading="lazy">
-          {% else %}<div class="none">фото готовится</div>{% endif %}
-          <span class="grade" data-g="{{ i.condition }}">{{ i.condition }}</span>
-        </div>
-        <div class="body">
-          <span class="sku">{{ i.sku }}</span>
-          <span class="name">{{ i.name }}</span>
-          <span class="fit">{% if i.brand %}{{ i.brand }} {{ i.model }}{% if i.year %}, {{ i.year }}{% endif %}
-            {% else %}поступила отдельно{% endif %}</span>
-          <span class="price">{% if i.price %}{{ "{:,.0f}".format(i.price).replace(",", " ") }} ₽
-            {% else %}по запросу{% endif %}<small>{{ i.node or '' }}</small></span>
-        </div>
-      </a>
-      {% endfor %}
+      {% for i in fresh %}{{ part_card(i) }}{% endfor %}
     </div>
   </div>
 </section>
@@ -99,10 +84,10 @@
 {% if cars %}
 <section class="block" id="cars">
   <div class="wrap">
-    <div class="sec-head"><h2>Машины <b>на разборе</b></h2></div>
+    <div class="sec-head"><h2>Машины <b>на разборе</b></h2><a href="/cars">Все машины</a></div>
     <div class="cars">
       {% for c in cars %}
-      <a class="car" href="/catalog?donor={{ c.code }}">
+      <a class="car" href="/cars/{{ c.code }}">
         <div class="pic">{% if c.photo %}<img src="{{ c.photo }}" alt="" loading="lazy">{% endif %}</div>
         <div>
           <div class="nm">{{ c.brand }} {{ c.model }}</div>

@@ -378,3 +378,13 @@ UPDATE parts SET oem_verified = false
  WHERE oem_verified
    AND oem_source IS NOT NULL
    AND oem_source <> 'manual';
+
+
+-- ------------------------------------------------------------
+-- Вопрос по машине со страницы /cars/{code}
+-- ------------------------------------------------------------
+-- «Что можно снять под заказ» — заявка не про деталь, а про машину.
+-- Менеджеру в бэкенде нужно видеть, о какой речь. Машину удалили —
+-- заявка остаётся: по ней видно, о чём спрашивали.
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS donor_id int
+    REFERENCES donors(id) ON DELETE SET NULL;

@@ -1,0 +1,26 @@
+{#
+  Общие куски разметки витрины. Подключение:
+      {% from "_macros.html" import part_card %}
+#}
+
+{# Плитка детали — одна на главной и на странице машины. Та же разметка
+   собирается в static/js/catalog.js для выдачи каталога: правите здесь —
+   сверьте и там. show_fit=False — когда машина и так известна (страница
+   машины), строка «Kia Rio, 2018» под названием лишняя #}
+{% macro part_card(i, show_fit=True) -%}
+<a class="tag-card" href="/p/{{ i.sku }}">
+  <div class="shot">
+    {% if i.photo %}<img src="{{ i.photo }}" alt="{{ i.name }}" loading="lazy">
+    {% else %}<div class="none">фото готовится</div>{% endif %}
+    <span class="grade" data-g="{{ i.condition }}">{{ i.condition }}</span>
+  </div>
+  <div class="body">
+    <span class="sku">{{ i.sku }}</span>
+    <span class="name">{{ i.name }}</span>
+    {% if show_fit %}<span class="fit">{% if i.brand %}{{ i.brand }} {{ i.model }}{% if i.year %}, {{ i.year }}{% endif %}
+      {% else %}поступила отдельно{% endif %}</span>{% endif %}
+    <span class="price">{% if i.price %}{{ "{:,.0f}".format(i.price).replace(",", " ") }} ₽
+      {% else %}по запросу{% endif %}<small>{{ i.node or '' }}</small></span>
+  </div>
+</a>
+{%- endmacro %}

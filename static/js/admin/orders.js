@@ -109,6 +109,9 @@ async function loadLeads(){
       ${l.sku ? `<div class="meta">по детали
         <a href="/p/${l.sku}">${l.sku}</a> — ${l.part_name}
         ${l.part_status !== 'in_stock' ? ' (уже не в наличии)' : ''}</div>` : ''}
+      ${l.donor_code ? `<div class="meta">по машине
+        <a href="/cars/${l.donor_code}" target="_blank">${l.donor_code}</a> — ${l.donor_car}
+        ${l.donor_status === 'dismantling' ? '(в разборе — можно снять)' : ''}</div>` : ''}
       ${l.message ? `<div class="meta">${l.message}</div>` : ''}
       <div class="actions-row">
         <button class="btn ${l.processed ? '' : 'btn-accent'} mark">

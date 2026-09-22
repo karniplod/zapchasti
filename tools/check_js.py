@@ -53,8 +53,8 @@ from app.database import get_session  # noqa: E402
 
 B = "http://127.0.0.1:8100"
 
-STORE = ["/", "/catalog", "/cart", "/contacts", "/delivery", "/account/login", "/nope",
-         "/login"]
+STORE = ["/", "/catalog", "/cars", "/cart", "/contacts", "/delivery", "/account/login",
+         "/nope", "/login"]
 ADMIN = ["/admin", "/reports", "/api/reference/review/page", "/orders", "/parts",
          "/donors", "/intake", "/stock/new"]
 
@@ -82,7 +82,10 @@ async def fixtures():
         sku = (await s.execute(text(
             "SELECT sku FROM parts WHERE status = 'in_stock' AND published "
             "ORDER BY id DESC LIMIT 1"))).scalar()
-        return admin, donor, sku
+        car = (await s.execute(text(
+            "SELECT code FROM donors WHERE status IN ('dismantling', 'dismantled') "
+            "ORDER BY id DESC LIMIT 1"))).scalar()
+        return admin, donor, sku, car
     finally:
         await agen.aclose()
 
@@ -135,11 +138,13 @@ def inline_in(path, html, out) -> int:
 
 def main():
     out = io.StringIO()
-    admin, donor, sku = asyncio.run(fixtures())
+    admin, donor, sku, car = asyncio.run(fixtures())
 
     pages = [(p, None) for p in STORE]
     if sku:
         pages.append((f"/p/{sku}", None))
+    if car:
+        pages.append((f"/cars/{car}", None))
     if admin:
         cookie = f"{settings.session_cookie}={signer.dumps({'uid': admin.id, 'role': admin.role})}"
         extra = [f"/donors/{donor}/dismantle", f"/donors/{donor}/labels"] if donor else []

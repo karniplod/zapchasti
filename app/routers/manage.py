@@ -766,9 +766,15 @@ async def leads_list(
     rows = await session.execute(
         text("""
         SELECT l.id, l.phone, l.name, l.message, l.processed, l.created_at,
-               p.sku, p.name AS part_name, p.status::text AS part_status
+               p.sku, p.name AS part_name, p.status::text AS part_status,
+               d.code AS donor_code, d.status::text AS donor_status,
+               concat_ws(' ', b.name, m.name, d.year) AS donor_car
           FROM leads l
           LEFT JOIN parts p ON p.id = l.part_id
+          LEFT JOIN donors d      ON d.id = l.donor_id
+          LEFT JOIN generations g ON g.id = d.generation_id
+          LEFT JOIN models m      ON m.id = g.model_id
+          LEFT JOIN brands b      ON b.id = m.brand_id
          WHERE (CAST(:pr AS boolean) IS NULL OR l.processed = CAST(:pr AS boolean))
          ORDER BY l.processed, l.created_at DESC
          LIMIT 200

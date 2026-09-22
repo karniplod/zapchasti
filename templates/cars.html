@@ -1,0 +1,72 @@
+{% extends "_base.html" %}
+{% block title %}Машины на разборе{% endblock %}
+{% block description %}Машины в разборе и разобранные: марка, двигатель, пробег, что уже снято. Детали можно заказать под снятие.{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ asset('css/cars.css') }}">
+{% endblock %}
+
+{% block content %}
+
+<section class="hero page-hero">
+  <div class="wrap">
+    <h1>Машины на разборе</h1>
+    <p class="lead">Все машины, с которых мы снимаем детали. Откройте машину —
+       увидите, что уже снято, и спросите, что можно снять под заказ.</p>
+  </div>
+</section>
+
+<div class="wrap cars-page">
+  {# Мини-фильтр — ссылки, а не форма: работает без скрипта, а адрес
+     с выбранной маркой можно отправить #}
+  <nav class="chips" aria-label="Марка">
+    <a class="chip-link{% if not brand %} on{% endif %}" href="/cars">Все марки <span>{{ total }}</span></a>
+    {% for b in brands %}
+    <a class="chip-link{% if brand == b.id %} on{% endif %}" href="/cars?brand={{ b.id }}">{{ b.name }} <span>{{ b.cnt }}</span></a>
+    {% endfor %}
+  </nav>
+  {% if models %}
+  <nav class="chips chips-sub" aria-label="Модель">
+    <a class="chip-link{% if not model %} on{% endif %}" href="/cars?brand={{ brand }}">Все модели</a>
+    {% for m in models %}
+    <a class="chip-link{% if model == m.id %} on{% endif %}" href="/cars?brand={{ brand }}&amp;model={{ m.id }}">{{ m.name }} <span>{{ m.cnt }}</span></a>
+    {% endfor %}
+  </nav>
+  {% endif %}
+
+  {% if cars %}
+  <p class="cars-count">{{ count_label }}</p>
+  <div class="car-grid">
+    {% for c in cars %}
+    <a class="car-card" href="/cars/{{ c.code }}">
+      <div class="shot">
+        {% if c.photo %}<img src="{{ c.photo }}" alt="{{ c.brand }} {{ c.model }}" loading="lazy">
+        {% else %}<div class="none">фото готовится</div>{% endif %}
+        <span class="status" data-s="{{ c.status }}">{{ 'В разборе' if c.status == 'dismantling' else 'Разобрана' }}</span>
+      </div>
+      <div class="body">
+        <span class="code">{{ c.code }}</span>
+        <span class="name">{{ c.brand }} {{ c.model }}{% if c.year %}, {{ c.year }}{% endif %}</span>
+        <span class="gen">{{ c.generation }}{% if c.body_type %}, {{ c.body_type|lower }}{% endif %}</span>
+        <ul class="facts">
+          {% if c.engine %}<li>{{ c.engine }}</li>{% endif %}
+          {% if c.transmission %}<li>{{ c.transmission|lower }}</li>{% endif %}
+          {% if c.mileage %}<li>{{ c.mileage }}</li>{% endif %}
+          {% if c.city %}<li>{{ c.city }}</li>{% endif %}
+        </ul>
+        <span class="parts{% if not c.parts %} none{% endif %}">
+          {% if c.parts %}{{ c.parts_label }} в наличии{% else %}деталей пока нет — спросите{% endif %}</span>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty">
+    <h3>Таких машин сейчас нет</h3>
+    <p>Выберите другую марку — или <a class="linkish" href="/contacts">оставьте заявку</a>:
+       появится такая машина — позвоним.</p>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}
