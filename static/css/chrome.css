@@ -198,11 +198,12 @@ body{--head-top-bg:var(--bg)}
   padding:24px 26px 18px;animation:cm-in .16s ease-out}
 @keyframes cm-in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
 
-/* Колонки, а не сетка: сетка равняет строку по самому длинному узлу,
-   и под короткими остаются дыры. В колонках узлы идут плотно сверху
-   вниз — по алфавиту так и читают */
-.cm-grid{columns:4 190px;column-gap:28px}
-.cm-node{min-width:0;break-inside:avoid;margin-bottom:22px}
+/* Сетка, а не колонки: узел раскрывается кнопкой «ещё», и в колонках
+   он перетекал бы в соседнюю — прыгал из-под курсора. В сетке растёт
+   только его строка. Дыр почти нет: у каждого узла не больше трёх строк */
+.cm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));
+  gap:22px 28px;margin-bottom:20px}
+.cm-node{min-width:0}
 .cm-node a{display:flex;align-items:baseline;gap:8px;padding:4px 0;
   font-size:var(--t-sm);color:var(--muted);transition:color .13s}
 .cm-node a:hover{color:var(--accent)}
@@ -211,7 +212,11 @@ body{--head-top-bg:var(--bg)}
 /* Заголовок узла — сам ведёт в узел целиком */
 .cm-node .cm-title{font-size:var(--t-md);font-weight:600;color:var(--ink);
   padding:0 0 8px;margin-bottom:6px;border-bottom:1px solid var(--line)}
-.cm-node .cm-more{color:var(--accent);font-weight:500}
+.cm-node .cm-more{display:block;background:none;border:0;padding:4px 0;cursor:pointer;
+  font:inherit;font-size:var(--t-sm);font-weight:500;color:var(--accent);text-align:left}
+.cm-node .cm-more::after{content:" ▾";font-size:.8em}
+.cm-node .cm-more[aria-expanded="true"]::after{content:" ▴"}
+.cm-node .cm-more:hover{color:var(--accent-dk)}
 /* Узел без деталей: название есть, ссылки нет — бледным */
 .cm-node span.cm-title{display:block}
 .cm-empty .cm-title{color:var(--dim);font-weight:500}
@@ -307,9 +312,9 @@ body{--head-top-bg:var(--bg)}
   /* Меню категорий — на всю ширину, листается внутри себя */
   .cat-menu{left:0;right:0;width:auto;margin-top:0;border-radius:0;
     border-width:1px 0;max-height:calc(100vh - 150px);padding:18px 16px 12px}
-  .cm-grid{columns:2;column-gap:20px}
+  .cm-grid{grid-template-columns:1fr 1fr;gap:18px 20px}
 }
-@media(max-width:440px){.cm-grid{columns:1}}
+@media(max-width:440px){.cm-grid{grid-template-columns:1fr}}
 
 @media(max-width:560px){
   /* Остаётся название города: подпись занимает место, а смысл несёт значок */

@@ -102,7 +102,9 @@ document.querySelectorAll('.brand img').forEach(img => {
   const menu = document.getElementById('catMenu');
   if (!btn || !menu) return;
 
-  const SHOW = 5;   // деталей под узлом; остальное — ссылкой «ещё N» на узел
+  // Под узлом — три самые заполненные категории (сервер отдаёт их по
+  // убыванию числа деталей), остальные раскрывает кнопка «ещё N»
+  const SHOW = 3;
   let data = null, loading = null;
 
   // Названия приходят из базы — в разметку только экранированными
@@ -142,8 +144,12 @@ document.querySelectorAll('.brand img').forEach(img => {
         `<span class="cm-title">${esc(n.name)}</span>` +
         '<span class="cm-none">пока нет в наличии</span></section>';
       const items = n.items.slice(0, SHOW).map(i => link(i.id, i.name, i.cnt)).join('');
-      const more = n.items.length > SHOW
-        ? `<a class="cm-more" href="/catalog?category=${n.id}">ещё ${n.items.length - SHOW}</a>`
+      const rest = n.items.slice(SHOW);
+      const more = rest.length
+        ? `<div class="cm-rest" id="cmRest${n.id}" hidden>` +
+            rest.map(i => link(i.id, i.name, i.cnt)).join('') + '</div>' +
+          `<button type="button" class="cm-more" aria-expanded="false" ` +
+            `aria-controls="cmRest${n.id}" data-n="${rest.length}">ещё ${rest.length}</button>`
         : '';
       return `<section class="cm-node">${link(n.id, n.name, n.cnt, 'cm-title')}${items}${more}</section>`;
     }).join('') + '</div>' +
@@ -168,6 +174,17 @@ document.querySelectorAll('.brand img').forEach(img => {
                        '<a href="/catalog">Открыть каталог</a></p>';
     }
   }
+
+  // «Ещё N» раскрывает остальные категории узла прямо в меню — и сворачивает
+  menu.addEventListener('click', e => {
+    const more = e.target.closest('.cm-more');
+    if (!more) return;
+    const rest = document.getElementById(more.getAttribute('aria-controls'));
+    const open = rest.hidden;
+    rest.hidden = !open;
+    more.setAttribute('aria-expanded', String(open));
+    more.textContent = open ? 'свернуть' : `ещё ${more.dataset.n}`;
+  });
 
   btn.addEventListener('pointerenter', () => load().catch(() => {}), {once: true});
   btn.addEventListener('click', e => {
