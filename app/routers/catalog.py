@@ -144,7 +144,8 @@ async def part_page(sku: str, request: Request, session: AsyncSession = Depends(
                p.origin, p.part_brand, p.oem_verified,
                c.name AS category,
                parent.name AS node,
-               d.code AS donor_code, d.year, d.color, d.mileage_km,
+               d.code AS donor_code, d.status::text AS donor_status,
+               d.year, d.color, d.mileage_km,
                b.name AS brand, m.name AS model, g.name AS generation, g.body_type,
                g.id AS generation_id,
                concat_ws(' ', mo.engine_volume || ' л', mo.engine_code,
@@ -202,7 +203,12 @@ async def part_page(sku: str, request: Request, session: AsyncSession = Depends(
             )
         ]
 
+    # Откуда список: заданный при приёмке или выведенный по номеру.
+    # Подпись под списком разная — «по номеру» у ручного списка была
+    # неправдой
+    fits_by = "manual" if fits else None
     if not fits and part.oem_number:
+        fits_by = "oem"
         fits = [
             dict(r._mapping)
             for r in await session.execute(
@@ -232,6 +238,7 @@ async def part_page(sku: str, request: Request, session: AsyncSession = Depends(
             "part": dict(part._mapping),
             "photos": photos,
             "fits": fits,
+            "fits_by": fits_by,
             "condition_label": CONDITION_LABELS.get(part.condition, part.condition),
         },
     )

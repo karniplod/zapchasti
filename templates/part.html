@@ -62,10 +62,14 @@
       {% else %}
         <span class="price-big ask">Цена по запросу</span>
       {% endif %}
+      {# Не в наличии бывает по-разному: бронь может освободиться, черновик
+         скоро появится. «Продана» на всё подряд вводила в заблуждение #}
+      {% set NOT_IN_STOCK = {'reserved': 'Забронирована', 'sold': 'Продана',
+                             'draft': 'Готовится к продаже', 'written_off': 'Нет в наличии'} %}
       {% if part.status == 'in_stock' %}
         <span class="stock">В наличии, одна штука</span>
       {% else %}
-        <span class="stock out">Продана</span>
+        <span class="stock out">{{ NOT_IN_STOCK.get(part.status, 'Нет в наличии') }}</span>
       {% endif %}
     </div>
 
@@ -82,7 +86,7 @@
     <div class="actions">
       <button class="btn btn-primary" id="buy" data-sku="{{ part.sku }}"
               {% if part.status != 'in_stock' or not part.price %}disabled{% endif %}>
-        {% if part.status != 'in_stock' %}Продана
+        {% if part.status != 'in_stock' %}{{ NOT_IN_STOCK.get(part.status, 'Нет в наличии') }}
         {% elif not part.price %}Цена по запросу
         {% else %}В корзину{% endif %}
       </button>
@@ -117,7 +121,9 @@
         <dd>{% if part.origin == 'oem' %}ОЕМ{% if part.part_brand %}, {{ part.part_brand }}{% endif %}
               <small class="ihint">деталь конвейерного поставщика</small>
             {% elif part.origin == 'aftermarket' %}Аналог{% if part.part_brand %}, {{ part.part_brand }}{% endif %}
-              <small class="ihint">стояла на машине до нас</small>
+              {# «Стояла до нас» — про деталь, снятую с машины. Купленная
+                 отдельно на машине могла и не стоять #}
+              <small class="ihint">{% if part.donor_code %}стояла на машине до нас{% else %}не заводская деталь{% endif %}</small>
             {% else %}Оригинал
               <small class="ihint">номер автопроизводителя</small>{% endif %}</dd></div>
       {% if part.donor_code %}
@@ -137,7 +143,9 @@
       {% if part.weight_kg %}<div><dt>Вес</dt><dd>{{ part.weight_kg }} кг</dd></div>{% endif %}
     </dl>
 
-    {% if part.donor_code %}
+    {# Ссылка на машину — только если машина на витрине: у утилизированной
+       страницы нет, а детали с неё ещё продаются #}
+    {% if part.donor_code and part.donor_status in ('accepted', 'dismantling', 'dismantled') %}
     <p class="donor-link">
       Все детали с этой машины —
       <a href="/cars/{{ part.donor_code }}">{{ part.donor_code }}</a>.
@@ -150,9 +158,12 @@
 {% if fits %}
 <section class="fits panel">
   <h2>{% if part.donor_code %}На какие машины встаёт{% else %}Подходит к этим машинам{% endif %}</h2>
+  {% set n = fits|length %}
+  {% set word = 'модель' if n % 10 == 1 and n % 100 != 11
+       else ('модели' if n % 10 in (2, 3, 4) and n % 100 not in (12, 13, 14) else 'моделей') %}
   <p class="hint">
-    {% if part.oem_number %}По каталожному номеру {{ part.oem_number }} — {% endif %}{{ fits|length }}
-    {% if fits|length == 1 %}модель{% else %}моделей{% endif %}</p>
+    {% if fits_by == 'oem' %}По каталожному номеру {{ part.oem_number }} — {{ n }} {{ word }}
+    {% else %}Список указали при приёмке — {{ n }} {{ word }}{% endif %}</p>
   <ul>
     {% for f in fits %}
     <li>{{ f.brand }} {{ f.model }}

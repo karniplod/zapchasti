@@ -1,11 +1,25 @@
-"""Тестовые данные: пять машин с VIN, по пять снятых деталей.
+"""Тестовые данные: машины всех статусов и типов, детали всех видов.
 
     python -m app.scripts.seed_test_data                    покажет, что будет создано
     python -m app.scripts.seed_test_data --apply            создаст
     python -m app.scripts.seed_test_data --remove           покажет, что будет удалено
     python -m app.scripts.seed_test_data --remove --apply   уберёт всё, что создал
 
-Машины подобраны под слабые места декодера VIN:
+Что покрыто.
+
+Машины — все статусы (ждёт разбора, в разборе, разобрана, утилизирована),
+с VIN и без (праворульный японец с номером кузова), кузова от седана до
+пикапа и фургона, бензин, дизель, газ, гибрид, электро; механика,
+автомат, вариатор, робот; передний, задний и полный привод. У каждой
+машины описание для покупателя (public_note) и внутренняя заметка.
+
+Детали — снятые с машины и принятые вручную (куплена б/у, новая)
+с применимостью к нескольким поколениям; все статусы (черновик без фото,
+в наличии, бронь, продана, списана); без цены — не опубликована;
+оригинал, ОЕМ, аналог с брендом; состояние A–D; с каталожным номером
+и без. У каждой детали — пояснение к состоянию.
+
+Машины подобраны и под слабые места декодера VIN:
   • Vesta седан и Vesta универсал — VDS начинается одинаково (GF),
     на них видно совпадение по семейству, а не по модификации;
   • ВАЗ-2107 1995 года — код года S значит и 1995, и 2025;
@@ -24,9 +38,10 @@ WMI настоящие, VDS правдоподобные, но выдуманн�
 и попытался открыть вектор как растр.
 
 Всё создаётся тем же путём, что и в приложении: код машины из
-donor_code_seq, артикул детали из счётчика машины, паттерн VIN
-запоминается learn_vin_pattern — как при приёмке. Удаление находит
-созданное по VIN из списка ниже и откатывает то же самое.
+donor_code_seq, артикул детали из счётчика машины (у ручной — из
+standalone_part_seq, P-0001), паттерн VIN запоминается learn_vin_pattern —
+как при приёмке. Удаление находит машины по пометке в заметке, ручные
+детали — по номеру TESTM…, и откатывает то же самое.
 """
 
 import argparse
@@ -140,9 +155,171 @@ CARS = [
             ("Зеркало правое", "Зеркало правое", "B", "С подогревом, электропривод работает", 3000, 1.3, "А-8", "aftermarket", "TYC"),
         ],
     },
+    # Пикап, дизель, автомат, полный привод. Ждёт разбора — деталей
+    # ещё нет, все на машине. WMI MR0 (Таиланд) декодеру незнаком
+    {
+        "vin": make_vin("MR0", "FB3CD", "M", "5", "700606"),
+        "brand": "Toyota", "model": "Hilux", "generation_id": 12638,
+        "modification_id": 107165, "complectation": "DLX",
+        "year": 2021, "color": "Серый", "mileage_km": 74_000,
+        "plate": "А606ВС159", "purchase_price": 1_200_000,
+        "accepted_at": date(2026, 9, 18), "branch_id": 2, "status": "accepted",
+        "notes": "Опрокидывание, крыша и кабина под замену, рама ровная.",
+        "public_note": "После опрокидывания: кабина и крыша под замену. Рама ровная, "
+                       "двигатель, коробка, раздатка и мосты целые. Разбор начнём на "
+                       "этой неделе — нужное снимем под заказ.",
+        "parts": [],
+    },
+    # Лифтбек, гибрид, вариатор. Праворульный японец без VIN — только
+    # номер кузова. Детали во всех статусах
+    {
+        "vin": None,
+        "brand": "Toyota", "model": "Prius", "generation_id": 12586,
+        "modification_id": 106691, "complectation": "Base",
+        "year": 2013, "color": "Белый", "mileage_km": 168_000,
+        "plate": "О707ОО77", "purchase_price": 240_000,
+        "accepted_at": date(2026, 9, 5), "branch_id": 3, "status": "dismantling",
+        "notes": "Праворульный, из Японии, VIN нет — кузов ZVW30. Удар в перед.",
+        "public_note": "Праворульная, из Японии: VIN нет, номер кузова ZVW30. Удар "
+                       "в переднюю часть. Гибридная система на ходу, задняя часть "
+                       "и салон целые.",
+        "parts": [
+            ("Фара левая", "Фара левая", "A", "Линза без помутнения, крепления целые",
+             11000, 2.2, "Д-2", "original", None),
+            ("Блок управления двигателем", "Блок управления двигателем", "B",
+             "Проверен на машине, ошибок нет", 9000, 0.8, "А-9", "original", None,
+             {"status": "reserved"}),
+            ("Бампер передний", "Бампер передний", "C", "Трещина у противотуманной фары, под пайку",
+             7000, 4.5, "В-7", "original", None, {"status": "sold"}),
+            ("Дверь задняя левая", "Дверь задняя левая", "B", "Снята сегодня, ждёт фото",
+             9000, 16, "В-8", "original", None, {"status": "draft"}),
+            ("Руль", "Руль", "B", "Кожа потёрта на хвате, кнопки работают",
+             None, 1.6, "А-10", "original", None, {"oem": None}),
+            ("Аккумулятор", "Аккумулятор вспомогательный 12 В", "D", "Не держит заряд — списан",
+             1500, 8, "Б-7", "original", None, {"status": "written_off"}),
+        ],
+    },
+    # Хетчбэк, робот. Утилизирована: на витрине машины нет, но то, что
+    # с неё сняли и не продали, по-прежнему в каталоге
+    {
+        "vin": make_vin("XW8", "ZZZ6R", "F", "W", "700707"),
+        "brand": "Volkswagen", "model": "Polo", "generation_id": 12823,
+        "modification_id": 109666, "complectation": "Highline",
+        "year": 2015, "color": "Синий", "mileage_km": 187_000,
+        "plate": "Н115РХ799", "purchase_price": 190_000,
+        "accepted_at": date(2026, 7, 14), "branch_id": 4, "status": "scrapped",
+        "notes": "Кузов сдан на металл 10.09.",
+        "public_note": "Разобрана полностью, кузов сдан на металл. Оставшиеся детали — "
+                       "в каталоге.",
+        "parts": [
+            ("АКПП", "Коробка DSG 7 (робот)", "B", "Мехатроник исправен, сцепление 60%",
+             45000, 70, "Г-6", "original", None, {"status": "sold"}),
+            ("Капот", "Капот", "D", "Замят при эвакуации — в утиль",
+             None, 11, "В-9", "original", None, {"status": "written_off", "oem": None}),
+            ("Зеркало левое", "Зеркало левое", "A", "С подогревом и повторителем поворота",
+             3500, 1.2, "А-11", "original", None),
+            ("Катушка зажигания", "Катушки зажигания, 4 шт.", "B", "Комплектом, проверены",
+             4000, 0.8, "Б-8", "oem", "Bosch"),
+        ],
+    },
+    # Внедорожник, механика, полный привод. WMI XTT (УАЗ) декодеру незнаком
+    {
+        "vin": make_vin("XTT", "31637", "L", "0", "700808"),
+        "brand": "УАЗ", "model": "Patriot", "generation_id": 13494,
+        "modification_id": 115206, "complectation": "Оптимум",
+        "year": 2020, "color": "Зелёный", "mileage_km": 61_000,
+        "plate": "Р808КМ159", "purchase_price": 520_000,
+        "accepted_at": date(2026, 9, 8), "branch_id": 1, "status": "dismantling",
+        "notes": "Утоплен в реке, электрика вся под замену.",
+        "public_note": "Побывал в воде: электрика и салон под замену. Кузов без "
+                       "коррозии, раздатка, мосты и рулевое в порядке.",
+        "parts": [
+            ("Раздаточная коробка", "Раздаточная коробка", "B", "Без течей, передний мост подключается",
+             38000, 32, "Г-7", "oem", "Dymos"),
+            ("Рулевая рейка", "Рулевая рейка", "C", "Люфт в пределах нормы, пыльники порваны",
+             12000, 9, "Г-8", "original", None, {"oem": None}),
+            ("Фаркоп", "Фаркоп", "B", "Шар и розетка целые, крепёж в комплекте",
+             4500, 15, "Д-3", "aftermarket", "Бизон"),
+            ("Дверь задняя правая", "Дверь задняя правая", "A", "Без вмятин, стекло целое",
+             14000, 22, "В-10", "original", None, {"status": "reserved"}),
+            ("Компрессор кондиционера", "Компрессор кондиционера", "B", "Проверен на давление",
+             13000, 6, "Б-9", "original", None),
+        ],
+    },
+    # Хетчбэк, электро. Разобрана. WMI SJN (Nissan, Великобритания)
+    {
+        "vin": make_vin("SJN", "FAAZE", "J", "U", "700909"),
+        "brand": "Nissan", "model": "Leaf", "generation_id": 9960,
+        "modification_id": 83863, "complectation": "Tekna",
+        "year": 2018, "color": "Красный", "mileage_km": 93_000,
+        "plate": "Е909ЕЕ799", "purchase_price": 610_000,
+        "accepted_at": date(2026, 8, 2), "branch_id": 4, "status": "dismantled",
+        "notes": "Батарея продана целиком отдельно, в систему не заводили.",
+        "public_note": "Электромобиль после удара в заднюю часть. Тяговая батарея "
+                       "уже продана, остальное — в списке ниже.",
+        "parts": [
+            ("Фонарь задний правый", "Фонарь задний правый", "A", "Без трещин",
+             6500, 0.9, "А-12", "original", None, {"status": "sold"}),
+            ("Сиденье переднее правое", "Сиденье переднее правое", "B",
+             "Подогрев работает, ткань чистая", 8000, 18, "Д-4", "original", None),
+            ("Стеклоподъёмник", "Стеклоподъёмник передний левый", "B", "С мотором, работает",
+             3000, 1.8, "Б-10", "original", None),
+            ("Радиатор охлаждения", "Радиатор охлаждения", "C", "Погнуты соты по краю",
+             2500, 3, "Б-11", "original", None),
+        ],
+    },
+    # Фургон на газу, механика
+    {
+        "vin": make_vin("XTA", "RS045", "H", "0", "701010"),
+        "brand": "ВАЗ (LADA)", "model": "Largus", "generation_id": 13324,
+        "modification_id": 114222, "complectation": "Luxe",
+        "year": 2017, "color": "Белый", "mileage_km": 246_000,
+        "plate": "К010КК59", "purchase_price": 210_000,
+        "accepted_at": date(2026, 9, 12), "branch_id": 2, "status": "dismantling",
+        "notes": "Газовое оборудование сняли и продали отдельно.",
+        "public_note": "Коммерческий фургон, большой пробег. Удар в правый бок; "
+                       "двигатель, коробка и задние двери целые.",
+        "parts": [
+            ("Топливный насос", "Топливный насос", "B", "Работает тихо, давление в норме",
+             2500, 1.5, "Б-12", "original", None),
+            ("Глушитель", "Глушитель", "C", "Прогар у задней банки",
+             1500, 9, "Д-5", "original", None, {"oem": None}),
+            ("Дверь задняя левая", "Дверь задняя левая (распашная)", "B", "Мелкие вмятины, петли целые",
+             9000, 20, "В-11", "original", None),
+            ("Генератор", "Генератор", "A", "Поставлен за месяц до ДТП",
+             7000, 5, "Б-13", "aftermarket", "Kraftwerk"),
+        ],
+    },
+
 ]
 
-VINS = [c["vin"] for c in CARS]
+VINS = [c["vin"] for c in CARS if c["vin"]]
+
+# Детали, принятые вручную — не с нашей машины. Применимость указана
+# списком поколений, как в «Приёме детали». Номер TESTM… — по нему
+# удаление их и находит. Поля те же, что у снятых, плюс источник
+# (purchased — куплена б/у, new — новая), филиал и поколения
+MANUAL = [
+    ("Шина", "Шина зимняя 205/55 R16", "B", "Остаток шипов около 90%, без грыж и порезов",
+     3500, 9, "Ш-1", "aftermarket", "Nokian", "purchased", 1, [13301, 12823, 7910, 8301], {}),
+    ("Диск литой", "Диск литой R15 4×100", "B", "Бордюрный скол на ободе, геометрия в норме",
+     4000, 7, "Ш-2", "aftermarket", "Replica", "purchased", 1, [7910, 8301], {}),
+    ("Магнитола", "Магнитола 2DIN", "A", "Bluetooth, USB, рамка в комплекте",
+     4500, 1.2, "А-13", "aftermarket", "Pioneer", "purchased", 2, [13301, 13300, 13324], {}),
+    ("Тормозной диск передний", "Тормозной диск передний", "A", "Новый, в заводской упаковке",
+     2800, 5.2, "Б-14", "oem", "TRW", "new", 3, [13301, 13300], {}),
+    ("Фара левая", "Фара левая", "B", "Сняла сторонняя разборка, крепления целые",
+     7500, 2.3, "А-14", "original", None, "purchased", 1, [8301], {"status": "reserved"}),
+    ("Генератор", "Генератор", "B", "Принят вчера, ждёт фото",
+     5000, 5, "Б-15", "oem", "Valeo", "purchased", 2, [13324], {"status": "draft"}),
+    ("Фаркоп", "Фаркоп", "B", "Без электрики, крепёж неполный — цену уточняем",
+     None, 16, "Д-6", "aftermarket", "Лидер Плюс", "purchased", 1, [13494], {}),
+    ("Камера заднего вида", "Камера заднего вида", "A", "Новая, в коробке",
+     2000, 0.3, "А-15", "aftermarket", "Interpower", "new", 4, [13301, 13300, 12823],
+     {"status": "sold"}),
+    ("Домкрат", "Домкрат штатный", "A", "Штатный, из комплекта машины",
+     1500, 3, "Д-7", "original", None, "purchased", 3, [12638, 12586], {}),
+]
 
 
 # ------------------------------------------------------------------
@@ -219,10 +396,15 @@ async def ref_names(s, car) -> str:
 
 async def create(s, car, apply: bool) -> None:
     title = await ref_names(s, car)
-    exists = (await s.execute(text("SELECT code FROM donors WHERE vin = :v"),
-                              {"v": car["vin"]})).scalar()
+    # Машину без VIN узнаём по госномеру и пометке тестовых данных
+    exists = (await s.execute(
+        text("SELECT code FROM donors WHERE vin = :v")
+        if car["vin"] else
+        text("SELECT code FROM donors WHERE plate = :p AND notes LIKE '%' || :m"),
+        {"v": car["vin"]} if car["vin"] else {"p": car["plate"], "m": MARK})).scalar()
+    label = car["vin"] or f"без VIN ({car['plate']})"
     if exists:
-        print(f"  {car['vin']}  уже есть ({exists}) — пропускаю")
+        print(f"  {label}  уже есть ({exists}) — пропускаю")
         return
 
     compl = (await s.execute(text("""
@@ -233,31 +415,35 @@ async def create(s, car, apply: bool) -> None:
         raise SystemExit(f"Нет комплектации «{car['complectation']}» у модификации "
                          f"{car['modification_id']}")
 
-    print(f"  {car['vin']}  {title}, {car['year']}, {len(car['parts'])} дет.")
+    print(f"  {label}  {title}, {car['year']}, {len(car['parts'])} дет.")
     if not apply:
         return
 
-    info = decode(car["vin"])
+    info = decode(car["vin"]) if car["vin"] else None
     donor = (await s.execute(text("""
         INSERT INTO donors (code, vin, generation_id, modification_id, complectation_id,
                             year, color, mileage_km, plate, purchase_price, accepted_at,
                             notes, public_note, vin_source, vin_decoded, branch_id)
         VALUES ('D-' || lpad(nextval('donor_code_seq')::text, 4, '0'),
                 :vin, :gen, :mod, :compl, :year, :color, :mileage, :plate, :price,
-                :accepted, :notes, :public_note, 'manual', CAST(:decoded AS jsonb), :branch)
+                :accepted, :notes, :public_note, :src, CAST(:decoded AS jsonb), :branch)
         RETURNING id, code"""), {
         "vin": car["vin"], "gen": car["generation_id"], "mod": car["modification_id"],
         "compl": compl, "year": car["year"], "color": car["color"],
         "mileage": car["mileage_km"], "plate": car["plate"], "price": car["purchase_price"],
         "accepted": car["accepted_at"], "notes": f"{car['notes']} {MARK}",
         "public_note": car["public_note"],
-        "decoded": json.dumps(dataclasses.asdict(info), ensure_ascii=False),
+        # Как при приёмке: без VIN — источник no_vin и нечего расшифровывать
+        "src": "manual" if car["vin"] else "no_vin",
+        "decoded": json.dumps(dataclasses.asdict(info), ensure_ascii=False) if info else None,
         "branch": car["branch_id"],
     })).first()
 
     # Как при приёмке: VIN и модификация известны — паттерн запоминается
-    await s.execute(text("SELECT learn_vin_pattern(:w, :v, :m, NULL)"),
-                    {"w": car["vin"][:3], "v": car["vin"][3:8], "m": car["modification_id"]})
+    if car["vin"]:
+        await s.execute(text("SELECT learn_vin_pattern(:w, :v, :m, NULL)"),
+                        {"w": car["vin"][:3], "v": car["vin"][3:8],
+                         "m": car["modification_id"]})
 
     path = write_svg(settings.media_root / "donors" / str(donor.id), "test.svg",
                      svg(f"{car['brand'].replace('ВАЗ (LADA)', 'LADA')} {car['model']}",
@@ -266,7 +452,11 @@ async def create(s, car, apply: bool) -> None:
         INSERT INTO donor_photos (donor_id, path, thumb, width, height, sort_order)
         VALUES (:d, :p, :p, 1200, 900, 0)"""), {"d": donor.id, "p": path})
 
-    for n, (cat_name, name, cond, note, price, weight, loc, origin, brand) in enumerate(car["parts"], 1):
+    for n, row in enumerate(car["parts"], 1):
+        cat_name, name, cond, note, price, weight, loc, origin, brand = row[:9]
+        extra = row[9] if len(row) > 9 else {}
+        status = extra.get("status", "in_stock")
+        oem = extra.get("oem", f"TEST{CARS.index(car) + 1:02d}{n:02d}")
         cat = (await s.execute(text("SELECT id FROM part_categories WHERE name = :n"),
                                {"n": cat_name})).scalar()
         if cat is None:
@@ -284,25 +474,82 @@ async def create(s, car, apply: bool) -> None:
                                published, source, branch_id, oem_source, oem_verified,
                                origin, part_brand)
             VALUES (:sku, :d, :cat, :name, :oem, CAST(:cond AS part_condition), :note,
-                    :price, 'in_stock', :loc, :weight, true, 'donor', :branch,
-                    'test', false, :origin, :brand)
+                    :price, CAST(:status AS part_status), :loc, :weight, :pub, 'donor',
+                    :branch, :oem_src, false, :origin, :brand)
             RETURNING id"""), {
             "sku": sku, "d": donor.id, "cat": cat, "name": name,
-            "oem": f"TEST{CARS.index(car) + 1:02d}{n:02d}", "cond": cond, "note": note,
-            "price": price, "loc": loc, "weight": weight, "branch": car["branch_id"],
+            "oem": oem, "oem_src": "test" if oem else None,
+            "cond": cond, "note": note, "price": price, "status": status,
+            # Как в приложении: опубликована, если есть и фото, и цена.
+            # Бронь, продажа, списание флаг не трогают — каталог смотрит статус
+            "pub": status != "draft" and price is not None,
+            "loc": loc, "weight": weight, "branch": car["branch_id"],
             "origin": origin, "brand": brand,
         })).scalar()
 
-        path = write_svg(settings.media_root / "parts" / str(part_id), "test.svg",
-                         svg(name, f"{car['model']} {car['year']} · {sku}", "part"))
-        await s.execute(text("""
-            INSERT INTO part_photos (part_id, path, thumb, width, height, sort_order)
-            VALUES (:p, :path, :path, 1200, 900, 0)"""), {"p": part_id, "path": path})
+        # Черновик — это деталь без фото: так его и заводят
+        if status != "draft":
+            await add_photo(s, part_id, name, f"{car['model']} {car['year']} · {sku}")
 
     await s.execute(text("UPDATE donors SET status = CAST(:st AS donor_status) WHERE id = :d"),
                     {"st": car["status"], "d": donor.id})
     await s.commit()
     print(f"      создана {donor.code}")
+
+
+async def add_photo(s, part_id: int, title: str, subtitle: str) -> None:
+    path = write_svg(settings.media_root / "parts" / str(part_id), "test.svg",
+                     svg(title, subtitle, "part"))
+    await s.execute(text("""
+        INSERT INTO part_photos (part_id, path, thumb, width, height, sort_order)
+        VALUES (:p, :path, :path, 1200, 900, 0)"""), {"p": part_id, "path": path})
+
+
+async def create_manual(s, n: int, row, apply: bool) -> None:
+    """Деталь со стороны — как «Приём детали»: артикул P-…, применимость
+    списком поколений, филиал приёмщика."""
+    (cat_name, name, cond, note, price, weight, loc, origin, brand,
+     source, branch, gens, extra) = row
+    oem = f"TESTM{n:02d}"
+    exists = (await s.execute(text("SELECT sku FROM parts WHERE oem_number = :o"),
+                              {"o": oem})).scalar()
+    if exists:
+        print(f"  {oem}  уже есть ({exists}) — пропускаю")
+        return
+    cat = (await s.execute(text("SELECT id FROM part_categories WHERE name = :n"),
+                           {"n": cat_name})).scalar()
+    if cat is None:
+        raise SystemExit(f"Нет категории «{cat_name}»")
+    status = extra.get("status", "in_stock")
+    print(f"  {oem}  {name} — {'новая' if source == 'new' else 'куплена б/у'}, {status}, "
+          f"поколений {len(gens)}")
+    if not apply:
+        return
+
+    sku = (await s.execute(text(
+        "SELECT 'P-' || lpad(nextval('standalone_part_seq')::text, 4, '0')"))).scalar()
+    part_id = (await s.execute(text("""
+        INSERT INTO parts (sku, donor_id, category_id, name, oem_number, condition,
+                           condition_note, price, status, location, weight_kg,
+                           published, source, branch_id, oem_source, oem_verified,
+                           origin, part_brand)
+        VALUES (:sku, NULL, :cat, :name, :oem, CAST(:cond AS part_condition), :note,
+                :price, CAST(:status AS part_status), :loc, :weight, :pub, :src,
+                :branch, 'test', false, :origin, :brand)
+        RETURNING id"""), {
+        "sku": sku, "cat": cat, "name": name, "oem": oem, "cond": cond, "note": note,
+        "price": price, "status": status, "pub": status != "draft" and price is not None,
+        "loc": loc, "weight": weight, "src": source, "branch": branch,
+        "origin": origin, "brand": brand,
+    })).scalar()
+    for g in gens:
+        await s.execute(text("""
+            INSERT INTO part_applicability (part_id, generation_id) VALUES (:p, :g)
+            ON CONFLICT DO NOTHING"""), {"p": part_id, "g": g})
+    if status != "draft":
+        await add_photo(s, part_id, name, f"приём детали · {sku}")
+    await s.commit()
+    print(f"      создана {sku}")
 
 
 # ------------------------------------------------------------------
@@ -311,15 +558,19 @@ async def create(s, car, apply: bool) -> None:
 
 
 async def remove(s, apply: bool) -> None:
+    # По пометке в заметке — так находится и машина без VIN
     donors = (await s.execute(text("""
-        SELECT id, code, vin, modification_id FROM donors WHERE vin = ANY(:v)"""),
-        {"v": VINS})).all()
-    if not donors:
-        print("  тестовых машин нет")
-        return
+        SELECT id, code, vin, modification_id FROM donors
+         WHERE vin = ANY(:v) OR notes LIKE '%' || :m"""),
+        {"v": VINS, "m": MARK})).all()
     ids = [d.id for d in donors]
-    parts = (await s.execute(text("SELECT id FROM parts WHERE donor_id = ANY(:d)"),
-                             {"d": ids})).scalars().all()
+    parts = (await s.execute(text("""
+        SELECT id FROM parts
+         WHERE donor_id = ANY(:d) OR (donor_id IS NULL AND oem_number LIKE 'TESTM%')"""),
+        {"d": ids})).scalars().all()
+    if not donors and not parts:
+        print("  тестовых данных нет")
+        return
 
     # Заказ на тестовую деталь удалять молча нельзя: это уже чужие данные
     ordered = (await s.execute(text("""
@@ -329,11 +580,14 @@ async def remove(s, apply: bool) -> None:
         raise SystemExit(f"На тестовые детали есть заказы: {', '.join(map(str, ordered))}. "
                          "Сначала удалите или отмените их — скрипт их не трогает.")
 
-    print(f"  машин {len(donors)} ({', '.join(d.code for d in donors)}), деталей {len(parts)}")
+    print(f"  машин {len(donors)} ({', '.join(d.code for d in donors)}), "
+          f"деталей {len(parts)} (с машин и принятых вручную)")
     if not apply:
         return
 
     for d in donors:
+        if not d.vin:
+            continue
         # Паттерн мог подтвердить и кто-то ещё — снимаем только наш голос
         await s.execute(text("""
             UPDATE vin_patterns SET hits = hits - 1
@@ -368,6 +622,9 @@ async def main() -> None:
             print("Тестовые данные" + ("" if a.apply else " (проверка, --apply чтобы создать)"))
             for car in CARS:
                 await create(s, car, a.apply)
+            print("Детали, принятые вручную")
+            for n, row in enumerate(MANUAL, 1):
+                await create_manual(s, n, row, a.apply)
     finally:
         await agen.aclose()
         await dispose()
