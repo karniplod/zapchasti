@@ -21,7 +21,11 @@
    не бывает, а вот шапка, слившаяся с прокрученным контентом, — да. */
 .site-head{position:sticky;top:0;z-index:40;
   background:var(--surface);border-bottom:1px solid var(--line);
-  box-shadow:0 10px 30px -22px rgba(18,22,27,.45)}
+  box-shadow:0 10px 30px -22px rgba(18,22,27,.45);
+  /* Высота ряда и коэффициент увеличения (см. «Увеличение» ниже) */
+  --head-h:60px;--k:1;
+  padding-bottom:calc(var(--head-h) * (var(--k) - 1));
+  margin-bottom:calc(var(--head-h) * (1 - var(--k)))}
 
 /* Цвет «вплавленного» состояния — фон первого блока страницы. Белый
    блок .hero открывает главную, каталог и информационные страницы;
@@ -38,7 +42,32 @@ body:has(> main > .hero:first-child){--head-top-bg:var(--surface)}
 /* Переходы включаются со второго кадра: иначе при загрузке шапка
    успевала бы показать линию и плавно её «стереть» */
 .site-head.ready{transition:background-color .45s ease, border-color .45s ease,
-  box-shadow .45s ease, -webkit-backdrop-filter .45s ease, backdrop-filter .45s ease}
+  box-shadow .45s ease, -webkit-backdrop-filter .45s ease, backdrop-filter .45s ease,
+  --k .45s ease}
+
+/* ── Увеличение при прокрутке ─────────────────────────────
+   Отделившись, шапка вырастает на 10% вместе со всем содержимым.
+
+   Каждый элемент по отдельности увеличивать нельзя: широкие (меню)
+   наезжают на соседей — растут на 15px в каждую сторону при зазоре
+   в 20. Поэтому масштабируется весь ряд, как под лупой: раскладка
+   считается в ширине 100% / k и увеличивается в k раз — ровно
+   заполняет окно, а логотип, текст, кнопки и промежутки растут вместе.
+
+   Контент под шапкой при этом не сдвигается: прибавка высоты
+   (padding-bottom) тут же гасится отрицательным margin-bottom — шапка
+   нависает над контентом, а не толкает его. Иначе начало прокрутки
+   дёргало бы страницу вниз на 6px.
+
+   Анимируется одно число --k, от него синхронно считаются масштаб,
+   ширина и высота. Для этого свойство зарегистрировано через @property;
+   браузер без @property переключит размер сразу, без плавности. */
+@property --k{syntax:'<number>';inherits:true;initial-value:1}
+
+/* Только под управлением скрипта (.ready): без него шапка всегда
+   «отделена» и была бы увеличенной и в самом верху, закрывая
+   край первого блока */
+.site-head.ready:not(.at-top){--k:1.1}
 
 @supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
   .site-head:not(.at-top){
@@ -51,9 +80,14 @@ body:has(> main > .hero:first-child){--head-top-bg:var(--surface)}
 /* Шапка на всю ширину окна, а не по колонке контента: меню и корзина
    уходят к краям экрана. Отступ растёт с шириной, чтобы на мониторе
    логотип не прилипал к рамке, а на телефоне не съедал место */
-.site-head .wrap{display:flex;align-items:center;gap:20px;height:60px;
+.site-head .wrap{display:flex;align-items:center;gap:20px;height:var(--head-h);
   flex-wrap:nowrap;min-width:0;
-  max-width:none;padding-inline:clamp(16px, 3vw, 32px)}
+  max-width:none;padding-inline:clamp(16px, 3vw, 32px);
+  /* Увеличение: узкая раскладка, растянутая от левого верхнего угла.
+     margin-inline:0 — иначе margin:auto из .wrap центровал бы узкий
+     ряд, и после увеличения он съехал бы вправо */
+  width:calc(100% / var(--k));margin-inline:0;
+  transform:scale(var(--k));transform-origin:0 0}
 
 .brand{display:flex;align-items:center;gap:9px;flex:0 0 auto;
   font-family:var(--display);font-weight:700;font-size:17px;
@@ -200,7 +234,8 @@ body:has(> main > .hero:first-child){--head-top-bg:var(--surface)}
 }
 
 @media(max-width:640px){
-  .site-head .wrap{height:54px;gap:12px}
+  .site-head{--head-h:54px}
+  .site-head .wrap{gap:12px}
 }
 
 /* ── Подвал ────────────────────────────────────────────── */
