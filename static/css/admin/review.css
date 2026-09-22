@@ -1,0 +1,15 @@
+/* Стили шаблона templates/admin/review.html. Общее — в static/admin.css */
+
+.gen{background:var(--panel);border:1px solid var(--line);border-radius:11px;
+  padding:14px 16px;margin-bottom:10px}
+.gen .h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.gen .nm{font-size:15.5px}
+.gen .cnt{margin-left:auto;font-size:13px;color:var(--muted);white-space:nowrap}
+.gen .meta{font-size:13px;color:var(--dim);margin-top:5px}
+.gen .src{font-size:11px;padding:3px 9px;border-radius:5px;
+  background:var(--panel-2);color:var(--muted)}
+.lead-note{color:var(--dim);font-size:13.5px;margin:0 0 18px;max-width:60ch}
+.merge{margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+.merge label{font-size:11px;color:var(--dim);display:block;margin-bottom:6px}
+.merge .row{display:flex;gap:8px;flex-wrap:wrap}
+.merge select{flex:1;min-width:220px;padding:9px;font-size:13.5px}

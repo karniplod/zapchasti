@@ -1,0 +1,48 @@
+/* Стили шаблона templates/admin/parts.html. Общее — в static/admin.css */
+
+.p{background:var(--panel);border:1px solid var(--line);border-radius:11px;
+padding:13px 15px;margin-bottom:9px}
+.p .h{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.p .sku{font-family:ui-monospace,monospace;font-size:12.5px;color:var(--amber)}
+.p .nm{font-size:15px;flex:1;min-width:0}
+.p .meta{font-size:12.5px;color:var(--dim);margin-top:3px}
+.tag{font-size:11px;padding:2px 8px;border-radius:5px;background:var(--panel-2);color:var(--muted)}
+.tag.bad{background:rgba(255,95,86,.14);color:var(--err)}
+.tag.warn{background:rgba(255,159,46,.15);color:var(--warn)}
+.tag.ok{background:rgba(76,195,138,.14);color:var(--ok)}
+.edit{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:11px}
+.edit label{font-size:11px;color:var(--dim);display:block;margin-bottom:4px}
+.edit input,.edit select{padding:9px;font-size:14px}
+
+/* Полный редактор — раскрывается по кнопке под ежедневными полями */
+.full{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:11px;
+  padding-top:11px;border-top:1px solid var(--line)}
+.full label{font-size:11px;color:var(--dim);display:block;margin-bottom:4px}
+.full input{padding:9px;font-size:14px}
+.full .wide{grid-column:1/-1}
+.full .f-cat{position:relative}
+
+.photos{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px;align-items:center}
+.photos .ph{margin:0;position:relative;width:64px;height:64px}
+.photos .ph img{width:100%;height:100%;object-fit:cover;border-radius:8px;
+  border:1px solid var(--line)}
+.photos .ph-del{position:absolute;top:-6px;right:-6px;width:22px;height:22px;
+  border-radius:50%;background:var(--err);color:#fff;border:0;font-size:14px;
+  line-height:1;cursor:pointer;padding:0}
+.photos .ph-none{display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:4px;width:64px;height:64px;border-radius:8px;
+  border:1px dashed rgba(255,159,46,.5);color:var(--warn);font-size:9px;
+  text-align:center}
+.photos .ph-none svg{width:22px;height:22px}
+.photos .ph-add{display:flex;align-items:center;justify-content:center;
+  width:64px;height:64px;border-radius:8px;border:1px dashed var(--line);
+  color:var(--muted);font-size:24px;cursor:pointer}
+.photos .ph-add:hover{border-color:var(--amber);color:var(--amber)}
+
+.photos .ph-cam{display:flex;align-items:center;justify-content:center;
+  width:64px;height:64px;border-radius:8px;border:1px solid var(--amber);
+  color:var(--amber);cursor:pointer}
+.photos .ph-cam:hover{background:rgba(255,194,51,.1)}
+.photos .ph-cam svg{width:26px;height:26px}
+.flags{margin-top:7px}
+.act-link{padding:9px 4px;color:var(--dim);font-size:13.5px}

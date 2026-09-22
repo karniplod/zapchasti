@@ -7,8 +7,8 @@
   передавать не нужно.
 #}
 <div class="nav"><div class="in">
-  <a class="logo" href="/admin" style="padding:0;display:flex;align-items:center;gap:8px">
-    <img src="/static/logo.png" alt="" width="41" height="41" onerror="this.remove()">
+  <a class="logo" href="/admin">
+    <img src="/static/logo.png" alt="" width="41" height="41">
     <span>АВТО<span>·</span>ДОНОР</span>
   </a>
   <button class="burger" aria-label="Меню" aria-expanded="false"
@@ -43,60 +43,4 @@
   {% endif %}
 </div></div>
 
-<script>
-(function(){
-  // Точное совпадение адреса, иначе /parts подсветил бы и /admin
-  const path = location.pathname;
-  let best = null;
-  document.querySelectorAll('.nav a[data-p]').forEach(a => {
-    const p = a.dataset.p;
-    if (path === p || path.startsWith(p + '/')) {
-      if (!best || p.length > best.dataset.p.length) best = a;
-    }
-  });
-  if (best) best.classList.add('on');
-})();
-</script>
-
-<script>
-(function(){
-  // Одно поведение на витрине и в бэкенде: кнопка переключает список
-  const burger = document.querySelector('.burger');
-  const menu = document.querySelector('.site-nav') || document.querySelector('.nav ul');
-  if (!burger || !menu) return;
-
-  const mobile = () => window.matchMedia('(max-width:760px)').matches;
-  const setOpen = open => {
-    menu.hidden = mobile() ? !open : false;
-    burger.setAttribute('aria-expanded', String(open));
-  };
-
-  setOpen(false);
-  burger.onclick = () => setOpen(menu.hidden);
-
-  // Меню закрывается по выбору пункта и при возврате к широкому экрану
-  menu.addEventListener('click', e => { if (e.target.tagName === 'A') setOpen(false); });
-  window.addEventListener('resize', () => { if (!mobile()) setOpen(false); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') setOpen(false); });
-})();
-</script>
-
-<script>
-(function(){
-  const btn = document.getElementById('acctBtn');
-  const menu = document.getElementById('acctMenu');
-  if (!btn || !menu) return;
-
-  const setOpen = open => {
-    menu.hidden = !open;
-    btn.setAttribute('aria-expanded', String(open));
-  };
-  setOpen(false);
-
-  btn.onclick = e => { e.stopPropagation(); setOpen(menu.hidden); };
-  // Закрывается по клику мимо и по Escape — иначе висит поверх работы
-  document.addEventListener('click', () => setOpen(false));
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') setOpen(false); });
-  menu.addEventListener('click', e => e.stopPropagation());
-})();
-</script>
+<script src="{{ asset('js/admin/nav.js') }}"></script>

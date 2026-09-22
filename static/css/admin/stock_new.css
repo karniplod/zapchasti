@@ -1,0 +1,25 @@
+/* Стили шаблона templates/admin/stock_new.html. Общее — в static/admin.css */
+
+.wrap{padding-bottom:140px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.chip{display:flex;align-items:center;gap:8px;background:var(--panel-2);
+border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13.5px}
+.chip button{background:none;border:0;color:var(--err);cursor:pointer;font-size:17px;
+padding:0;font-family:inherit}
+.hint{font-size:13px;color:var(--muted);margin:0 0 14px}
+.warn{background:rgba(255,159,46,.1);border:1px solid rgba(255,159,46,.3);color:#ffc98a;
+border-radius:8px;padding:11px 14px;font-size:13.5px;margin-top:12px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--panel);
+border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-inset-bottom))}
+.bar .inner{max-width:900px;margin:0 auto;display:flex;gap:10px}
+.primary{padding:14px 20px;flex:1}
+.ghost{padding:14px 16px}
+.toast{bottom:92px}
+
+/* Незаполненное обязательное поле. Через outline, а не border —
+   рамка не занимает места и ничего не сдвигает при появлении */
+.need{outline:1px dashed rgba(255,194,51,.6);outline-offset:6px;border-radius:8px}
+.need-tag{color:var(--amber);font-size:11px;letter-spacing:.04em;
+  text-transform:uppercase;font-weight:600;margin-left:8px}
+.hint.hint-under{margin:8px 0 0}

@@ -1,0 +1,27 @@
+/* Стили шаблона templates/admin/reports.html. Общее — в static/admin.css */
+
+.rep{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:18px;margin-bottom:16px}
+.rep h3{margin:0 0 6px;font-size:16px}
+.rep .why{color:var(--dim);font-size:13px;margin:0 0 14px;max-width:62ch;line-height:1.5}
+
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-weight:600;color:var(--muted);font-size:11px;
+  letter-spacing:.08em;text-transform:uppercase;padding:0 10px 8px 0}
+td{padding:9px 10px 9px 0;border-top:1px solid var(--line);vertical-align:baseline}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+tr:hover td{background:var(--panel-2)}
+.car{font-size:14px}
+.wmi{font-family:var(--mono);font-size:12px;color:var(--dim)}
+
+/* Полоска попадания источника: цифру в процентах глазом не сравнить,
+   а длину полоски видно сразу. Это <progress>: значение — атрибут,
+   а не ширина в style, и программа чтения с экрана озвучит процент */
+.bar{display:block;width:100%;height:5px;margin-top:5px;border:0;border-radius:3px;
+  background:var(--panel-2);overflow:hidden;-webkit-appearance:none;appearance:none}
+.bar::-webkit-progress-bar{background:var(--panel-2)}
+.bar::-webkit-progress-value{background:var(--amber)}
+.bar::-moz-progress-bar{background:var(--amber)}
+.rep .why.why-sum{margin:14px 0 0}
+.muted{color:var(--dim)}
+.blank{color:var(--dim);font-size:13.5px;padding:18px 0}

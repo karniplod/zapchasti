@@ -1,0 +1,166 @@
+// Скрипт шаблона templates/admin/_cropper.html.
+
+(function(){
+  const dlg = document.getElementById('cropDlg');
+  const cv = document.getElementById('cropCanvas');
+  const stage = document.getElementById('cropStage');
+  const mask = document.getElementById('cropMask');
+  const ctx = cv.getContext('2d');
+
+  const OUT = 1200;            // сторона итогового квадрата
+  let img, scale, minScale, ox, oy, box, resolve;
+
+  // Квадрат рамки — по меньшей стороне области просмотра
+  function layout(){
+    const w = stage.clientWidth, h = stage.clientHeight;
+    cv.width = w * devicePixelRatio;
+    cv.height = h * devicePixelRatio;
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+
+    const side = Math.min(w, h) - 32;
+    box = {x:(w - side)/2, y:(h - side)/2, side};
+    // inset сбрасываем первым: иначе он затрёт left/top,
+    // и рамка уедет в левый верхний угол
+    mask.style.inset = 'auto';
+    mask.style.left = box.x + 'px';
+    mask.style.top = box.y + 'px';
+    mask.style.width = box.side + 'px';
+    mask.style.height = box.side + 'px';
+  }
+
+  function fit(){
+    // Снимок закрывает рамку целиком при любом соотношении сторон
+    minScale = Math.max(box.side / img.width, box.side / img.height);
+    scale = minScale;
+    ox = box.x + (box.side - img.width * scale) / 2;
+    oy = box.y + (box.side - img.height * scale) / 2;
+  }
+
+  function clamp(){
+    scale = Math.max(minScale, Math.min(scale, minScale * 6));
+    const w = img.width * scale, h = img.height * scale;
+    // Рамка не должна выходить за края снимка
+    ox = Math.min(box.x, Math.max(box.x + box.side - w, ox));
+    oy = Math.min(box.y, Math.max(box.y + box.side - h, oy));
+  }
+
+  function draw(){
+    clamp();
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.drawImage(img, ox, oy, img.width * scale, img.height * scale);
+    const lvl = document.getElementById('cropLvl');
+    if (lvl) lvl.textContent = Math.round(scale / minScale * 100) + '%';
+  }
+
+  /** Изменить масштаб, оставив точку (cx, cy) на месте.
+      Координаты — относительно области просмотра. Общая точка для
+      колеса, щипка и кнопок: иначе каждый жест уводил бы кадр по-своему */
+  function zoomAt(next, cx, cy){
+    const prev = scale;
+    scale = next;
+    clamp();
+    ox = cx - (cx - ox) * (scale / prev);
+    oy = cy - (cy - oy) * (scale / prev);
+    draw();
+  }
+
+  const center = () => ({x: box.x + box.side / 2, y: box.y + box.side / 2});
+
+  // --- жесты ---
+  let pts = new Map(), startDist = 0, startScale = 1, last = null;
+
+  stage.addEventListener('pointerdown', e => {
+    stage.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId, {x:e.clientX, y:e.clientY});
+    if (pts.size === 2){
+      const [a, b] = [...pts.values()];
+      startDist = Math.hypot(a.x - b.x, a.y - b.y);
+      startScale = scale;
+    }
+    last = {x:e.clientX, y:e.clientY};
+  });
+
+  stage.addEventListener('pointermove', e => {
+    if (!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, {x:e.clientX, y:e.clientY});
+
+    if (pts.size === 2){
+      const [a, b] = [...pts.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      const r = stage.getBoundingClientRect();
+      // Масштабируем вокруг точки между пальцами, а не вокруг угла
+      zoomAt(startScale * (d / startDist),
+             (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top);
+      return;
+    }
+
+    if (last){
+      ox += e.clientX - last.x;
+      oy += e.clientY - last.y;
+      last = {x:e.clientX, y:e.clientY};
+      draw();
+    }
+  });
+
+  const up = e => { pts.delete(e.pointerId); last = null; };
+  stage.addEventListener('pointerup', up);
+  stage.addEventListener('pointercancel', up);
+
+  // Колесо мыши: за компьютером щипка нет, и без этого масштаб
+  // было не поменять вообще
+  stage.addEventListener('wheel', e => {
+    e.preventDefault();
+    const r = stage.getBoundingClientRect();
+    zoomAt(scale * (e.deltaY < 0 ? 1.12 : 1 / 1.12),
+           e.clientX - r.left, e.clientY - r.top);
+  }, {passive: false});
+
+  document.getElementById('cropIn').onclick = () => {
+    const c = center(); zoomAt(scale * 1.25, c.x, c.y);
+  };
+  document.getElementById('cropOut').onclick = () => {
+    const c = center(); zoomAt(scale / 1.25, c.x, c.y);
+  };
+  document.getElementById('cropFit').onclick = () => { fit(); draw(); };
+
+  document.getElementById('cropCancel').onclick = () => {
+    dlg.close(); resolve && resolve(null);
+  };
+
+  document.getElementById('cropOk').onclick = () => {
+    const out = document.createElement('canvas');
+    out.width = out.height = OUT;
+    const octx = out.getContext('2d');
+    octx.fillStyle = '#fff';
+    octx.fillRect(0, 0, OUT, OUT);
+
+    // Переводим экранные координаты рамки в координаты снимка
+    const k = OUT / box.side;
+    octx.drawImage(img,
+      (ox - box.x) * k, (oy - box.y) * k,
+      img.width * scale * k, img.height * scale * k);
+
+    out.toBlob(blob => { dlg.close(); resolve && resolve(blob); },
+               'image/jpeg', 0.92);
+  };
+
+  /** Открыть кадрирование. Возвращает Promise<Blob|null> */
+  window.cropImage = function(file){
+    return new Promise(res => {
+      resolve = res;
+      const url = URL.createObjectURL(file);
+      img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        dlg.showModal();
+        requestAnimationFrame(() => { layout(); fit(); draw(); });
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); res(null); };
+      img.src = url;
+    });
+  };
+
+  window.addEventListener('resize', () => {
+    if (dlg.open){ layout(); clamp(); draw(); }
+  });
+})();

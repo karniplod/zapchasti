@@ -1,0 +1,70 @@
+/* Стили шаблона templates/admin/intake.html. Общее — в static/admin.css */
+
+header{display:flex;align-items:baseline;gap:14px;margin-bottom:28px;
+       padding-bottom:18px;border-bottom:1px solid var(--line)}
+header h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em}
+header .code{font-family:var(--mono);font-size:13px;color:var(--amber)}
+
+/* --- VIN --- */
+.vin-input{width:100%;background:var(--panel-2);border:1px solid var(--line);
+  border-radius:8px;color:var(--ink);font-family:var(--mono);font-size:22px;
+  letter-spacing:.22em;padding:14px 16px;text-transform:uppercase;outline:none}
+.vin-input:focus{border-color:var(--amber);box-shadow:0 0 0 3px rgba(255,194,51,.12)}
+.vin-input.bad{border-color:var(--err)}
+
+/* Посимвольная линейка: показывает приёмщику структуру номера */
+.ruler{display:flex;gap:3px;margin-top:12px;overflow-x:auto;padding-bottom:2px}
+.cell{flex:1 0 26px;text-align:center;font-family:var(--mono);font-size:15px;
+  padding:7px 0 5px;border-radius:4px;background:var(--panel-2);
+  border-top:2px solid transparent;color:var(--dim);transition:.12s}
+.cell.filled{color:var(--ink)}
+.seg-wmi.filled{border-top-color:#6ea8fe;background:rgba(110,168,254,.09)}
+.seg-vds.filled{border-top-color:var(--amber);background:rgba(255,194,51,.09)}
+.seg-chk.filled{border-top-color:var(--ok);background:rgba(76,195,138,.1)}
+.seg-chk.filled.bad{border-top-color:var(--err);background:rgba(255,95,86,.12);color:var(--err)}
+.seg-yr.filled{border-top-color:#c792ea;background:rgba(199,146,234,.09)}
+.seg-ser.filled{border-top-color:var(--line)}
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;
+        font-size:11px;color:var(--dim);letter-spacing:.04em}
+.legend i{display:inline-block;width:8px;height:8px;border-radius:2px;
+          margin-right:5px;vertical-align:1px}
+
+/* --- результат декодирования --- */
+.readout{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+         gap:1px;background:var(--line);border-radius:8px;overflow:hidden;margin-top:16px}
+.readout div{background:var(--panel-2);padding:11px 13px}
+.readout dt{font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+            color:var(--dim);margin-bottom:3px}
+.readout dd{margin:0;font-size:14px}
+.readout dd.mono{font-family:var(--mono)}
+
+.note{display:flex;gap:9px;padding:10px 13px;border-radius:7px;font-size:13px;
+      margin-top:10px;align-items:flex-start}
+.note.warn{background:rgba(255,159,46,.1);color:#ffc98a;border:1px solid rgba(255,159,46,.25)}
+.note.err{background:rgba(255,95,86,.1);color:#ff9a94;border:1px solid rgba(255,95,86,.3)}
+.note.ok{background:rgba(76,195,138,.1);color:#8fe0b8;border:1px solid rgba(76,195,138,.25)}
+
+/* --- поля --- */
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}
+.auto{border-color:rgba(76,195,138,.45)!important}
+
+.files{border:1px dashed var(--line);border-radius:8px;padding:16px;text-align:center;
+       color:var(--muted);font-size:13px;cursor:pointer}
+.files:hover{border-color:var(--amber);color:var(--ink)}
+
+.bar{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 26%);
+     padding:22px 0 6px;display:flex;gap:12px;align-items:center}
+.status{font-size:13px;color:var(--muted)}
+
+/* Незаполненное обязательное поле. Через outline, а не border —
+   рамка не занимает места и ничего не сдвигает при появлении */
+.need{outline:1px dashed rgba(255,194,51,.6);outline-offset:6px;border-radius:8px}
+.need-tag{color:var(--amber);font-size:11px;letter-spacing:.04em;
+  text-transform:uppercase;font-weight:600;margin-left:8px}
+/* Легенда линейки — те же цвета, что у заполненных сегментов */
+.legend i.seg-wmi{background:#6ea8fe}
+.legend i.seg-vds{background:#ffc233}
+.legend i.seg-chk{background:#4cc38a}
+.legend i.seg-yr{background:#c792ea}
+.legend i.seg-ser{background:#2b333f}
+.chk{width:auto;margin-right:7px}

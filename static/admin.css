@@ -4,8 +4,10 @@
        <link rel="stylesheet" href="/static/admin.css?v={{ admin_css_version() }}">
 
    Здесь — только то, что повторялось на нескольких вкладках и
-   должно выглядеть одинаково. Вёрстка, уникальная для конкретной
-   страницы, остаётся в её собственном <style>.
+   должно выглядеть одинаково. Вёрстка конкретной страницы — в
+   static/css/admin/<страница>.css, скрипты — в static/js/admin/.
+   Встроенных <style>, <script> и style="" в шаблонах нет: это
+   проверяет tools/check_js.py.
    ───────────────────────────────────────────────────────── */
 
 :root{
@@ -229,7 +231,8 @@ button{font-family:inherit}
 /* Меню на всю ширину окна — как шапка витрины; отступ растёт с экраном */
 .nav .in{max-width:none;margin:0 auto;padding:9px clamp(16px, 3vw, 32px);
   display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-.nav .logo{font-weight:700;font-size:15px;letter-spacing:-.01em;white-space:nowrap}
+.nav .logo{font-weight:700;font-size:15px;letter-spacing:-.01em;white-space:nowrap;
+  padding:0;display:flex;align-items:center;gap:8px}
 .nav .logo span{color:var(--amber)}
 .nav ul{list-style:none;display:flex;gap:4px;margin:0;padding:0;
   flex:1;min-width:0;flex-wrap:wrap}
@@ -292,3 +295,13 @@ button{font-family:inherit}
   color:var(--dim)}
 .nav .acct-out{display:block;padding:11px 14px;font-size:14px;color:var(--ink)}
 .nav .acct-out:hover{background:rgba(255,95,86,.12);color:var(--err,#ff5f56)}
+
+/* ── Отступы-утилиты ──────────────────────────────────────
+   Разовые зазоры в разметке форм. Раньше стояли в style="" у каждого
+   блока; класс делает то же, но стиль живёт в CSS, а не в шаблоне */
+.mt-10{margin-top:10px}
+.mt-12{margin-top:12px}
+.mt-14{margin-top:14px}
+.mt-18{margin-top:18px}
+.minw-0{min-width:0}
+.w-full{width:100%}

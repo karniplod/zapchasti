@@ -1,0 +1,28 @@
+/* Стили шаблона templates/admin/orders.html. Общее — в static/admin.css */
+
+.ord{background:var(--panel);border:1px solid var(--line);border-radius:11px;
+  padding:14px 16px;margin-bottom:10px}
+.ord .h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.ord .num{font-family:var(--mono);color:var(--amber);font-size:14px;font-weight:600}
+.ord .who{font-size:14.5px}
+.ord .who small{color:var(--dim);display:block;font-size:12px}
+.ord .total{margin-left:auto;font-size:15px;font-variant-numeric:tabular-nums}
+.ord .st{font-size:11px;padding:3px 9px;border-radius:5px;
+  background:var(--panel-2);color:var(--muted)}
+.ord .st.paid{background:rgba(76,195,138,.15);color:var(--ok)}
+.ord .st.new{background:rgba(255,194,51,.15);color:var(--amber)}
+.ord .st.cancelled{color:var(--err)}
+.ord .meta{font-size:13px;color:var(--dim);margin-top:5px}
+
+.lines{list-style:none;margin:11px 0 0;padding:0;display:grid;gap:6px}
+.lines li{display:flex;gap:10px;align-items:baseline;font-size:13.5px;
+  padding:7px 0;border-top:1px solid var(--line)}
+.lines .sku{font-family:var(--mono);font-size:12px;color:var(--dim);flex:0 0 108px}
+.lines .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lines .pr{font-variant-numeric:tabular-nums}
+.lines .where{color:var(--dim);font-size:12px}
+
+.ord select{padding:8px 10px;font-size:13.5px}
+.ord.done{opacity:.6}
+.ord .num[href^="tel:"]{text-decoration:none}
+.ord .num[href^="tel:"]:hover{text-decoration:underline}

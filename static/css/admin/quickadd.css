@@ -1,0 +1,31 @@
+/* Стили шаблона templates/admin/_quickadd.html. Общее — в static/admin.css */
+
+dialog.qa{border:0;border-radius:14px;padding:0;background:#181d25;color:#e8ecf2;
+  max-width:420px;width:calc(100% - 32px);box-shadow:0 24px 60px rgba(0,0,0,.55)}
+dialog.qa::backdrop{background:rgba(8,10,14,.7)}
+dialog.qa .head{padding:18px 20px 14px;border-bottom:1px solid #2b333f}
+dialog.qa h3{margin:0;font-size:17px;font-weight:600}
+dialog.qa .ctx{margin:4px 0 0;font-size:13px;color:#8794a6}
+dialog.qa .in{padding:18px 20px}
+dialog.qa label{display:block;font-size:12px;color:#8794a6;margin:0 0 5px}
+dialog.qa input,dialog.qa select{width:100%;background:#1f2630;border:1px solid #2b333f;
+  border-radius:8px;color:#e8ecf2;padding:11px;font-size:15px;font-family:inherit;outline:none}
+dialog.qa input:focus,dialog.qa select:focus{border-color:#ffc233}
+dialog.qa input[type=number]::-webkit-inner-spin-button,
+dialog.qa input[type=number]::-webkit-outer-spin-button{filter:invert(.85);opacity:.5}
+dialog.qa input[type=number]:hover::-webkit-inner-spin-button,
+dialog.qa input[type=number]:focus::-webkit-inner-spin-button{opacity:.85}
+dialog.qa .row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+dialog.qa .field{margin-top:14px}
+dialog.qa .field:first-child{margin-top:0}
+dialog.qa .warn{margin-top:14px;background:rgba(255,159,46,.1);border:1px solid rgba(255,159,46,.3);
+  color:#ffc98a;border-radius:8px;padding:10px 13px;font-size:13px;display:none}
+dialog.qa .warn.show{display:block}
+dialog.qa .foot{padding:14px 20px 18px;display:flex;gap:10px}
+dialog.qa button{border:0;border-radius:9px;padding:12px 20px;font-size:14px;
+  font-weight:600;cursor:pointer;font-family:inherit}
+dialog.qa .ok{background:#ffc233;color:#1a1408;flex:1}
+dialog.qa .ok:disabled{opacity:.35;cursor:not-allowed}
+dialog.qa .no{background:transparent;color:#8794a6;border:1px solid #2b333f}
+.qa-link{background:none;border:0;color:#ffc233;font-size:12px;cursor:pointer;
+  text-decoration:underline;padding:0;font-family:inherit;margin-left:8px}

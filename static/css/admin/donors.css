@@ -1,0 +1,24 @@
+/* Стили шаблона templates/admin/donors.html. Общее — в static/admin.css */
+
+.car{display:block;background:var(--panel);border:1px solid var(--line);border-radius:11px;
+padding:14px 16px;margin-bottom:10px}
+.car:hover{border-color:var(--dim)}
+.car .row{display:flex;gap:14px;align-items:flex-start}
+.car .info{flex:1;min-width:0}
+.car .h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.car .code{font-family:ui-monospace,monospace;color:var(--amber);font-size:14px;font-weight:600}
+.car .nm{font-size:15.5px}
+.car .st{margin-left:auto;font-size:11px;padding:3px 9px;border-radius:5px;
+background:var(--panel-2);color:var(--muted)}
+.car .st.work{background:rgba(255,159,46,.15);color:var(--warn)}
+.car .meta{font-size:13px;color:var(--dim);margin-top:5px}
+.car .nums{display:flex;gap:16px;margin-top:9px;font-size:13px;flex-wrap:wrap}
+.car .nums b{color:var(--ink);font-variant-numeric:tabular-nums}
+.car .profit{color:var(--ok)}.car .loss{color:var(--muted)}
+
+/* Кнопки — общие .btn из admin.css, тут только раскладка ряда */
+.edit{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+.edit label{font-size:11px;color:var(--dim);display:block;margin-bottom:4px}
+.edit input,.edit select{padding:9px;font-size:14px}
+.edit .wide{grid-column:1/-1}

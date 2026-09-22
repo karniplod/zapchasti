@@ -3,52 +3,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Сводка</title>
 <link rel="stylesheet" href="/static/admin.css?v={{ admin_css_version() }}">
-<style>
-.setup{background:rgba(255,194,51,.09);border:1px solid rgba(255,194,51,.35);
-border-radius:12px;padding:18px 20px;margin-bottom:22px}
-.setup h2{margin:0 0 8px;font-size:16px}
-.setup p{margin:0 0 10px;font-size:14px;color:var(--muted)}
-.setup code{background:#1f2630;border:1px solid var(--line);border-radius:6px;
-padding:3px 8px;font-size:12px;color:var(--amber);display:inline-block;word-break:break-all}
-.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
-gap:11px;margin-bottom:24px}
-.tile{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:14px 16px;display:block;transition:border-color .12s,transform .12s}
-.tile:hover{border-color:var(--dim);transform:translateY(-1px)}
-.tile.flat{cursor:default}.tile.flat:hover{border-color:var(--line);transform:none}
-.tile .n{font-size:26px;font-weight:700;line-height:1.15;font-variant-numeric:tabular-nums}
-.tile .l{font-size:12.5px;color:var(--muted);margin-top:2px}
-.tile.hot{border-color:rgba(255,159,46,.45);background:rgba(255,159,46,.07)}
-.tile.hot .n{color:var(--warn)}.tile.good .n{color:var(--ok)}
-.panel h3{margin:0 0 12px;font-size:15px}
-.car{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--line)}
-.car:last-child{border-bottom:0}
-.car .code{font-family:ui-monospace,monospace;font-size:13px;color:var(--amber);
-  flex:0 0 60px}
-.car .nm{flex:1;min-width:0;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.car .nm small{display:block;color:var(--dim);font-size:12px}
-.car .cnt{font-size:13px;color:var(--muted);white-space:nowrap}
-/* Ряд кнопок стоит в строке, а не под карточкой, поэтому верхний
-   отступ общего .actions-row тут не нужен */
-.car .actions-row{margin-top:0;gap:6px;flex:0 0 auto}
-@media(max-width:560px){
-  /* На узком экране строка машины переносится, кнопки уходят под неё */
-  .car{flex-wrap:wrap}
-  .car .actions-row{width:100%;margin-top:6px}
-}
-.empty-note{color:var(--dim);font-size:13.5px;margin:0}
-.reports-link{font-size:13.5px;color:var(--dim);margin:0 0 22px}
-.reports-link a{color:var(--amber);text-decoration:underline}
-.act{display:inline-block;background:var(--amber);color:#1a1408;border-radius:9px;
-padding:12px 20px;font-weight:600;font-size:14.5px;margin-bottom:22px}
-
-/* Плитка проблемы поясняет, чем она мешает: «12 без цены» само по себе
-   ни о чём не говорит тому, кто зашёл первый раз */
-.tiles.attention{grid-template-columns:repeat(auto-fill,minmax(184px,1fr))}
-.tile .why{margin-top:5px;font-size:11px;color:var(--dim);line-height:1.35}
-.all-clear{background:var(--panel);border:1px solid var(--line);
-  border-radius:11px;padding:16px 18px;color:var(--ok);font-size:14px;
-  margin-bottom:22px}
-</style></head><body>
+<link rel="stylesheet" href="{{ asset('css/admin/dashboard.css') }}"></head><body>
 
 {% include "admin/_nav.html" %}
 
@@ -62,16 +17,15 @@ padding:12px 20px;font-weight:600;font-size:14.5px;margin-bottom:22px}
   <code>python -m app.scripts.import_catalog --file spravochnik.xlsx --source avito --dry-run</code>
   {% endif %}
   {% if s.categories == 0 %}
-  <p style="margin-top:12px">Дерево категорий тоже пустое — без него нельзя добавить ни одной детали.</p>
+  <p class="mt-12">Дерево категорий тоже пустое — без него нельзя добавить ни одной детали.</p>
   <code>python -m app.scripts.seed_categories</code>
   {% endif %}
 </div>
 {% endif %}
 
-<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:22px">
-  <a class="act" style="margin:0" href="/intake">Принять автомобиль</a>
-  <a class="act" style="margin:0;background:transparent;color:var(--ink);
-     border:1px solid var(--line)" href="/stock/new">Принять запчасть</a>
+<div class="acts">
+  <a class="act" href="/intake">Принять автомобиль</a>
+  <a class="act act-ghost" href="/stock/new">Принять запчасть</a>
 </div>
 
 {# Требует внимания: показываем только то, что действительно требует.

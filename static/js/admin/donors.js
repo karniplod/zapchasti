@@ -1,0 +1,182 @@
+// Скрипт шаблона templates/admin/donors.html.
+
+const $ = id => document.getElementById(id);
+let status = '';
+
+const STATUSES = {accepted:'принята', dismantling:'в разборе',
+                  dismantled:'разобрана', scrapped:'утилизирована'};
+
+$('tabs').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  status = b.dataset.s;
+  [...$('tabs').children].forEach(x => x.classList.toggle('on', x === b));
+  load();
+};
+
+const money = v => v ? Number(v).toLocaleString('ru') + ' ₽' : '—';
+
+async function load(){
+  const rows = await (await fetch('/api/manage/donors' + (status ? `?status=${status}` : ''))).json();
+  if (!rows.length){ $('list').innerHTML = '<p class="blank">Машин нет</p>'; return; }
+  $('list').innerHTML = rows.map(c => {
+    const work = c.status === 'accepted' || c.status === 'dismantling';
+    const label = {accepted:'принята',dismantling:'в разборе',
+                   dismantled:'разобрана',scrapped:'утилизирована'}[c.status] || c.status;
+    // Выручка против себестоимости — главный вопрос по каждой машине
+    const profit = c.purchase_price
+      ? (Number(c.revenue) - Number(c.purchase_price)) : null;
+    return `<div class="car" data-id="${c.id}">
+      <div class="row">
+        ${c.photo ? `<span class="car-pic car-pic-lg">
+            <img src="${c.photo}" alt="" loading="lazy"></span>`
+                  : '<span class="car-pic car-pic-lg none"></span>'}
+        <div class="info">
+          <div class="h">
+            <span class="code">${c.code}</span>
+            <span class="nm">${c.brand} ${c.model}</span>
+            <span class="st ${work?'work':''}">${label}</span>
+          </div>
+          <div class="meta">${c.generation}${c.year?', '+c.year:''}${c.color?', '+c.color:''}
+            ${c.vin?' · '+c.vin:' · без VIN'}${c.branch?' · '+c.branch:''}</div>
+          <div class="nums">
+            <span>деталей <b>${c.parts}</b></span>
+            <span>продано <b>${c.sold}</b></span>
+            <span>закупка <b>${money(c.purchase_price)}</b></span>
+            <span>выручка <b>${money(c.revenue)}</b></span>
+            ${profit !== null ? `<span class="${profit>=0?'profit':'loss'}">
+              итог <b>${profit>=0?'+':''}${Number(profit).toLocaleString('ru')} ₽</b></span>` : ''}
+          </div>
+          <div class="actions-row">
+            <a class="btn" href="/donors/${c.id}/dismantle">${work ? 'Разбор' : 'Детали'}</a>
+            <button class="btn edit-btn">Изменить</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.querySelectorAll('.car').forEach(el => {
+    const car = rows.find(r => r.id === +el.dataset.id);
+    el.querySelector('.edit-btn').onclick = () => toggleEdit(el, car);
+  });
+
+  openFromHash(rows);
+}
+
+// Со сводки приходят по ссылке /donors#car-4 — сразу раскрываем эту
+// машину, иначе пришлось бы искать её глазами в общем списке.
+// Срабатывает один раз: load() вызывается ещё и после сохранения и при
+// смене фильтра, и форма открывалась бы снова поверх работы
+let hashHandled = false;
+
+function openFromHash(rows){
+  if (hashHandled) return;
+  const m = location.hash.match(/^#car-(\d+)$/);
+  if (!m) return;
+  hashHandled = true;
+  const el = document.querySelector(`.car[data-id="${m[1]}"]`);
+  const car = rows.find(r => r.id === +m[1]);
+  if (!el || !car) return;
+  toggleEdit(el, car);
+  el.scrollIntoView({behavior: 'smooth', block: 'center'});
+}
+
+const val = v => v === null || v === undefined ? '' : v;
+
+function toggleEdit(el, c){
+  const open = el.querySelector('.edit');
+  if (open){ open.remove(); el.querySelector('.edit-btn').textContent = 'Изменить'; return; }
+  el.querySelector('.edit-btn').textContent = 'Свернуть';
+
+  const box = document.createElement('div');
+  box.className = 'edit';
+  box.innerHTML = `
+    <div><label>VIN</label><input class="f-vin" maxlength="17" value="${val(c.vin)}"></div>
+    <div><label>Год</label><input type="number" class="f-year" min="1950" max="2030" value="${val(c.year)}"></div>
+    <div><label>Цвет</label><input class="f-color" value="${val(c.color)}"></div>
+    <div><label>Пробег, км</label><input type="number" class="f-mileage" min="0" value="${val(c.mileage_km)}"></div>
+    <div><label>Госномер</label><input class="f-plate" value="${val(c.plate)}"></div>
+    <div><label>Цена закупки, ₽</label><input type="number" class="f-price" min="0" step="100" value="${val(c.purchase_price)}"></div>
+    <div><label>Дата приёмки</label><input type="date" class="f-acc" max="${new Date().toISOString().slice(0,10)}" value="${val(c.accepted_at)}"></div>
+    <div><label>Статус</label><select class="f-status">
+      ${Object.entries(STATUSES).map(([k,v]) =>
+        `<option value="${k}" ${k===c.status?'selected':''}>${v}</option>`).join('')}
+    </select></div>
+    <div><label>Филиал</label><select class="f-branch"></select></div>
+    <div class="wide"><label>Модификация</label><select class="f-mod"></select></div>
+    <div class="wide"><label>Заметки</label><input class="f-notes" value="${val(c.notes)}"></div>
+    <div class="wide"><button class="btn btn-accent save">Сохранить</button></div>`;
+  el.appendChild(box);
+
+  // Модификации подгружаются по поколению машины: менять поколение
+  // отсюда нельзя, на нём висит применимость уже снятых деталей
+  fill(box.querySelector('.f-mod'), c.generation_id, c.modification_id);
+  fillBranches(box.querySelector('.f-branch'), c.branch_id);
+  box.querySelector('.save').onclick = () => save(el, c.id, box);
+}
+
+// Филиалы одни на все списки — грузим один раз за страницу
+let branchCache = null;
+async function fillBranches(sel, current){
+  if (!branchCache) branchCache = await (await fetch('/api/branches')).json();
+  sel.innerHTML = '';
+  branchCache.forEach(b => {
+    const o = new Option(b.label, b.id);
+    if (b.id === current) o.selected = true;
+    sel.add(o);
+  });
+}
+
+async function fill(sel, generationId, current){
+  sel.innerHTML = '<option value="">—</option>';
+  const rows = await (await fetch(`/api/modifications?generation_id=${generationId}`)).json();
+  rows.forEach(m => {
+    const label = [m.engine_volume && m.engine_volume + ' л', m.power_hp && m.power_hp + ' л.с.',
+                   m.transmission, m.drive, m.doors && m.doors + ' дв.'].filter(Boolean).join(' · ');
+    const o = new Option(label || 'без характеристик', m.id);
+    if (m.id === current) o.selected = true;
+    sel.add(o);
+  });
+}
+
+async function save(el, id, box){
+  const num = v => v === '' ? null : +v;
+  const str = v => v.trim() === '' ? null : v.trim();
+  const body = {
+    vin: str(box.querySelector('.f-vin').value),
+    year: num(box.querySelector('.f-year').value),
+    color: str(box.querySelector('.f-color').value),
+    mileage_km: num(box.querySelector('.f-mileage').value),
+    plate: str(box.querySelector('.f-plate').value),
+    purchase_price: num(box.querySelector('.f-price').value),
+    accepted_at: box.querySelector('.f-acc').value || null,
+    status: box.querySelector('.f-status').value,
+    modification_id: num(box.querySelector('.f-mod').value),
+    branch_id: num(box.querySelector('.f-branch').value),
+    notes: str(box.querySelector('.f-notes').value),
+  };
+  const btn = box.querySelector('.save');
+  btn.disabled = true;
+  try {
+    const r = await fetch(`/api/manage/donors/${id}`, {
+      method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    if (!r.ok){
+      const d = await r.json().catch(() => ({}));
+      toast(d.detail || 'Не удалось сохранить', 'err');
+      btn.disabled = false;
+      return;
+    }
+    toast('Сохранено', 'ok');
+    load();
+  } catch {
+    toast('Нет связи с сервером', 'err');
+    btn.disabled = false;
+  }
+}
+
+let tt;
+function toast(m, k=''){ const el = $('toast'); el.textContent = m;
+  el.className = `toast show ${k}`;
+  clearTimeout(tt); tt = setTimeout(() => el.className = 'toast', 2400); }
+
+load();

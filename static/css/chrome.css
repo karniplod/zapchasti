@@ -241,3 +241,7 @@ body:has(> main > .hero:first-child){--head-top-bg:var(--surface)}
 /* ── Подвал ────────────────────────────────────────────── */
 .site-foot{border-top:1px solid var(--line);margin-top:60px;padding:28px 0;
   background:var(--surface)}
+
+/* Пиксельная метка в самом верху документа: по ней скрипт шапки
+   (static/js/chrome.js) понимает, прокручена ли страница */
+.head-mark{position:absolute;top:0;left:0;width:1px;height:1px;pointer-events:none}

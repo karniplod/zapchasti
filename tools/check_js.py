@@ -1,22 +1,36 @@
-"""Синтаксис встроенных скриптов на страницах витрины и админки.
+"""Проверка страниц витрины и админки: скрипты и встроенное.
 
     python tools/check_js.py        (сервер должен быть поднят)
 
-Зачем: разметка и скрипты живут в одном шаблоне, и правка скрипта
-через замену текста легко превращает \\n внутри строки в настоящий
-перенос. Для JavaScript это синтаксическая ошибка: молча перестаёт
-работать весь блок, а внешне страница выглядит целой.
+Три проверки.
+
+1. Встроенного быть не должно. Стили живут в static/css, скрипты —
+   в static/js, данные для скриптов передаются data-атрибутами.
+   Поэтому в отданной странице ошибка — любой <style>, встроенный
+   <script>, атрибут style="" и обработчик вида onclick="".
+
+2. Всё подключённое должно отдаваться. asset() при отсутствующем файле
+   молча пишет v=0, и опечатка в пути видна только в консоли браузера:
+   страница открывается, а скрипт не работает. Поэтому каждый
+   <link rel=stylesheet> и <script src> со своего сервера запрашивается.
+
+3. Синтаксис всех файлов static/js. Правка через замену текста легко
+   превращает \\n внутри строки в настоящий перенос — для JavaScript это
+   ошибка, и молча перестаёт работать весь файл. Там же ищется то, что
+   не должно было уехать из шаблона: разметка Jinja ({{ }}, {% %}, {# #}),
+   которую в статическом файле никто не обработает, и style="" в
+   HTML-строках.
 
 Админские страницы без входа отвечают редиректом на форму входа, и
 проверялась бы форма, а не страница. Поэтому для них скрипт сам
 подписывает сессию первого администратора — тем же ключом, что сервер.
 
 Нужен пакет esprima: pip install esprima. Он знает язык только до
-ES2017, а в шаблонах есть catch без переменной, ?? и ?. — всё это
-браузеры давно понимают. Такие места перед разбором переписываются
-в равносильный старый синтаксис (см. downlevel): пропускать строку
-с ошибкой нельзя — парсер останавливается на первой, и настоящая
-ошибка ниже по скрипту осталась бы незамеченной.
+ES2017, а в коде есть catch без переменной, ?? и ?. — всё это браузеры
+давно понимают. Такие места перед разбором переписываются в равносильный
+старый синтаксис (см. downlevel): пропускать строку с ошибкой нельзя —
+парсер останавливается на первой, и настоящая ошибка ниже осталась бы
+незамеченной.
 """
 import asyncio
 import io
@@ -28,7 +42,8 @@ from pathlib import Path
 
 import esprima
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
 
 from sqlalchemy import text  # noqa: E402
 
@@ -42,6 +57,16 @@ STORE = ["/", "/catalog", "/cart", "/contacts", "/delivery", "/account/login", "
          "/login"]
 ADMIN = ["/admin", "/reports", "/api/reference/review/page", "/orders", "/parts",
          "/donors", "/intake", "/stock/new"]
+
+# Что считается встроенным в отданной странице
+INLINE = [
+    ("<style>", re.compile(r"<style[\s>]", re.I)),
+    ("встроенный <script>",
+     re.compile(r"<script(?![^>]*\bsrc=)(?![^>]*application/(?:ld\+)?json)[^>]*>", re.I)),
+    ('style=""', re.compile(r"<[a-z][^>]*\sstyle\s*=", re.I)),
+    ("обработчик on*=", re.compile(r"<[a-z][^>]*\son[a-z]+\s*=", re.I)),
+]
+ASSET = re.compile(r'<(?:script[^>]*\ssrc|link[^>]*\shref)="(/static/[^"]+)"', re.I)
 
 
 async def fixtures():
@@ -84,19 +109,25 @@ def downlevel(src: str) -> str:
     return src
 
 
-def check(path, html, out):
+def parse(name, src, out) -> int:
+    try:
+        esprima.parseScript(downlevel(src))
+        return 0
+    except Exception as e:
+        m = re.search(r"Line (\d+)", str(e))
+        line = src.split("\n")[int(m.group(1)) - 1].strip() if m else ""
+        print(f"  {name}: {e}", file=out)
+        print(f"      {line[:80]}", file=out)
+        return 1
+
+
+def inline_in(path, html, out) -> int:
     bad = 0
-    for n, src in enumerate(re.findall(r"<script[^>]*>(.*?)</script>", html, re.S), 1):
-        if not src.strip():
-            continue
-        try:
-            esprima.parseScript(downlevel(src))
-        except Exception as e:
-            m = re.search(r"Line (\d+)", str(e))
-            line = src.split("\n")[int(m.group(1)) - 1].strip() if m else ""
-            bad += 1
-            print(f"  {path} скрипт {n}: {e}", file=out)
-            print(f"      {line[:80]}", file=out)
+    for what, rx in INLINE:
+        hits = rx.findall(html)
+        if hits:
+            bad += len(hits)
+            print(f"  {path}: встроено — {what} ×{len(hits)}: {hits[0][:70]}", file=out)
     return bad
 
 
@@ -107,26 +138,48 @@ def main():
     pages = [(p, None) for p in STORE]
     if sku:
         pages.append((f"/p/{sku}", None))
-
     if admin:
         cookie = f"{settings.session_cookie}={signer.dumps({'uid': admin.id, 'role': admin.role})}"
-        admin_pages = ADMIN + ([f"/donors/{donor}/dismantle"] if donor else [])
-        pages += [(p, cookie) for p in admin_pages]
+        extra = [f"/donors/{donor}/dismantle", f"/donors/{donor}/labels"] if donor else []
+        pages += [(p, cookie) for p in ADMIN + extra]
     else:
         print("  администратора в базе нет — админские страницы не проверены", file=out)
 
     bad = 0
+    assets = set()
     for path, cookie in pages:
         status, html = fetch(path, cookie)
         # Админская страница, которая не открылась, — это не «ошибок нет»,
         # а «не проверено»: об этом надо сказать, а не промолчать
         if cookie and status != 200:
             bad += 1
-            print(f"  {path}: ответ {status}, скрипты не проверены", file=out)
+            print(f"  {path}: ответ {status}, страница не проверена", file=out)
             continue
-        bad += check(path, html, out)
+        bad += inline_in(path, html, out)
+        assets.update(ASSET.findall(html))
 
-    print(f"страниц проверено: {len(pages)}, настоящих ошибок: {bad}", file=out)
+    # Всё подключённое отдаётся
+    for url in sorted(assets):
+        status, _ = fetch(url)
+        if status != 200:
+            bad += 1
+            print(f"  {url}: ответ {status} — файл подключён, но не отдаётся", file=out)
+
+    # Синтаксис и остатки шаблона во всех файлах static/js
+    files = sorted((ROOT / "static" / "js").rglob("*.js"))
+    for f in files:
+        src = f.read_text(encoding="utf-8")
+        name = f.relative_to(ROOT).as_posix()
+        bad += parse(name, src, out)
+        for what, rx in [("разметка Jinja", re.compile(r"\{\{|\{%|\{#")),
+                         ('style="" в HTML-строке', re.compile(r"\sstyle\s*=\s*[\"'\\]"))]:
+            n = len(rx.findall(src))
+            if n:
+                bad += n
+                print(f"  {name}: {what} ×{n}", file=out)
+
+    print(f"страниц: {len(pages)}, подключённых файлов: {len(assets)}, "
+          f"файлов JS: {len(files)}, ошибок: {bad}", file=out)
     print(out.getvalue())
     sys.exit(1 if bad else 0)
 

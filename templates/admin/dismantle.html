@@ -5,64 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ 'Разбор' if open else 'Детали' }} {{ donor.code }}</title>
 <link rel="stylesheet" href="/static/admin.css?v={{ admin_css_version() }}">
-<style>
-.wrap{padding-bottom:140px}
-
-/* Шапка: разборщик всегда должен видеть, какую машину он режет */
-.top{position:sticky;top:0;z-index:20;background:var(--bg);
-     border-bottom:1px solid var(--line);padding:14px 0 12px;margin-bottom:18px}
-.top .car{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-.top .code{font-family:var(--mono);color:var(--amber);font-size:15px;font-weight:600}
-.top h1{margin:0;font-size:17px;font-weight:600}
-.top .meta{font-size:13px;color:var(--muted)}
-.counter{margin-left:auto;font-family:var(--mono);font-size:13px;color:var(--muted)}
-
-input,select,textarea,button{font-family:inherit;font-size:16px}
-.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-
-/* Список добавленного */
-.part{display:flex;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
-.part:last-child{border-bottom:0}
-.part img,.part .noimg{width:52px;height:52px;border-radius:8px;object-fit:cover;
-  border:1px solid var(--line);flex:0 0 52px}
-.part .noimg{display:flex;align-items:center;justify-content:center;
-  background:var(--panel-2);color:var(--warn);font-size:11px;text-align:center}
-.part .info{min-width:0;flex:1}
-.part .nm{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.part .sub{font-size:12px;color:var(--dim);font-family:var(--mono)}
-.part .pr{font-family:var(--mono);font-size:14px;white-space:nowrap}
-.tag{display:inline-block;font-size:11px;padding:2px 7px;border-radius:5px;
-     background:var(--panel-2);color:var(--muted);margin-left:6px}
-.tag.draft{background:rgba(255,159,46,.15);color:var(--warn)}
-.part .del{background:none;border:0;color:var(--dim);font-size:18px;cursor:pointer;padding:6px}
-/* Карандаш рядом с крестиком — тот же размер и цвет, чтобы пара
-   читалась как одно действие «править / удалить» */
-.part .edit-link{display:flex;align-items:center;color:var(--dim);padding:6px}
-.part .edit-link:hover{color:var(--ink)}
-.part .edit-link svg{width:17px;height:17px;display:block}
-.part .del:hover{color:var(--err)}
-
-/* Нижняя панель */
-.bar{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--panel);
-     border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-inset-bottom));
-     display:flex;gap:10px;align-items:center}
-.bar .inner{max-width:900px;margin:0 auto;display:flex;gap:10px;width:100%;align-items:center}
-.primary{padding:14px 20px;flex:1}
-.ghost{padding:14px 16px}
-.toast{bottom:96px}
-
-/* Тип детали: та же плитка, что у состояния, но в три колонки */
-.cond.origin{grid-template-columns:repeat(3,1fr)}
-.cond.origin button b{font-size:14px;font-weight:600}
-
-/* Разбор закрыт: форма спрятана, объясняем почему и что можно сделать */
-.closed{border-color:var(--warn);background:rgba(255,159,46,.08)}
-.closed p{margin:4px 0 0;font-size:14px;color:var(--muted);line-height:1.5}
-.closed .eyebrow{color:var(--warn)}
-
-</style>
+<link rel="stylesheet" href="{{ asset('css/admin/dismantle.css') }}">
 </head>
-<body>
+<body data-donor-id="{{ donor.id }}">
 {% include "admin/_nav.html" %}
 
 
@@ -107,14 +52,14 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
   <input type="file" id="photos" accept="image/*" multiple capture="environment" hidden>
   <div class="thumbs" id="thumbs"></div>
 
-  <div id="catBox" style="margin-top:18px">
+  <div id="catBox" class="mt-18">
     <label for="catSearch">Что это за деталь</label>
     <input type="text" id="catSearch" placeholder="дверь пер, фара, стойка…"
            autocomplete="off" spellcheck="false">
     <div class="results" id="catResults"></div>
   </div>
   <div class="picked" id="catPicked" hidden>
-    <div style="min-width:0">
+    <div class="minw-0">
       <div id="pickedName"></div>
       <div class="path" id="pickedPath"></div>
     </div>
@@ -123,7 +68,7 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
 
   {# Тип детали спрашиваем до номера: у оригинала, ОЕМ и аналога
      номера разных производителей, и подсказка ищет их по-разному #}
-  <div style="margin-top:18px">
+  <div class="mt-18">
     <label>Что за деталь</label>
     <div class="cond origin" id="origin">
       <button type="button" data-o="original" class="on">
@@ -133,14 +78,14 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
       <button type="button" data-o="aftermarket">
         <b>Аналог</b><small>ставили до нас</small></button>
     </div>
-    <div id="brandBox" hidden style="margin-top:10px">
+    <div id="brandBox" class="mt-10" hidden>
       <label for="partBrand">Бренд детали</label>
       <input type="text" id="partBrand" autocomplete="off"
              placeholder="Bosch, Hella, Valeo…">
     </div>
   </div>
 
-  <div style="margin-top:18px">
+  <div class="mt-18">
     <label>Состояние</label>
     <div class="cond" id="cond">
       <button type="button" data-c="A"><b>A</b><small>отличное</small></button>
@@ -150,21 +95,19 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
     </div>
   </div>
 
-  <div style="margin-top:18px">
+  <div class="mt-18">
     <label for="price">Цена, ₽</label>
     <input type="number" id="price" min="0" step="50" inputmode="numeric">
   </div>
 
-  <button type="button" id="moreBtn" style="margin-top:16px;background:none;
-    border:0;color:var(--amber);text-decoration:underline;font-size:14px;
-    cursor:pointer;padding:0;font-family:inherit">Ещё поля</button>
+  <button type="button" id="moreBtn" class="more-toggle">Ещё поля</button>
 
   <div id="more" hidden>
-    <div style="margin-top:14px">
+    <div class="mt-14">
       <label for="name">Название в каталоге</label>
       <input type="text" id="name" placeholder="по умолчанию — название узла">
     </div>
-    <div style="margin-top:14px">
+    <div class="mt-14">
       <label for="oem">Каталожный номер</label>
       <input type="text" id="oem" autocomplete="off">
       {# Уверенный номер подставляется сам, остальные — подсказкой.
@@ -172,11 +115,11 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
       <div class="oem-hints" id="oemHints" hidden></div>
       <p class="oem-warn" id="oemWarn" hidden></p>
     </div>
-    <div style="margin-top:14px">
+    <div class="mt-14">
       <label for="note">Дефекты</label>
       <input type="text" id="note" placeholder="скол на кромке 2 см">
     </div>
-    <div class="row" style="margin-top:14px">
+    <div class="row mt-14">
       <div><label for="loc">Место хранения</label>
         <input type="text" id="loc" placeholder="стеллаж Б-3" autocomplete="off"></div>
       <div><label for="weight">Вес, кг</label>
@@ -205,329 +148,7 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
 
 <div class="toast" id="toast"></div>
 
-<script>
-const DONOR_ID = {{ donor.id }};
-const $ = id => document.getElementById(id);
-
-let category = null, condition = null, files = [], lastLoc = '';
-let origin = 'original';   // снятая с машины деталь чаще всего оригинал
-
-// --- подсказка каталожного номера ------------------------------------
-// Ядро подсказки живёт на сервере (app/services/oem.py): оно опрашивает
-// источники и решает, можно ли подставить номер само. Здесь только показ
-let oemSource = null;   // какую подсказку нажали; пусто — набрали руками
-// Номер, который подставили сами. Пока человек его не тронул, он наш:
-// сменили деталь — убираем, иначе номер двери уедет вместе с фарой
-let oemAuto = null;
-let oemSeq = 0;         // ответ на старый запрос не должен лечь поверх нового
-
-function clearOemHints(){
-  $('oemHints').hidden = true;
-  $('oemHints').innerHTML = '';
-  $('oemWarn').hidden = true;
-  if (oemAuto && $('oem').value === oemAuto) $('oem').value = '';
-  oemAuto = null;
-  oemSource = null;
-}
-
-async function loadOemHints(categoryId){
-  clearOemHints();
-  const seq = ++oemSeq;
-  try {
-    const d = await (await fetch(
-      `/api/oem/suggest?category_id=${categoryId}&donor_id=${DONOR_ID}`)).json();
-    if (seq !== oemSeq || !d.candidates.length) return;
-
-    $('oemHints').innerHTML = '<span class="lbl">Было раньше:</span>' +
-      d.candidates.map(c => `
-        <button type="button" data-code="${c.code}" data-src="${c.sources[0]}"
-                class="${c.code === d.confident ? 'sure' : ''}"
-                title="${c.notes.join('; ')}">
-          ${c.code}<small>${c.sources.length > 1 ? c.sources.length + ' источника' : c.notes[0]}</small>
-        </button>`).join('');
-
-    $('oemHints').querySelectorAll('button').forEach(b => b.onclick = () => {
-      $('oem').value = b.dataset.code;
-      oemSource = b.dataset.src;
-      oemAuto = null;   // выбрал человек — теперь это его номер
-      $('oemHints').querySelectorAll('button').forEach(x => x.classList.remove('sure'));
-      b.classList.add('sure');
-    });
-
-    // Уверенный номер (сошлись два независимых источника) ставим сами,
-    // но только в пустое поле: набранное человеком не перезаписываем
-    const sure = d.candidates.find(c => c.code === d.confident);
-    if (sure && !$('oem').value.trim()){
-      $('oem').value = sure.code;
-      oemAuto = sure.code;
-      oemSource = sure.sources[0];
-      $('oemHints').insertAdjacentHTML('beforeend',
-        '<span class="lbl">подставлен сам — проверьте</span>');
-    }
-    $('oemHints').hidden = false;
-  } catch { /* без подсказки приёмка работает как раньше */ }
-}
-
-// Набрал руками — источник больше не подсказка
-$('oem').addEventListener('input', () => { oemSource = null; oemAuto = null; });
-
-// --- поиск категории -------------------------------------------------
-let searchTimer;
-$('catSearch').addEventListener('input', e => {
-  clearTimeout(searchTimer);
-  const q = e.target.value.trim();
-  searchTimer = setTimeout(() => searchCats(q), 200);
-});
-$('catSearch').addEventListener('focus', () => searchCats($('catSearch').value.trim()));
-
-
-// Путь до родителя: имя узла и так в заголовке строки
-function parentPath(path){
-  const parts = (path || '').split(' / ');
-  return parts.length > 1 ? parts.slice(0, -1).join(' / ') : '';
-}
-
-async function searchCats(q){
-  const rows = await (await fetch('/api/part-categories' + (q ? `?q=${encodeURIComponent(q)}` : ''))).json();
-  const box = $('catResults');
-  box.innerHTML = '';
-  rows.forEach(r => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.innerHTML = `${r.name}<span class="path">${parentPath(r.path)}</span>`;
-    b.onclick = () => pick(r);
-    box.appendChild(b);
-  });
-  box.classList.toggle('open', rows.length > 0);
-}
-
-function pick(r){
-  category = r;
-  loadOemHints(r.id);
-  $('catBox').hidden = true;
-  $('catPicked').hidden = false;
-  $('pickedName').textContent = r.name;
-  $('pickedPath').textContent = parentPath(r.path);
-  if (!$('name').value) $('name').value = r.name;
-  $('catResults').classList.remove('open');
-  refresh();
-}
-
-$('catClear').onclick = () => {
-  category = null;
-  clearOemHints();
-  $('catBox').hidden = false;
-  $('catPicked').hidden = true;
-  $('catSearch').value = '';
-  $('catSearch').focus();
-  refresh();
-};
-
-// --- состояние -------------------------------------------------------
-// Бренд нужен только там, где номер не автозаводской
-$('origin').addEventListener('click', e => {
-  const b = e.target.closest('button');
-  if (!b) return;
-  origin = b.dataset.o;
-  [...$('origin').children].forEach(x => x.classList.toggle('on', x === b));
-  $('brandBox').hidden = origin === 'original';
-  if (origin === 'original') $('partBrand').value = '';
-});
-
-$('cond').addEventListener('click', e => {
-  const b = e.target.closest('button');
-  if (!b) return;
-  condition = b.dataset.c;
-  [...$('cond').children].forEach(x => x.classList.toggle('on', x === b));
-  refresh();
-});
-
-// --- фото ------------------------------------------------------------
-$('shoot').onclick = () => $('photos').click();
-$('photos').addEventListener('change', async e => {
-  // Кадрируем по одному: разборщик сам решает, что войдёт в карточку
-  for (const f of e.target.files){
-    const blob = await cropImage(f);
-    if (blob) files.push(new File([blob], 'photo.jpg', {type:'image/jpeg'}));
-  }
-  e.target.value = '';
-  drawThumbs();
-  refresh();
-});
-
-function drawThumbs(){
-  const box = $('thumbs');
-  box.innerHTML = '';
-  files.forEach((f, i) => {
-    const fig = document.createElement('figure');
-    const img = document.createElement('img');
-    img.src = URL.createObjectURL(f);
-    img.onload = () => URL.revokeObjectURL(img.src);
-    const del = document.createElement('button');
-    del.textContent = '×';
-    del.setAttribute('aria-label', 'Убрать фото');
-    del.onclick = () => { files.splice(i, 1); drawThumbs(); refresh(); };
-    fig.append(img, del);
-    box.appendChild(fig);
-  });
-  $('shoot').textContent = files.length ? `Добавить ещё фото (${files.length})` : 'Снять деталь';
-  $('shoot').classList.toggle('empty-warn', files.length === 0);
-}
-
-// --- сохранение ------------------------------------------------------
-function refresh(){
-  $('save').disabled = !(category && condition);
-  if (!category)        $('save').textContent = 'Выберите деталь';
-  else if (!condition)  $('save').textContent = 'Укажите состояние';
-  else if (!files.length) $('save').textContent = 'Добавить без фото (черновик)';
-  else                  $('save').textContent = 'Добавить деталь';
-}
-$('name').addEventListener('input', refresh);
-
-$('save').onclick = async () => {
-  $('save').disabled = true;
-  const fd = new FormData();
-  fd.append('donor_id', DONOR_ID);
-  fd.append('category_id', category.id);
-  fd.append('name', $('name').value.trim() || category.name);
-  fd.append('condition', condition);
-  ['oem','price','loc','weight'].forEach(id => {
-    const map = {oem:'oem_number', price:'price', loc:'location', weight:'weight_kg'};
-    if ($(id).value) fd.append(map[id], $(id).value);
-  });
-  if ($('oem').value && oemSource) fd.append('oem_source', oemSource);
-  fd.append('origin', origin);
-  if ($('partBrand').value.trim()) fd.append('part_brand', $('partBrand').value.trim());
-  if ($('note').value) fd.append('condition_note', $('note').value);
-  files.forEach(f => fd.append('files', f));
-
-  try {
-    const r = await fetch('/api/parts', {method:'POST', body: fd});
-    if (!r.ok){
-      const e = await r.json().catch(() => ({}));
-      toast(e.detail || 'Сохранить не удалось', 'err');
-      $('save').disabled = false;
-      return;
-    }
-    const p = await r.json();
-    let msg = p.sku;
-    if (p.status === 'draft') msg += ' — черновик, нужно фото';
-    else if (p.applicability_rows) msg += ` — применимость: ${p.applicability_rows} модиф.`;
-    toast(msg, p.status === 'draft' ? '' : 'ok');
-    clearForm();
-    loadParts();
-  } catch {
-    toast('Нет связи. Не закрывайте страницу', 'err');
-    $('save').disabled = false;
-  }
-};
-
-function clearForm(){
-  // Место хранения и состояние не сбрасываем: подряд снимают
-  // однотипные детали и кладут на ту же полку
-  lastLoc = $('loc').value;
-  ['name','oem','price','note','weight','partBrand'].forEach(id => $(id).value = '');
-  clearOemHints();   // подсказки прошлой детали к следующей не относятся
-  origin = 'original';
-  [...$('origin').children].forEach((x, i) => x.classList.toggle('on', i === 0));
-  $('brandBox').hidden = true;
-  category = null;
-  $('catBox').hidden = false; $('catPicked').hidden = true;
-  $('catSearch').value = '';
-  files = []; drawThumbs();
-  $('loc').value = lastLoc;
-  refresh();
-  $('catSearch').focus();
-  window.scrollTo({top:0, behavior:'smooth'});
-}
-
-// --- список ----------------------------------------------------------
-async function loadParts(){
-  const rows = await (await fetch(`/api/donors/${DONOR_ID}/parts`)).json();
-  $('counter').textContent = `${rows.length} дет.`;
-  const list = $('list');
-  if (!rows.length){
-    list.innerHTML = '<p style="color:var(--dim);font-size:14px;margin:0">Пока пусто. Первая снятая деталь появится здесь.</p>';
-    return;
-  }
-  list.innerHTML = '';
-  rows.forEach(p => {
-    const el = document.createElement('div');
-    el.className = 'part';
-    el.innerHTML = `
-      ${p.photo ? `<img src="${p.photo}" alt="">` : '<div class="noimg">нет фото</div>'}
-      <div class="info">
-        <div class="nm">${p.name}
-          ${p.status === 'draft' ? '<span class="tag draft">черновик</span>' : ''}
-          <span class="tag">${p.condition}</span>
-        </div>
-        <div class="sub">${p.sku}${p.location ? ' · ' + p.location : ''}</div>
-      </div>
-      <div class="pr">${p.price ? Number(p.price).toLocaleString('ru') + ' ₽' : '—'}</div>
-      <!-- Правка живёт на странице деталей: там весь редактор целиком,
-           тащить его в рабочее место разборщика незачем -->
-      <a class="edit-link" href="/parts?q=${encodeURIComponent(p.sku)}"
-         title="Изменить" aria-label="Изменить деталь">
-        <svg viewBox="0 0 20 20" aria-hidden="true">
-          <path d="M13.4 2.9l3.7 3.7L7.3 16.4l-4.4.7.7-4.4z" fill="none"
-                stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
-        </svg>
-      </a>
-      <button class="del" aria-label="Удалить деталь">×</button>`;
-    el.querySelector('.del').onclick = async () => {
-      if (!confirm(`Удалить ${p.sku}?`)) return;
-      const r = await fetch(`/api/parts/${p.id}`, {method:'DELETE'});
-      if (r.ok) loadParts();
-      else toast((await r.json()).detail, 'err');
-    };
-    list.appendChild(el);
-  });
-}
-
-// --- нижние кнопки ---------------------------------------------------
-$('labels').onclick = () => window.open(`/donors/${DONOR_ID}/labels`, '_blank');
-
-$('finish').onclick = async () => {
-  if (!confirm('Закрыть разбор? Машина уйдёт в статус «разобрана».')) return;
-  const r = await fetch(`/api/donors/${DONOR_ID}/finish`, {method:'POST'});
-  const d = await r.json();
-  if (!r.ok) toast(d.detail, 'err');
-  else { toast('Разбор закрыт', 'ok'); setTimeout(() => location.href = '/admin', 900); }
-};
-
-// Вернуть в разбор: страница перезагружается уже с формой
-$('reopen').onclick = async () => {
-  if (!confirm('Вернуть машину в разбор? Она снова станет «в разборе», '
-             + 'и её нужно будет закрыть заново.')) return;
-  const r = await fetch(`/api/donors/${DONOR_ID}/reopen`, {method:'POST'});
-  const d = await r.json().catch(() => ({}));
-  if (!r.ok) toast(d.detail || 'Не удалось', 'err');
-  else location.reload();
-};
-
-// --- прочее ----------------------------------------------------------
-let toastTimer;
-function toast(msg, kind = ''){
-  const t = $('toast');
-  t.textContent = msg;
-  t.className = `toast show ${kind}`;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.className = 'toast', 2600);
-}
-
-document.addEventListener('click', e => {
-  if (!e.target.closest('#catBox')) $('catResults').classList.remove('open');
-});
-
-$('moreBtn').onclick = () => {
-  const m = $('more');
-  m.hidden = !m.hidden;
-  $('moreBtn').textContent = m.hidden ? 'Ещё поля' : 'Скрыть';
-};
-
-drawThumbs();
-loadParts();
-</script>
+<script src="{{ asset('js/admin/dismantle.js') }}"></script>
 {% include "admin/_cropper.html" %}
 </body>
 </html>
