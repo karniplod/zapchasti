@@ -677,19 +677,29 @@ def _abc(name: str) -> str:
     return name.lower().replace("ё", "е")
 
 
+# Раздел справочника, чьи дети — узлы автомобиля (Кузов, Двигатель…).
+# Слаг, а не название: его строит scripts/seed_categories.py по пути
+# в дереве, и переименование подписи на него не влияет
+CAR_NODES_SLUG = "zapchasti-i-aksessuary-zapchasti-dlya-avtomobiley"
+
+
 @router.get("/api/catalog/nodes")
 async def catalog_nodes(session: AsyncSession = Depends(get_session)):
     """Меню «Все категории» в шапке: узлы и детали внутри них.
 
     Узел — тот же, что в фильтре «Узел» каталога: непосредственный
     родитель категории детали (Кузов, Автосвет; у шин и аудио — своя
-    группа). Считаются только опубликованные детали в наличии, и узел
-    без них не показывается: пункт меню, ведущий в пустую выдачу,
-    раздражает сильнее, чем его отсутствие. Появится деталь — появится
-    и узел.
+    группа). Считаются только опубликованные детали в наличии.
+
+    Узлы автомобиля (13, из раздела CAR_NODES_SLUG) в меню есть всегда —
+    это карта того, что вообще бывает на разборе; пустой приходит
+    с cnt = 0, и меню показывает его бледным и без ссылки. Прочие группы
+    (шины, аудио, аксессуары) появляются, только когда в них есть детали:
+    их не ищут, а натыкаются.
     """
-    rows = await session.execute(
-        text("""
+    rows = (
+        await session.execute(
+            text("""
         SELECT coalesce(parent.id, c.id)     AS node_id,
                coalesce(parent.name, c.name) AS node_name,
                c.id AS leaf_id, c.name AS leaf_name, count(*) AS cnt
@@ -699,9 +709,21 @@ async def catalog_nodes(session: AsyncSession = Depends(get_session)):
          WHERE p.status = 'in_stock' AND p.published
          GROUP BY 1, 2, 3, 4
     """)
-    )
+        )
+    ).all()
 
-    nodes: dict[int, dict] = {}
+    nodes: dict[int, dict] = {
+        r.id: {"id": r.id, "name": r.name, "cnt": 0, "items": []}
+        for r in await session.execute(
+            text("""
+            SELECT c.id, c.name
+              FROM part_categories c
+              JOIN part_categories sec ON sec.id = c.parent_id
+             WHERE sec.slug = :slug AND NOT c.is_placeholder
+        """),
+            {"slug": CAR_NODES_SLUG},
+        )
+    }
     for r in rows:
         node = nodes.setdefault(
             r.node_id, {"id": r.node_id, "name": r.node_name, "cnt": 0, "items": []}

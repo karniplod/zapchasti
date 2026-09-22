@@ -136,6 +136,11 @@ document.querySelectorAll('.brand img').forEach(img => {
       return;
     }
     menu.innerHTML = '<div class="cm-grid">' + data.nodes.map(n => {
+      // Узел автомобиля без деталей есть в меню всегда — это карта того,
+      // что бывает на разборе, — но без ссылки: в пустую выдачу не ведём
+      if (!n.cnt) return '<section class="cm-node cm-empty">' +
+        `<span class="cm-title">${esc(n.name)}</span>` +
+        '<span class="cm-none">пока нет в наличии</span></section>';
       const items = n.items.slice(0, SHOW).map(i => link(i.id, i.name, i.cnt)).join('');
       const more = n.items.length > SHOW
         ? `<a class="cm-more" href="/catalog?category=${n.id}">ещё ${n.items.length - SHOW}</a>`
