@@ -179,6 +179,11 @@
   color:var(--accent);text-decoration:underline;cursor:pointer}
 
 /* ── Выдача ────────────────────────────────────────────── */
+/* Подпись «Детали с машины …» над выдачей: текст слева, выход справа */
+#donorNote .notice{margin-bottom:16px}
+.donor-note{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.donor-note > div{flex:1;min-width:220px}
+.donor-note .btn{flex:0 0 auto}
 /* Поле и кнопка в строку: кнопка нужна тем, кто не жмёт Enter,
    и она же показывает, что набор текста — это ещё не поиск */
 .search{display:flex;gap:10px;margin-bottom:16px}

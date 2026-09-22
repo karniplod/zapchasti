@@ -485,6 +485,7 @@ async def catalog_parts(
     price_max: int | None = None,
     q: str | None = None,
     city: str | None = None,
+    donor: str | None = Query(None, description="Код машины: D-0014"),
     sort: str = "new",
     page: int = 1,
     session: AsyncSession = Depends(get_session),
@@ -495,6 +496,11 @@ async def catalog_parts(
 
     if generation_id:
         where = [FITS_CLAUSE]
+    if donor:
+        # Детали с одной конкретной машины — «Машины на разборе» на главной
+        # и «все детали с этой машины» в карточке детали
+        where.append("d.code = :donor")
+        params["donor"] = donor.strip().upper()
     if brand_id:
         where.append("b.id = :brand")
         params["brand"] = brand_id
@@ -746,12 +752,36 @@ async def catalog_nodes(session: AsyncSession = Depends(get_session)):
 async def catalog_facets(
     generation_id: int | None = None,
     modification_id: int | None = None,
+    donor: str | None = None,
     session: AsyncSession = Depends(get_session),
 ):
     """Счётчики для боковой панели. Категория с нулём не показывается —
-    пустой фильтр раздражает сильнее, чем отсутствие фильтра."""
+    пустой фильтр раздражает сильнее, чем отсутствие фильтра.
+
+    С donor счётчики считаются по деталям одной машины, а в ответе есть
+    сама машина — каталогу нужно подписать, чья это выборка. Машины нет
+    или она не на витрине (не разбирается) — donor в ответе null."""
     params = {"gen": generation_id, "mod": modification_id}
     where = FITS_CLAUSE if generation_id else "p.status = 'in_stock' AND p.published"
+    car = None
+    if donor:
+        params["donor"] = donor.strip().upper()
+        where += " AND d.code = :donor"
+        car = (
+            await session.execute(
+                text("""
+            SELECT d.code, b.name AS brand, m.name AS model, g.name AS generation,
+                   g.body_type, d.year
+              FROM donors d
+              JOIN generations g ON g.id = d.generation_id
+              JOIN models m      ON m.id = g.model_id
+              JOIN brands b      ON b.id = m.brand_id
+             WHERE d.code = :donor
+               AND d.status IN ('dismantling', 'dismantled')
+        """),
+                {"donor": params["donor"]},
+            )
+        ).first()
 
     cats = await session.execute(
         text(f"""
@@ -796,6 +826,7 @@ async def catalog_facets(
             {**dict(r._mapping), "label": CONDITION_LABELS.get(r.condition)} for r in conds
         ],
         "price": dict(price._mapping) if price else {"min": 0, "max": 0},
+        "donor": dict(car._mapping) if car else None,
     }
 
 

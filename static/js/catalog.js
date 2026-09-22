@@ -6,7 +6,17 @@ const esc = s => String(s).replace(/[&<>"]/g,
 // Деталь внутри узла, выбранная в меню шапки: {id, name, cnt}
 let pinnedCat = null;
 const state = {generation_id:null, modification_id:null, category_id:null,
-  condition:[], price_min:null, price_max:null, q:'', city:null, sort:'new', page:1};
+  condition:[], price_min:null, price_max:null, q:'', city:null, sort:'new', page:1,
+  donor:null};   // код машины: детали с одной машины (/catalog?donor=D-0014)
+
+// Адрес повторяет выборку: машину и узел. Обновили страницу или отправили
+// ссылку — открылось то же самое
+function syncUrl(){
+  const p = new URLSearchParams();
+  if (state.donor) p.set('donor', state.donor);
+  if (state.category_id) p.set('category', state.category_id);
+  history.replaceState(null, '', '/catalog' + (p.toString() ? '?' + p : ''));
+}
 
 // ── VIN ──────────────────────────────────────────────────
 $('vin').addEventListener('input', e => {
@@ -159,6 +169,8 @@ $('pGo').onclick = () => {
 function openCatalog(){
   $('side').hidden = false;
   state.page = 1; state.category_id = null; state.condition = [];
+  // Подпись тоже: иначе над выдачей новой машины висело бы имя прежней
+  if (state.donor){ state.donor = null; syncUrl(); $('donorNote').innerHTML = ''; }
   // Ждём город: иначе при быстром выборе машины первая выдача уйдёт
   // без фильтра и тут же перерисуется — заметное мигание
   loadFacets(); loadParts();
@@ -170,7 +182,9 @@ async function loadFacets(){
   const p = new URLSearchParams();
   if (state.generation_id) p.set('generation_id', state.generation_id);
   if (state.modification_id) p.set('modification_id', state.modification_id);
+  if (state.donor) p.set('donor', state.donor);
   const f = await (await fetch('/api/catalog/facets?'+p)).json();
+  if (state.donor) showDonor(f.donor);
 
   // Деталь внутри узла (пришли из меню «Все категории» с ?category=)
   // в списке узлов не значится — ставим её первой строкой, иначе не видно,
@@ -186,7 +200,7 @@ async function loadFacets(){
   $('cats').querySelectorAll('input').forEach(i => i.onchange = () => {
     state.category_id = +i.value; state.page = 1; loadParts();
     // Адрес следит за выбором: обновили страницу — фильтр тот же
-    history.replaceState(null, '', '/catalog?category=' + state.category_id);
+    syncUrl();
   });
   // Выбор переживает перерисовку счётчиков — например, после VIN
   const on = state.category_id &&
@@ -262,7 +276,7 @@ $('reset').onclick = () => {
   Object.assign(state, {category_id:null, condition:[], price_min:null,
     price_max:null, q:'', page:1});
   $('q').value = ''; $('pmin').value = ''; $('pmax').value = '';
-  if (location.search.includes('category=')) history.replaceState(null, '', '/catalog');
+  syncUrl();
   loadFacets(); loadParts();
 };
 
@@ -379,6 +393,14 @@ async function loadFresh(){
     }
     if (run !== freshRun) return;
 
+    // Выбрана машина (VIN, марка, машина с главной) или узел из меню —
+    // свежие со всего склада только заслонили бы результат. Проверяем
+    // здесь, после ответа: загрузка стартует раньше, чем каталог разберёт
+    // адрес, и раньше, чем ответит подбор по VIN
+    if (state.donor || state.category_id || state.generation_id){
+      $('fresh').hidden = true;
+      return;
+    }
     $('fresh').hidden = !d.items.length;
     if (!d.items.length) return;
 
@@ -432,6 +454,29 @@ async function openCategory(id){
   document.querySelector('.layout').scrollIntoView({block: 'start'});
 }
 
+// Чьи детали показаны. Без подписи выдача из пяти деталей выглядит
+// как пустой склад, а не как «всё, что сняли с этой машины»
+function showDonor(car){
+  const box = $('donorNote');
+  if (!car){
+    // Машины нет или она уже не на витрине — показываем весь склад
+    state.donor = null; syncUrl(); loadFacets(); loadParts();
+    box.innerHTML = '<div class="notice notice-warn">Этой машины нет на витрине — ' +
+                    'показан весь каталог.</div>';
+    return;
+  }
+  box.innerHTML = `<div class="notice notice-accent donor-note">
+    <div><h3>Детали с машины ${esc(car.brand)} ${esc(car.model)}</h3>
+    <span class="hint">${esc(car.generation)}${car.body_type ? ', ' + esc(car.body_type) : ''}` +
+    `${car.year ? ' · ' + car.year + ' год' : ''} · ${esc(car.code)}. ` +
+    `Возьмёте комплектом — отправим одной посылкой.</span></div>
+    <button class="btn btn-ghost btn-sm" id="donorOff">Детали со всех машин</button></div>`;
+  $('donorOff').onclick = () => {
+    state.donor = null; state.page = 1; box.innerHTML = '';
+    syncUrl(); loadFacets(); loadParts();
+  };
+}
+
 function showEverything(){
   $('side').hidden = false;
   state.page = 1;
@@ -445,11 +490,18 @@ const fromSearch = new URLSearchParams(location.search).get('q');
 
 // Узел или деталь из меню «Все категории»: /catalog?category=677
 const fromMenu = +new URLSearchParams(location.search).get('category') || null;
+// Машина с главной или из карточки детали: /catalog?donor=D-0014
+const fromDonor = new URLSearchParams(location.search).get('donor');
 
 if (fromHome){
   $('vin').value = fromHome;
   $('vinGo').disabled = fromHome.length !== 17;
   findByVin();
+} else if (fromDonor){
+  state.donor = fromDonor.trim().toUpperCase();
+  if (fromMenu) state.category_id = fromMenu;
+  showEverything();
+  document.querySelector('.layout').scrollIntoView({block: 'start'});
 } else if (fromMenu){
   openCategory(fromMenu);
 } else {
