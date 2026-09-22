@@ -10,8 +10,44 @@
    ───────────────────────────────────────────────────────── */
 
 /* ── Шапка ─────────────────────────────────────────────── */
-.site-head{background:var(--surface);border-bottom:1px solid var(--line);
-  position:sticky;top:0;z-index:40}
+/* Два состояния.
+   В самом верху страницы шапка — часть страницы: без линии и тени,
+   цвета того, что прямо под ней. Начали прокрутку — она отделяется:
+   проявляется линия, мягкая тень и матовое стекло, сквозь которое
+   размыто видно уезжающий контент.
+
+   Класс .at-top ставит скрипт в _base.html. Без скрипта шапка остаётся
+   отделённой, как была, — это безопасное состояние: линия лишней
+   не бывает, а вот шапка, слившаяся с прокрученным контентом, — да. */
+.site-head{position:sticky;top:0;z-index:40;
+  background:var(--surface);border-bottom:1px solid var(--line);
+  box-shadow:0 10px 30px -22px rgba(18,22,27,.45)}
+
+/* Цвет «вплавленного» состояния — фон первого блока страницы. Белый
+   блок .hero открывает главную, каталог и информационные страницы;
+   у остальных под шапкой сразу серый фон. Через :has, а не скриптом:
+   так цвет известен к первой отрисовке и не мигает при загрузке */
+body{--head-top-bg:var(--bg)}
+body:has(> main > .hero:first-child){--head-top-bg:var(--surface)}
+
+.site-head.at-top{background:var(--head-top-bg);
+  border-bottom-color:transparent;
+  /* Та же тень, только прозрачная: переход гасит её, а не обрезает */
+  box-shadow:0 10px 30px -22px rgba(18,22,27,0)}
+
+/* Переходы включаются со второго кадра: иначе при загрузке шапка
+   успевала бы показать линию и плавно её «стереть» */
+.site-head.ready{transition:background-color .45s ease, border-color .45s ease,
+  box-shadow .45s ease, -webkit-backdrop-filter .45s ease, backdrop-filter .45s ease}
+
+@supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .site-head:not(.at-top){
+    /* color-mix не поддержан — правило отбрасывается, остаётся
+       сплошной белый фон; стекло здесь украшение, не функция */
+    background:color-mix(in srgb, var(--surface) 78%, transparent);
+    -webkit-backdrop-filter:saturate(1.6) blur(14px);
+    backdrop-filter:saturate(1.6) blur(14px)}
+}
 /* Шапка на всю ширину окна, а не по колонке контента: меню и корзина
    уходят к краям экрана. Отступ растёт с шириной, чтобы на мониторе
    логотип не прилипал к рамке, а на телефоне не съедал место */
