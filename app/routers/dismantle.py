@@ -60,14 +60,19 @@ async def dismantle_page(
     donor = await fetch_donor(session, donor_id)
     if not donor:
         raise HTTPException(404, "Донор не найден")
-    return templates.TemplateResponse("admin/dismantle.html", {"request": request, "donor": donor})
+    # У закрытой машины та же страница, но без формы: список снятого
+    # и этикетки нужны и после разбора
+    return templates.TemplateResponse(
+        "admin/dismantle.html",
+        {"request": request, "donor": donor, "open": donor["status"] in OPEN_STATUSES},
+    )
 
 
 async def fetch_donor(session: AsyncSession, donor_id: int):
     row = (
         await session.execute(
             text("""
-        SELECT d.id, d.code, d.vin, d.year, d.color, d.status,
+        SELECT d.id, d.code, d.vin, d.year, d.color, d.status::text AS status,
                b.name AS brand, m.name AS model, g.name AS generation,
                g.body_type,
                (SELECT count(*) FROM parts p WHERE p.donor_id = d.id) AS parts_count
@@ -81,6 +86,29 @@ async def fetch_donor(session: AsyncSession, donor_id: int):
         )
     ).first()
     return dict(row._mapping) if row else None
+
+
+# Снимать детали можно, пока машина принята или в разборе. Разобранную
+# возвращают в разбор явно — если что-то забыли снять; утилизированную
+# нет: кузов сдан, снимать с него нечего
+OPEN_STATUSES = {"accepted", "dismantling"}
+
+
+async def donor_status(session: AsyncSession, donor_id: int) -> str | None:
+    return (
+        await session.execute(
+            text("SELECT status::text FROM donors WHERE id = :id"), {"id": donor_id}
+        )
+    ).scalar()
+
+
+def closed_or_missing(status: str | None) -> HTTPException:
+    """Почему к машине нельзя добавить деталь — словами для разборщика."""
+    if status is None:
+        return HTTPException(404, "Донор не найден")
+    if status == "scrapped":
+        return HTTPException(409, "Машина утилизирована — снимать с неё нечего")
+    return HTTPException(409, "Разбор закрыт — верните машину в разбор")
 
 
 @router.get("/api/donors/{donor_id}")
@@ -244,13 +272,16 @@ async def create_part(
                              THEN 'dismantling'::donor_status
                              ELSE status END
          WHERE id = :id
+           -- Проверка статуса здесь, а не отдельным SELECT до UPDATE:
+           -- между ними машину успели бы закрыть с соседнего телефона
+           AND status IN ('accepted', 'dismantling')
         RETURNING code, part_counter, generation_id, modification_id
     """),
             {"id": donor_id},
         )
     ).first()
     if not row:
-        raise HTTPException(404, "Донор не найден")
+        raise closed_or_missing(await donor_status(session, donor_id))
 
     sku = f"{row.code}-{row.part_counter:04d}"
 
@@ -491,11 +522,52 @@ async def finish_donor(
     if drafts:
         raise HTTPException(409, f"Осталось черновиков без фото: {drafts}")
 
-    await session.execute(
+    # Закрыть можно только открытый разбор: повторное нажатие на
+    # разобранной машине — не ошибка данных, но и не действие; а утилизированную
+    # «закрытие» вернуло бы из утилизированных в разобранные
+    closed = await session.execute(
         text("""
-        UPDATE donors SET status = 'dismantled' WHERE id = :d
+        UPDATE donors SET status = 'dismantled'
+         WHERE id = :d AND status IN ('accepted', 'dismantling')
+        RETURNING id
     """),
         {"d": donor_id},
     )
+    if not closed.first():
+        status = await donor_status(session, donor_id)
+        if status is None:
+            raise HTTPException(404, "Донор не найден")
+        raise HTTPException(409, "Машина утилизирована" if status == "scrapped"
+                            else "Разбор уже закрыт")
     await session.commit()
     return {"status": "dismantled"}
+
+
+@router.post("/api/donors/{donor_id}/reopen")
+async def reopen_donor(
+    donor_id: int,
+    session: AsyncSession = Depends(get_session),
+    user=Depends(require_role("dismantler")),
+):
+    """Вернуть разобранную машину в разбор — если что-то забыли снять.
+
+    Только из «разобрана»: утилизированную вернуть нельзя, кузов уже сдан.
+    Отдельное действие, а не просто открытая форма: так видно, что
+    машину открыли заново, и закрыть её потом нужно тоже явно.
+    """
+    reopened = await session.execute(
+        text("""
+        UPDATE donors SET status = 'dismantling'
+         WHERE id = :d AND status = 'dismantled'
+        RETURNING id
+    """),
+        {"d": donor_id},
+    )
+    if not reopened.first():
+        status = await donor_status(session, donor_id)
+        if status is None:
+            raise HTTPException(404, "Донор не найден")
+        raise HTTPException(409, "Машина утилизирована — вернуть в разбор нельзя"
+                            if status == "scrapped" else "Разбор и так открыт")
+    await session.commit()
+    return {"status": "dismantling"}

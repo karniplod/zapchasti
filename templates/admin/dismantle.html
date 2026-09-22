@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Разбор {{ donor.code }}</title>
+<title>{{ 'Разбор' if open else 'Детали' }} {{ donor.code }}</title>
 <link rel="stylesheet" href="/static/admin.css?v={{ admin_css_version() }}">
 <style>
 .wrap{padding-bottom:140px}
@@ -55,6 +55,11 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
 .cond.origin{grid-template-columns:repeat(3,1fr)}
 .cond.origin button b{font-size:14px;font-weight:600}
 
+/* Разбор закрыт: форма спрятана, объясняем почему и что можно сделать */
+.closed{border-color:var(--warn);background:rgba(255,159,46,.08)}
+.closed p{margin:4px 0 0;font-size:14px;color:var(--muted);line-height:1.5}
+.closed .eyebrow{color:var(--warn)}
+
 </style>
 </head>
 <body>
@@ -76,8 +81,26 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
   </div>
 </div>
 
+{% if not open %}
+<section class="panel closed">
+  {% if donor.status == 'scrapped' %}
+  <p class="eyebrow">Машина утилизирована</p>
+  <p>Кузов сдан — снимать с него нечего. Снятые детали ниже,
+     этикетки можно перепечатать.</p>
+  {% else %}
+  <p class="eyebrow">Разбор закрыт</p>
+  <p>Машина разобрана, новые детали к ней не добавляются. Если что-то
+     забыли снять — верните машину в разбор кнопкой внизу.</p>
+  {% endif %}
+</section>
+{% endif %}
+
 <!-- Добавление детали ------------------------------------------->
-<section class="panel">
+{# У закрытой машины форма остаётся в разметке, но скрыта: скрипт
+   страницы вешает на её поля обработчики, и без элементов он упал бы
+   целиком — вместе со списком деталей. Добавить всё равно не выйдет:
+   сервер проверяет статус сам #}
+<section class="panel" {% if not open %}hidden{% endif %}>
   <p class="eyebrow">Новая деталь</p>
 
   <button type="button" class="shoot" id="shoot">📷 Снять деталь</button>
@@ -144,8 +167,8 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
     <div style="margin-top:14px">
       <label for="oem">Каталожный номер</label>
       <input type="text" id="oem" autocomplete="off">
-      {# Подсказка, а не автозаполнение: номер отлит на детали,
-         и последнее слово всегда за тем, кто держит её в руках #}
+      {# Уверенный номер подставляется сам, остальные — подсказкой.
+         Последнее слово за тем, кто держит деталь в руках: номер на ней отлит #}
       <div class="oem-hints" id="oemHints" hidden></div>
       <p class="oem-warn" id="oemWarn" hidden></p>
     </div>
@@ -172,9 +195,11 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
 
 <div class="bar">
   <div class="inner">
-    <button class="primary" id="save" disabled>Добавить деталь</button>
+    <button class="primary" id="save" disabled {% if not open %}hidden{% endif %}>Добавить деталь</button>
     <button class="ghost" id="labels">Этикетки</button>
-    <button class="ghost" id="finish">Закрыть разбор</button>
+    <button class="ghost" id="finish" {% if not open %}hidden{% endif %}>Закрыть разбор</button>
+    <button class="primary" id="reopen"
+            {% if donor.status != 'dismantled' %}hidden{% endif %}>Вернуть в разбор</button>
   </div>
 </div>
 
@@ -468,6 +493,16 @@ $('finish').onclick = async () => {
   const d = await r.json();
   if (!r.ok) toast(d.detail, 'err');
   else { toast('Разбор закрыт', 'ok'); setTimeout(() => location.href = '/admin', 900); }
+};
+
+// Вернуть в разбор: страница перезагружается уже с формой
+$('reopen').onclick = async () => {
+  if (!confirm('Вернуть машину в разбор? Она снова станет «в разборе», '
+             + 'и её нужно будет закрыть заново.')) return;
+  const r = await fetch(`/api/donors/${DONOR_ID}/reopen`, {method:'POST'});
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) toast(d.detail || 'Не удалось', 'err');
+  else location.reload();
 };
 
 // --- прочее ----------------------------------------------------------

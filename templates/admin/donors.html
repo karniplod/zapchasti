@@ -90,7 +90,7 @@ async function load(){
               итог <b>${profit>=0?'+':''}${Number(profit).toLocaleString('ru')} ₽</b></span>` : ''}
           </div>
           <div class="actions-row">
-            <a class="btn" href="/donors/${c.id}/dismantle">Разбор</a>
+            <a class="btn" href="/donors/${c.id}/dismantle">${work ? 'Разбор' : 'Детали'}</a>
             <button class="btn edit-btn">Изменить</button>
           </div>
         </div>
