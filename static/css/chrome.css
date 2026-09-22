@@ -12,8 +12,12 @@
 /* ── Шапка ─────────────────────────────────────────────── */
 .site-head{background:var(--surface);border-bottom:1px solid var(--line);
   position:sticky;top:0;z-index:40}
+/* Шапка на всю ширину окна, а не по колонке контента: меню и корзина
+   уходят к краям экрана. Отступ растёт с шириной, чтобы на мониторе
+   логотип не прилипал к рамке, а на телефоне не съедал место */
 .site-head .wrap{display:flex;align-items:center;gap:20px;height:60px;
-  flex-wrap:nowrap;min-width:0}
+  flex-wrap:nowrap;min-width:0;
+  max-width:none;padding-inline:clamp(16px, 3vw, 32px)}
 
 .brand{display:flex;align-items:center;gap:9px;flex:0 0 auto;
   font-family:var(--display);font-weight:700;font-size:17px;
