@@ -182,8 +182,43 @@ body{--head-top-bg:var(--bg)}
 .cat-btn{display:flex;align-items:center;gap:10px;flex:0 0 auto;height:48px;
   padding:0 20px;border-radius:var(--r);background:var(--dark);color:#fff;
   font-size:14px;font-weight:600;white-space:nowrap;transition:background .15s}
-.cat-btn:hover{background:var(--accent)}
+.cat-btn:hover,
+.cat-btn[aria-expanded="true"]{background:var(--accent)}
 .cat-btn svg{flex:0 0 auto}
+
+/* ── Меню «Все категории» ─────────────────────────────────
+   Панель под рядом поиска: узлы колонками, в каждом — самые частые
+   детали и «ещё N». Лежит в .site-head, но вне .wrap: иначе при
+   прокрутке увеличивалась бы вместе с рядом. Левый край — по кнопке */
+.cat-menu{position:absolute;top:100%;left:clamp(16px, 3vw, 32px);z-index:5;
+  width:min(920px, calc(100vw - 2 * clamp(16px, 3vw, 32px)));
+  max-height:calc(100vh - 170px);overflow-y:auto;overscroll-behavior:contain;
+  margin-top:8px;background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--r);box-shadow:0 18px 44px rgba(0,0,0,.14);
+  padding:24px 26px 18px;animation:cm-in .16s ease-out}
+@keyframes cm-in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+
+/* Колонки, а не сетка: сетка равняет строку по самому длинному узлу,
+   и под короткими остаются дыры. В колонках узлы идут плотно сверху
+   вниз — по алфавиту так и читают */
+.cm-grid{columns:4 190px;column-gap:28px}
+.cm-node{min-width:0;break-inside:avoid;margin-bottom:22px}
+.cm-node a{display:flex;align-items:baseline;gap:8px;padding:4px 0;
+  font-size:var(--t-sm);color:var(--muted);transition:color .13s}
+.cm-node a:hover{color:var(--accent)}
+.cm-node a span{margin-left:auto;font-size:var(--t-xs);color:var(--dim);
+  font-variant-numeric:tabular-nums}
+/* Заголовок узла — сам ведёт в узел целиком */
+.cm-node .cm-title{font-size:var(--t-md);font-weight:600;color:var(--ink);
+  padding:0 0 8px;margin-bottom:6px;border-bottom:1px solid var(--line)}
+.cm-node .cm-more{color:var(--accent);font-weight:500}
+
+.cm-foot{display:flex;align-items:center;gap:16px;margin-top:0;padding-top:14px;
+  border-top:1px solid var(--line);font-size:var(--t-sm);color:var(--muted)}
+.cm-foot a{margin-left:auto;color:var(--accent);font-weight:600}
+.cm-foot a::after{content:" →"}
+.cm-state{margin:0;padding:6px 0 10px;font-size:var(--t-sm);color:var(--muted)}
+.cm-state a{color:var(--accent);text-decoration:underline}
 
 /* Поиск — «таблетка» с оранжевой кнопкой внутри */
 .head-search{flex:1;min-width:0;display:flex;align-items:center;height:48px;
@@ -264,7 +299,13 @@ body{--head-top-bg:var(--bg)}
   .head-search button{height:34px;padding:0 14px}
   .head-search button span{display:none}
   .cart-ico{width:42px;height:42px}
+
+  /* Меню категорий — на всю ширину, листается внутри себя */
+  .cat-menu{left:0;right:0;width:auto;margin-top:0;border-radius:0;
+    border-width:1px 0;max-height:calc(100vh - 150px);padding:18px 16px 12px}
+  .cm-grid{columns:2;column-gap:20px}
 }
+@media(max-width:440px){.cm-grid{columns:1}}
 
 @media(max-width:560px){
   /* Остаётся название города: подпись занимает место, а смысл несёт значок */

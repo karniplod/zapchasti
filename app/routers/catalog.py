@@ -672,6 +672,54 @@ async def log_search(
     return Response(status_code=204)
 
 
+def _abc(name: str) -> str:
+    """Ключ сортировки по алфавиту: «ё» стоит там же, где «е»."""
+    return name.lower().replace("ё", "е")
+
+
+@router.get("/api/catalog/nodes")
+async def catalog_nodes(session: AsyncSession = Depends(get_session)):
+    """Меню «Все категории» в шапке: узлы и детали внутри них.
+
+    Узел — тот же, что в фильтре «Узел» каталога: непосредственный
+    родитель категории детали (Кузов, Автосвет; у шин и аудио — своя
+    группа). Считаются только опубликованные детали в наличии, и узел
+    без них не показывается: пункт меню, ведущий в пустую выдачу,
+    раздражает сильнее, чем его отсутствие. Появится деталь — появится
+    и узел.
+    """
+    rows = await session.execute(
+        text("""
+        SELECT coalesce(parent.id, c.id)     AS node_id,
+               coalesce(parent.name, c.name) AS node_name,
+               c.id AS leaf_id, c.name AS leaf_name, count(*) AS cnt
+          FROM parts p
+          JOIN part_categories c ON c.id = p.category_id
+          LEFT JOIN part_categories parent ON parent.id = c.parent_id
+         WHERE p.status = 'in_stock' AND p.published
+         GROUP BY 1, 2, 3, 4
+    """)
+    )
+
+    nodes: dict[int, dict] = {}
+    for r in rows:
+        node = nodes.setdefault(
+            r.node_id, {"id": r.node_id, "name": r.node_name, "cnt": 0, "items": []}
+        )
+        node["cnt"] += r.cnt
+        # Деталь лежит прямо в узле (узел и есть её категория) — отдельным
+        # пунктом её не дублируем, её и так покажет сам узел
+        if r.leaf_id != r.node_id:
+            node["items"].append({"id": r.leaf_id, "name": r.leaf_name, "cnt": r.cnt})
+
+    # Узлы — по алфавиту: в меню ищут глазами название, а не самое большое
+    # число. Внутри узла — сначала то, чего больше
+    result = sorted(nodes.values(), key=lambda n: _abc(n["name"]))
+    for n in result:
+        n["items"].sort(key=lambda i: (-i["cnt"], _abc(i["name"])))
+    return {"nodes": result, "total": sum(n["cnt"] for n in result)}
+
+
 @router.get("/api/catalog/facets")
 async def catalog_facets(
     generation_id: int | None = None,

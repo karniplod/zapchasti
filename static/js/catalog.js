@@ -1,6 +1,10 @@
 // Скрипт шаблона templates/catalog.html.
 
 const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g,
+  c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+// Деталь внутри узла, выбранная в меню шапки: {id, name, cnt}
+let pinnedCat = null;
 const state = {generation_id:null, modification_id:null, category_id:null,
   condition:[], price_min:null, price_max:null, q:'', city:null, sort:'new', page:1};
 
@@ -168,12 +172,26 @@ async function loadFacets(){
   if (state.modification_id) p.set('modification_id', state.modification_id);
   const f = await (await fetch('/api/catalog/facets?'+p)).json();
 
-  $('cats').innerHTML = f.categories.map(c =>
+  // Деталь внутри узла (пришли из меню «Все категории» с ?category=)
+  // в списке узлов не значится — ставим её первой строкой, иначе не видно,
+  // почему выдача сужена
+  const pinned = pinnedCat && pinnedCat.id === state.category_id
+      && !f.categories.some(c => c.id === pinnedCat.id)
+    ? `<label><input type="radio" name="cat" value="${pinnedCat.id}">${esc(pinnedCat.name)}
+         <span class="n">${pinnedCat.cnt}</span></label>` : '';
+  $('cats').innerHTML = pinned + f.categories.map(c =>
     `<label><input type="radio" name="cat" value="${c.id}">${c.name}
       <span class="n">${c.cnt}</span></label>`).join('')
     || '<p class="hint">Нет деталей</p>';
   $('cats').querySelectorAll('input').forEach(i => i.onchange = () => {
-    state.category_id = +i.value; state.page = 1; loadParts(); });
+    state.category_id = +i.value; state.page = 1; loadParts();
+    // Адрес следит за выбором: обновили страницу — фильтр тот же
+    history.replaceState(null, '', '/catalog?category=' + state.category_id);
+  });
+  // Выбор переживает перерисовку счётчиков — например, после VIN
+  const on = state.category_id &&
+    $('cats').querySelector(`input[value="${state.category_id}"]`);
+  if (on) on.checked = true;
 
   $('conds').innerHTML = f.conditions.map(c =>
     `<label><input type="checkbox" value="${c.condition}">${c.condition} — ${c.label}
@@ -244,6 +262,7 @@ $('reset').onclick = () => {
   Object.assign(state, {category_id:null, condition:[], price_min:null,
     price_max:null, q:'', page:1});
   $('q').value = ''; $('pmin').value = ''; $('pmax').value = '';
+  if (location.search.includes('category=')) history.replaceState(null, '', '/catalog');
   loadFacets(); loadParts();
 };
 
@@ -398,6 +417,21 @@ loadFresh();
 // Раньше страница каталога до подбора не показывала ничего: фильтры
 // спрятаны, выдача пуста, и всё содержимое — три плитки «свежего».
 // Стоило им не найтись, и каталог выглядел пустым сайтом
+// Открыть каталог сразу на узле или детали. Название детали берём из того
+// же источника, что и меню: в списке узлов её нет, а подписать фильтр надо
+async function openCategory(id){
+  state.category_id = id;
+  try {
+    const d = await (await fetch('/api/catalog/nodes')).json();
+    for (const n of d.nodes){
+      const leaf = n.items.find(i => i.id === id);
+      if (leaf){ pinnedCat = leaf; break; }
+    }
+  } catch { /* без подписи фильтр всё равно работает */ }
+  showEverything();
+  document.querySelector('.layout').scrollIntoView({block: 'start'});
+}
+
 function showEverything(){
   $('side').hidden = false;
   state.page = 1;
@@ -409,10 +443,15 @@ function showEverything(){
 const fromHome = new URLSearchParams(location.search).get('vin');
 const fromSearch = new URLSearchParams(location.search).get('q');
 
+// Узел или деталь из меню «Все категории»: /catalog?category=677
+const fromMenu = +new URLSearchParams(location.search).get('category') || null;
+
 if (fromHome){
   $('vin').value = fromHome;
   $('vinGo').disabled = fromHome.length !== 17;
   findByVin();
+} else if (fromMenu){
+  openCategory(fromMenu);
 } else {
   showEverything();
   // Запрос из истории поиска в кабинете: /catalog?q=дверь — его не пишем,

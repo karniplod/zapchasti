@@ -92,3 +92,88 @@ document.querySelectorAll('.brand img').forEach(img => {
     }
   });
 })();
+
+// Меню «Все категории»: узлы запчастей из /api/catalog/nodes — те же,
+// что в фильтре «Узел» каталога. Данные грузятся один раз, уже при
+// наведении на кнопку: к клику меню обычно готово. Без скрипта кнопка
+// остаётся ссылкой в каталог.
+(function(){
+  const btn = document.getElementById('catBtn');
+  const menu = document.getElementById('catMenu');
+  if (!btn || !menu) return;
+
+  const SHOW = 5;   // деталей под узлом; остальное — ссылкой «ещё N» на узел
+  let data = null, loading = null;
+
+  // Названия приходят из базы — в разметку только экранированными
+  const esc = s => String(s).replace(/[&<>"]/g,
+    c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  const link = (id, name, cnt, cls) =>
+    `<a${cls ? ` class="${cls}"` : ''} href="/catalog?category=${id}">` +
+    `${esc(name)}<span>${cnt}</span></a>`;
+  const plural = n => {
+    const a = n % 10, b = n % 100;
+    if (a === 1 && b !== 11) return 'деталь';
+    if (a >= 2 && a <= 4 && (b < 12 || b > 14)) return 'детали';
+    return 'деталей';
+  };
+
+  function load(){
+    if (!loading){
+      loading = fetch('/api/catalog/nodes')
+        .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(d => (data = d))
+        // Сбой не запоминаем: следующее открытие попробует снова
+        .catch(e => { loading = null; throw e; });
+    }
+    return loading;
+  }
+
+  function render(){
+    if (!data.nodes.length){
+      menu.innerHTML = '<p class="cm-state">Каталог пока пуст — детали появятся ' +
+                       'после разбора первых машин.</p>';
+      return;
+    }
+    menu.innerHTML = '<div class="cm-grid">' + data.nodes.map(n => {
+      const items = n.items.slice(0, SHOW).map(i => link(i.id, i.name, i.cnt)).join('');
+      const more = n.items.length > SHOW
+        ? `<a class="cm-more" href="/catalog?category=${n.id}">ещё ${n.items.length - SHOW}</a>`
+        : '';
+      return `<section class="cm-node">${link(n.id, n.name, n.cnt, 'cm-title')}${items}${more}</section>`;
+    }).join('') + '</div>' +
+      `<div class="cm-foot"><span>В наличии ${data.total} ${plural(data.total)}</span>` +
+      '<a href="/catalog">Весь каталог</a></div>';
+  }
+
+  const setOpen = open => {
+    menu.hidden = !open;
+    btn.setAttribute('aria-expanded', String(open));
+  };
+
+  async function open(){
+    setOpen(true);
+    if (data){ render(); return; }
+    menu.innerHTML = '<p class="cm-state">Загружаю категории…</p>';
+    try {
+      await load();
+      if (!menu.hidden) render();
+    } catch {
+      menu.innerHTML = '<p class="cm-state">Не удалось загрузить категории. ' +
+                       '<a href="/catalog">Открыть каталог</a></p>';
+    }
+  }
+
+  btn.addEventListener('pointerenter', () => load().catch(() => {}), {once: true});
+  btn.addEventListener('click', e => {
+    e.preventDefault();
+    if (menu.hidden) open(); else setOpen(false);
+  });
+  // Закрывается кликом мимо и по Escape — фокус возвращается на кнопку
+  document.addEventListener('click', e => {
+    if (!menu.hidden && !menu.contains(e.target) && !btn.contains(e.target)) setOpen(false);
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !menu.hidden){ setOpen(false); btn.focus(); }
+  });
+})();
