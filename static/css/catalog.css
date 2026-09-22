@@ -5,8 +5,7 @@
    ───────────────────────────────────────────────────────── */
 
 /* ── Первый экран ──────────────────────────────────────── */
-/* Ниже, чем на главной: здесь под ним сразу выдача, а не рассказ */
-.hero{padding:44px 0 38px}
+/* Сам блок и его поля — в core.css; здесь только ритм внутри */
 .hero h1{margin:0 0 10px}
 .hero .lead{margin:0 0 24px}
 
@@ -93,7 +92,7 @@
 .picker select{
   width:100%;
   appearance:none;
-  background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%235B6672' stroke-width='2' fill='none'/%3E%3C/svg%3E") no-repeat right 14px center;
+  background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236E6E6E' stroke-width='2' fill='none'/%3E%3C/svg%3E") no-repeat right 14px center;
   padding-right:36px;
   cursor:pointer
 }
@@ -115,14 +114,14 @@
 .resolved h3{font-size:var(--t-lg);margin:0 0 4px}
 .cands{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .cands button{text-align:left;background:var(--surface);border:1px solid var(--line-2);
-  border-radius:8px;padding:9px 13px;font:inherit;font-size:var(--t-sm);cursor:pointer}
-.cands button:hover{border-color:var(--accent)}
+  border-radius:var(--r);padding:9px 13px;font:inherit;font-size:var(--t-sm);cursor:pointer}
+.cands button:hover{border-color:var(--accent);color:var(--accent)}
 .cands b{display:block;font-weight:600}
 .cands small{color:var(--dim)}
 
 /* ── Свежие поступления ────────────────────────────────── */
 .fresh{padding-top:26px}
-.fresh-note{margin:-4px 0 12px}
+.fresh-note{margin:-8px 0 14px}
 @media(min-width:641px){
   /* Ровно три в ряд: это витрина, а не выдача */
   .fresh .grid{grid-template-columns:repeat(3,1fr)}
@@ -154,8 +153,7 @@
 @media(max-width:900px){
   .layout{display:block}
   /* Фильтры внизу — в ряд, каждый блок своей колонкой */
-  .layout .side{margin-top:26px;padding-top:20px;
-    border-top:1px solid var(--line);position:static;max-height:none;
+  .layout .side{margin-top:26px;position:static;max-height:none;
     columns:2;column-gap:24px}
   .layout .side section{break-inside:avoid;margin-bottom:18px}
   .layout .side .reset{column-span:all;margin-top:4px}
@@ -165,9 +163,11 @@
 }
 
 /* ── Фильтры ───────────────────────────────────────────── */
+/* Белый блок на сером, как боковая колонка магазина */
+.layout .side{background:var(--surface);border-radius:var(--r);padding:20px 20px 6px}
 .side section{margin-bottom:22px}
-.side h4{font-family:var(--display);font-size:var(--t-xs);letter-spacing:.16em;
-  text-transform:uppercase;color:var(--dim);margin:0 0 9px}
+.side h4{font-size:var(--t-md);font-weight:600;color:var(--ink);margin:0 0 10px;
+  padding-bottom:10px;border-bottom:1px solid var(--line)}
 .side label{display:flex;align-items:center;gap:8px;padding:5px 0;
   font-size:var(--t-sm);color:var(--ink);cursor:pointer;margin:0}
 .side label input{accent-color:var(--accent)}
@@ -190,11 +190,12 @@
 .toolbar{display:flex;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap}
 .toolbar .count{font-size:var(--t-sm);color:var(--muted)}
 .toolbar select{margin-left:auto;padding:9px 12px;border:1px solid var(--line-2);
-  border-radius:8px;background:var(--surface);font:inherit;font-size:var(--t-sm)}
+  border-radius:var(--r);background:var(--surface);font:inherit;font-size:var(--t-sm)}
 
 .pager{display:flex;gap:8px;justify-content:center;margin-top:28px;flex-wrap:wrap}
 .pager button{background:var(--surface);border:1px solid var(--line-2);
-  border-radius:8px;padding:9px 15px;font:inherit;font-size:var(--t-sm);cursor:pointer}
-.pager button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  border-radius:var(--r);padding:9px 15px;font:inherit;font-size:var(--t-sm);cursor:pointer}
+.pager button:hover{border-color:var(--accent);color:var(--accent)}
+.pager button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 .pager button:disabled{opacity:.4;cursor:not-allowed}
 .pager .gap{padding:9px 4px}

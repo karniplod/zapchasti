@@ -88,14 +88,16 @@ async def fixtures():
 
 
 def fetch(path, cookie=None):
+    # errors="replace": подключённым бывает и двоичный файл (шрифт),
+    # а для него важен только код ответа
     req = urllib.request.Request(B + path)
     if cookie:
         req.add_header("Cookie", cookie)
     try:
         with urllib.request.urlopen(req, timeout=15) as r:
-            return r.status, r.read().decode()
+            return r.status, r.read().decode(errors="replace")
     except urllib.error.HTTPError as e:
-        return e.code, e.read().decode()
+        return e.code, e.read().decode(errors="replace")
 
 
 def downlevel(src: str) -> str:

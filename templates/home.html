@@ -8,22 +8,60 @@
 
 {% block content %}
 
-<section class="hero">
-  <div class="wrap">
-    <h1>Запчасти с разбора под ваш VIN</h1>
-    <p class="lead">Введите VIN — покажем только те детали, что встанут
-       на вашу машину. Каждая снята с конкретного автомобиля, сфотографирована
-       и оценена по состоянию.</p>
+{# Первый экран в магазинной раскладке: большой баннер с подбором по VIN
+   и две плитки сбоку с тем, что есть на складе #}
+<section class="showcase">
+  <div class="wrap show-grid">
+    <div class="banner">
+      <p class="kicker">Подбор по VIN</p>
+      <h1>Запчасти с разбора под ваш VIN</h1>
+      <p class="lead">Введите VIN — покажем только те детали, что встанут
+         на вашу машину. Каждая снята с конкретного автомобиля,
+         сфотографирована и оценена по состоянию.</p>
 
-    <div class="vinbar">
-      <input id="vin" class="field field-code" maxlength="17" spellcheck="false"
-             autocomplete="off" placeholder="XTA210740X1234567" aria-label="VIN автомобиля">
-      <button class="btn btn-primary" id="vinGo" disabled>Подобрать</button>
+      <div class="vinbar">
+        <input id="vin" class="field field-code" maxlength="17" spellcheck="false"
+               autocomplete="off" placeholder="XTA210740X1234567" aria-label="VIN автомобиля">
+        <button class="btn btn-primary" id="vinGo" disabled>Подобрать</button>
+      </div>
+      <p class="banner-alt">VIN под рукой нет? <a href="/catalog">Выбрать по марке и модели</a></p>
     </div>
 
-    <div class="figures">
-      <div><b>{{ s.parts }}</b><span>деталей в наличии</span></div>
-      <div><b>{{ s.cars }}</b><span>машин разобрано</span></div>
+    <div class="promos">
+      <a class="promo promo-accent" href="/catalog">
+        <span class="kicker">В наличии</span>
+        <b>{{ s.parts }}</b>
+        <span class="txt">деталей с фото и оценкой состояния</span>
+        <span class="go">В каталог</span>
+      </a>
+      <a class="promo" href="{{ '#cars' if cars else '/catalog' }}">
+        <span class="kicker">На разборе</span>
+        <b>{{ s.cars }}</b>
+        <span class="txt">машин — детали с каждой уже на складе</span>
+        <span class="go">Смотреть машины</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+{# Что отличает разборку от магазина новых деталей — полосой под баннером #}
+<section class="perks">
+  <div class="wrap perk-grid">
+    <div class="perk">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3.5"/><path d="M8 6l1.5-2h5L16 6"/></svg>
+      <div><b>Фото каждой детали</b><span>Снимаем то, что продаём, — без картинок из каталога</span></div>
+    </div>
+    <div class="perk">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
+      <div><b>Состояние A–D</b><span>Оценивает разборщик, который снимал деталь</span></div>
+    </div>
+    <div class="perk">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5M8 11h6"/></svg>
+      <div><b>Подбор по VIN</b><span>Показываем только то, что встанет на машину</span></div>
+    </div>
+    <div class="perk">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></svg>
+      <div><b>Самовывоз и отправка</b><span>Осмотр на складе до оплаты или доставка в ваш город</span></div>
     </div>
   </div>
 </section>
@@ -31,8 +69,8 @@
 {% if fresh %}
 <section class="block">
   <div class="wrap">
-    <div class="head">
-      <h2>Свежие поступления</h2>
+    <div class="sec-head">
+      <h2>Свежие <b>поступления</b></h2>
       <a href="/catalog">Весь каталог</a>
     </div>
     <div class="grid">
@@ -59,9 +97,9 @@
 {% endif %}
 
 {% if cars %}
-<section class="block tint">
+<section class="block" id="cars">
   <div class="wrap">
-    <div class="head"><h2>Машины на разборе</h2></div>
+    <div class="sec-head"><h2>Машины <b>на разборе</b></h2></div>
     <div class="cars">
       {% for c in cars %}
       <a class="car" href="/catalog?donor={{ c.code }}">
@@ -80,22 +118,22 @@
 
 <section class="block">
   <div class="wrap">
-    <div class="head"><h2>Как это работает</h2></div>
+    <div class="sec-head"><h2>Как это <b>работает</b></h2></div>
     <div class="steps">
       <div class="step">
-        <div class="n">Шаг 1</div>
+        <div class="n">01</div>
         <h3>Находите деталь</h3>
         <p>По VIN, по марке и модели или по каталожному номеру.
            Подбор показывает только то, что подходит вашей машине.</p>
       </div>
       <div class="step">
-        <div class="n">Шаг 2</div>
+        <div class="n">02</div>
         <h3>Сверяете номер</h3>
         <p>На фото видно реальное состояние, в карточке — каталожный номер.
            Сравните его со своей деталью, чтобы не ошибиться с комплектацией.</p>
       </div>
       <div class="step">
-        <div class="n">Шаг 3</div>
+        <div class="n">03</div>
         <h3>Забираете или получаете</h3>
         <p>Самовывоз со склада или отправка. Детали с одной машины
            уходят одной посылкой.</p>

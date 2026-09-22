@@ -7,9 +7,11 @@
 .crumbs{font-size:var(--t-sm);color:var(--muted);padding:18px 0 0}
 .crumbs a:hover{text-decoration:underline}
 
-.part{display:grid;grid-template-columns:1.1fr 1fr;gap:36px;
-  padding:18px 0 60px;align-items:start}
-@media(max-width:820px){.part{grid-template-columns:1fr;gap:24px}}
+/* Карточка — белый блок на серой подложке, как страница товара магазина */
+.part{display:grid;grid-template-columns:1.1fr 1fr;gap:40px;
+  margin:16px 0 0;padding:32px;align-items:start;
+  background:var(--surface);border-radius:var(--r)}
+@media(max-width:820px){.part{grid-template-columns:1fr;gap:24px;padding:20px}}
 
 /* ── Галерея ───────────────────────────────────────────── */
 /* Снимок детали — главный аргумент. Квадрат задаётся так же, как
@@ -36,7 +38,7 @@
 .zoom-btn svg{width:19px;height:19px}
 
 .shots .strip{display:flex;gap:8px;margin-top:10px;overflow-x:auto;padding-bottom:4px}
-.shots .strip button{flex:0 0 76px;height:76px;padding:0;border-radius:8px;
+.shots .strip button{flex:0 0 76px;height:76px;padding:0;border-radius:var(--r);
   overflow:hidden;border:2px solid var(--line);background:none;cursor:pointer}
 .shots .strip button.on{border-color:var(--accent)}
 .shots .strip img{width:100%;height:100%;object-fit:cover}
@@ -79,7 +81,7 @@
   letter-spacing:.04em}
 
 .price-row{margin:22px 0 0;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
-.price-big{font-family:var(--display);font-size:var(--t-3xl);font-weight:600;
+.price-big{font-size:var(--t-3xl);font-weight:700;color:var(--accent);
   font-variant-numeric:tabular-nums;line-height:1}
 .price-big.ask{font-size:var(--t-xl);color:var(--muted)}
 .stock{display:inline-flex;align-items:center;gap:7px;font-size:var(--t-sm)}
@@ -94,7 +96,7 @@
 .actions .btn{flex:1;min-width:160px}
 
 /* Бронь: поле раскрывается по кнопке, чтобы не занимать первый экран */
-.reserve{margin:14px 0 0;background:var(--surface);border:1px solid var(--line);
+.reserve{margin:14px 0 0;background:var(--surface-2);border:1px solid var(--line);
   border-radius:var(--r);padding:16px 18px}
 .reserve label{margin-bottom:8px}
 .reserve .row{display:flex;gap:10px}
@@ -109,7 +111,7 @@
 
 /* ── Состояние ─────────────────────────────────────────── */
 /* Тот же грейд, что на карточках каталога, только крупнее */
-.cond{margin-top:22px;background:var(--surface);border:1px solid var(--line);
+.cond{margin-top:22px;background:var(--surface-2);border:1px solid var(--line);
   border-radius:var(--r);padding:16px 18px}
 .cond .top{display:flex;align-items:center;gap:12px}
 .cond .g{width:38px;height:38px;flex:0 0 38px;display:flex;align-items:center;
@@ -133,7 +135,8 @@
   color:var(--accent);text-decoration:underline;cursor:pointer}
 
 /* ── Применимость ──────────────────────────────────────── */
-.fits{margin-top:34px}
+/* Применимость — отдельным белым блоком под карточкой */
+.fits{margin-top:var(--gap);background:var(--surface);border-radius:var(--r);padding:26px 32px}
 .fits ul{margin:14px 0 0;padding:0;list-style:none;columns:2;column-gap:28px}
 @media(max-width:640px){.fits ul{columns:1}}
 .fits li{padding:6px 0;font-size:var(--t-sm);break-inside:avoid}
@@ -147,7 +150,7 @@
 /* ── Всплывающее уведомление ───────────────────────────── */
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:26px;
   background:var(--ink);color:#fff;border-radius:var(--r);padding:13px 20px;
-  font-size:var(--t-sm);opacity:0;transition:.2s;pointer-events:none;z-index:50}
+  font-size:var(--t-sm);opacity:0;transition:.2s;pointer-events:none;z-index:60}
 .toast.show{opacity:1}
 
 /* Открыт просмотр фото на весь экран — фон не прокручивается */

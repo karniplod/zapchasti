@@ -1,48 +1,115 @@
 /* ─────────────────────────────────────────────────────────
    ГЛАВНАЯ: /
-   Первый экран с VIN, цифры склада, машины на разборе, три шага.
-   Плитка товара и сам первый экран — в core.css.
+   Магазинная раскладка: баннер с подбором по VIN и две плитки сбоку,
+   полоса преимуществ, свежие поступления, машины на разборе, три шага.
+   Плитка товара, заголовки секций и кнопки — в core.css.
    ───────────────────────────────────────────────────────── */
 
-/* Выше, чем в каталоге: тут под ним рассказ, а не выдача */
-.hero{padding:52px 0 44px}
-.hero h1{font-size:var(--t-3xl);margin:0 0 12px;max-width:16ch}
-.hero .lead{margin:0 0 26px}
+/* ── Первый экран ──────────────────────────────────────── */
+.showcase{padding:26px 0 0}
+.show-grid{display:grid;grid-template-columns:2fr 1fr;gap:var(--gap)}
+@media(max-width:900px){.show-grid{grid-template-columns:1fr}}
 
-/* Цифры склада — не украшение, а ответ на «а есть ли у вас что-то» */
-.figures{display:flex;gap:28px;margin-top:26px;flex-wrap:wrap}
-.figures div{display:flex;align-items:baseline;gap:8px}
-.figures b{font-family:var(--display);font-size:var(--t-2xl);font-weight:600;
-  font-variant-numeric:tabular-nums;line-height:1}
-.figures span{font-size:var(--t-sm);color:var(--muted)}
+.kicker{display:block;font-size:var(--t-xs);font-weight:600;letter-spacing:.16em;
+  text-transform:uppercase;margin:0 0 12px}
 
-section.block{padding:40px 0}
-/* Через одну секции идут по светлой подложке — так видно ритм */
-section.block.tint{background:var(--surface-2)}
-section.block .head{display:flex;align-items:baseline;gap:14px;margin-bottom:18px}
-section.block .head a{margin-left:auto;font-size:var(--t-sm);color:var(--accent);
-  text-decoration:underline}
+/* Баннер — тёмный, с тёплым отсветом акцента в углу: на серой
+   подложке он главный, взгляд начинается с него */
+.banner{position:relative;overflow:hidden;border-radius:var(--r);
+  padding:48px 48px 44px;color:#fff;
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgba(245,79,12,.35) 0%, rgba(245,79,12,0) 55%),
+    radial-gradient(80% 70% at 0% 100%, rgba(255,255,255,.06) 0%, rgba(255,255,255,0) 60%),
+    var(--foot)}
+.banner .kicker{color:var(--accent)}
+/* 20ch: «Запчасти с разбора / под ваш VIN» — без одинокого VIN на строке */
+.banner h1{font-size:var(--t-3xl);line-height:1.15;margin:0 0 14px;max-width:20ch;
+  text-wrap:balance}
+.banner .lead{color:rgba(255,255,255,.72);font-size:var(--t-md);margin:0 0 28px;
+  max-width:52ch}
+.banner .field{border-color:transparent}
+.banner-alt{margin:16px 0 0;font-size:var(--t-sm);color:rgba(255,255,255,.6)}
+.banner-alt a{color:#fff;text-decoration:underline;text-underline-offset:3px}
+.banner-alt a:hover{color:var(--accent)}
+@media(max-width:640px){.banner{padding:30px 22px}}
+
+/* Плитки сбоку: число — главное, подпись — пояснение */
+.promos{display:grid;grid-template-rows:1fr 1fr;gap:var(--gap)}
+@media(max-width:900px){.promos{grid-template-rows:none;grid-template-columns:1fr 1fr}}
+@media(max-width:480px){.promos{grid-template-columns:1fr}}
+
+.promo{display:flex;flex-direction:column;border-radius:var(--r);padding:26px 28px;
+  background:var(--surface);transition:box-shadow .2s}
+.promo:hover{box-shadow:var(--shadow)}
+.promo .kicker{color:var(--accent);margin-bottom:8px}
+.promo b{font-size:var(--t-2xl);font-weight:700;line-height:1.1;
+  font-variant-numeric:tabular-nums}
+.promo .txt{font-size:var(--t-sm);color:var(--muted);margin-top:4px}
+.promo .go{margin-top:auto;padding-top:14px;font-size:var(--t-sm);font-weight:600}
+.promo .go::after{content:" →";transition:margin-left .15s}
+.promo:hover .go::after{margin-left:4px}
+
+.promo-accent{background:var(--accent);color:#fff}
+.promo-accent .kicker{color:rgba(255,255,255,.78)}
+.promo-accent .txt{color:rgba(255,255,255,.85)}
+
+/* ── Преимущества ──────────────────────────────────────── */
+.perks{padding:var(--gap) 0 0}
+.perk-grid{display:grid;grid-template-columns:repeat(4,1fr)}
+.perk-grid > *{background:var(--surface)}
+.perk{display:flex;gap:14px;align-items:flex-start;padding:22px 22px;
+  border-right:1px solid var(--line)}
+.perk:first-child{border-radius:var(--r) 0 0 var(--r)}
+.perk:last-child{border-right:0;border-radius:0 var(--r) var(--r) 0}
+.perk svg{width:34px;height:34px;flex:0 0 34px;fill:none;stroke:var(--accent);
+  stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.perk b{display:block;font-size:var(--t-md);font-weight:600;line-height:1.3}
+.perk span{display:block;font-size:var(--t-sm);color:var(--muted);margin-top:3px;
+  line-height:1.45}
+/* На узком экране — сетка 2×2, потом столбик. Разделители — рамками
+   ячеек: фон контейнера залил бы и боковые поля .wrap */
+@media(max-width:900px){
+  .perk-grid{grid-template-columns:1fr 1fr}
+  .perk{border-right:0;border-bottom:1px solid var(--line);border-radius:0}
+  .perk:nth-child(odd){border-right:1px solid var(--line)}
+  .perk:nth-last-child(-n+2){border-bottom:0}
+  .perk:first-child{border-radius:var(--r) 0 0 0}
+  .perk:nth-child(2){border-radius:0 var(--r) 0 0}
+  .perk:nth-child(3){border-radius:0 0 0 var(--r)}
+  .perk:last-child{border-radius:0 0 var(--r) 0}
+}
+@media(max-width:480px){
+  .perk-grid{grid-template-columns:1fr}
+  .perk,.perk:nth-child(odd){border-right:0;border-bottom:1px solid var(--line)}
+  .perk:last-child{border-bottom:0}
+  .perk:first-child{border-radius:var(--r) var(--r) 0 0}
+  .perk:nth-child(2),.perk:nth-child(3){border-radius:0}
+  .perk:last-child{border-radius:0 0 var(--r) var(--r)}
+}
+
+/* ── Секции ────────────────────────────────────────────── */
+section.block{padding:44px 0 0}
 
 /* Машины на разборе */
-.cars{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
-.car{display:flex;gap:12px;align-items:center;background:var(--surface);
-  border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;
-  transition:border-color .13s}
-.car:hover{border-color:var(--line-2)}
-.car .pic{width:56px;height:56px;flex:0 0 56px;border-radius:8px;overflow:hidden;
+/* Три в ряд: у четырёх название «ВАЗ (LADA) Vesta» рвалось на три строки */
+.cars{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:var(--gap)}
+.car{display:flex;gap:14px;align-items:center;background:var(--surface);
+  border-radius:var(--r);padding:14px 16px;transition:box-shadow .2s}
+.car:hover{box-shadow:var(--shadow)}
+.car:hover .nm{color:var(--accent)}
+.car .pic{width:60px;height:60px;flex:0 0 60px;border-radius:var(--r);overflow:hidden;
   background:var(--surface-2)}
 .car .pic img{width:100%;height:100%;object-fit:cover}
-.car .nm{font-size:var(--t-md);line-height:1.25}
+.car .nm{font-size:var(--t-md);font-weight:600;line-height:1.25;transition:color .15s}
 .car .sub{font-size:var(--t-xs);color:var(--muted);margin-top:2px}
-.car .cnt{margin-left:auto;font-family:var(--mono);font-size:var(--t-xs);
-  color:var(--dim);white-space:nowrap}
+.car .cnt{margin-left:auto;font-size:var(--t-xs);font-weight:600;color:var(--accent);
+  background:var(--accent-bg);border-radius:3px;padding:4px 8px;white-space:nowrap}
 
 /* Как это работает — три шага, порядок здесь несёт смысл */
-.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
-@media(max-width:700px){.steps{grid-template-columns:1fr;gap:14px}}
-.step{background:var(--surface);border:1px solid var(--line);
-  border-radius:var(--r);padding:20px}
-.step .n{font-family:var(--display);font-size:var(--t-xs);letter-spacing:.16em;
-  color:var(--accent);font-weight:600;margin-bottom:8px}
-.step h3{font-size:var(--t-md);margin:0 0 6px;text-transform:none}
-.step p{margin:0;font-size:var(--t-sm);color:var(--muted);line-height:1.5}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--gap)}
+@media(max-width:700px){.steps{grid-template-columns:1fr}}
+.step{background:var(--surface);border-radius:var(--r);padding:26px 24px}
+.step .n{font-size:var(--t-2xl);font-weight:700;line-height:1;color:var(--accent);
+  margin-bottom:14px;font-variant-numeric:tabular-nums}
+.step h3{font-size:var(--t-md);margin:0 0 8px}
+.step p{margin:0;font-size:var(--t-sm);color:var(--muted);line-height:1.55}

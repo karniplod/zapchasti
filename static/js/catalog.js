@@ -415,11 +415,20 @@ if (fromHome){
   findByVin();
 } else {
   showEverything();
-  // Запрос из истории поиска в кабинете: /catalog?q=дверь
+  // Запрос из истории поиска в кабинете: /catalog?q=дверь — его не пишем,
+  // он там уже есть. Поиск из шапки (from=head) — новое намерение, как
+  // Enter в поле каталога: пишем после выдачи, а метку убираем из адреса,
+  // чтобы обновление страницы не записало его второй раз
   if (fromSearch){
     $('q').value = fromSearch;
     state.q = fromSearch;
-    loadParts();
+    const fromHead = new URLSearchParams(location.search).get('from') === 'head';
+    if (fromHead){
+      history.replaceState(null, '', '/catalog?q=' + encodeURIComponent(fromSearch));
+      loadParts().then(() => rememberSearch());
+    } else {
+      loadParts();
+    }
   } else {
     $('vin').focus();
   }

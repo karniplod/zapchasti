@@ -69,3 +69,26 @@ document.querySelectorAll('.brand img').forEach(img => {
   if (img.complete && !img.naturalWidth) img.remove();
   else img.addEventListener('error', () => img.remove());
 });
+
+// Поиск в шапке. Строка, похожая на VIN (17 знаков без I, O, Q), ведёт
+// в подбор по VIN — там каталог сам определит машину. Всё остальное —
+// обычный поиск деталей. Без скрипта форма уходит в каталог GET-ом с ?q=.
+(function(){
+  const form = document.getElementById('headSearch');
+  const input = document.getElementById('headQ');
+  if (!form || !input) return;
+
+  // В каталоге строка показывает то, что сейчас ищут
+  const params = new URLSearchParams(location.search);
+  if (location.pathname === '/catalog') input.value = params.get('q') || params.get('vin') || '';
+
+  form.addEventListener('submit', e => {
+    const raw = input.value.trim();
+    if (!raw){ e.preventDefault(); input.focus(); return; }
+    const vin = raw.replace(/[\s-]/g, '').toUpperCase();
+    if (/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)){
+      e.preventDefault();
+      location.href = '/catalog?vin=' + encodeURIComponent(vin);
+    }
+  });
+})();

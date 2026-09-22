@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────
-   ОБВЯЗКА: шапка, меню, город, подвал.
+   ОБВЯЗКА: шапка, меню, город, поиск, корзина, подвал.
    Всё, что есть на каждой странице витрины и не зависит от того,
    какая это страница. Подключается сразу после core.css.
 
@@ -7,107 +7,35 @@
    палитрой. Раньше её правила (.acct, .nav) лежали в общем файле
    витрины и молча не работали — переменных --panel и --amber здесь
    нет и не будет.
+
+   Шапка в два ряда:
+     .topbar    — серая полоса: логотип, меню, город, вход. Уезжает
+                  вместе со страницей;
+     .site-head — белый ряд: «Все категории», поиск, корзина. Прилипает
+                  к верху — поиск и корзина нужны на любой глубине.
    ───────────────────────────────────────────────────────── */
 
-/* ── Шапка ─────────────────────────────────────────────── */
-/* Два состояния.
-   В самом верху страницы шапка — часть страницы: без линии и тени,
-   цвета того, что прямо под ней. Начали прокрутку — она отделяется:
-   проявляется линия, мягкая тень и матовое стекло, сквозь которое
-   размыто видно уезжающий контент.
+/* ── Верхняя полоса ────────────────────────────────────── */
+/* Выше прилипшего ряда по z-index: выпадающие меню города и бургера
+   живут в ней и должны ложиться поверх ряда с поиском */
+.topbar{position:relative;z-index:45;background:var(--topbar);
+  border-bottom:1px solid var(--line-3)}
+.topbar .wrap{display:flex;align-items:stretch;height:64px;gap:0;
+  max-width:none;padding-inline:clamp(16px, 3vw, 32px)}
 
-   Класс .at-top ставит скрипт в _base.html. Без скрипта шапка остаётся
-   отделённой, как была, — это безопасное состояние: линия лишней
-   не бывает, а вот шапка, слившаяся с прокрученным контентом, — да. */
-.site-head{position:sticky;top:0;z-index:40;
-  background:var(--surface);border-bottom:1px solid var(--line);
-  box-shadow:0 10px 30px -22px rgba(18,22,27,.45);
-  /* Высота ряда и коэффициент увеличения (см. «Увеличение» ниже) */
-  --head-h:60px;--k:1;
-  padding-bottom:calc(var(--head-h) * (var(--k) - 1));
-  margin-bottom:calc(var(--head-h) * (1 - var(--k)))}
-
-/* Цвет «вплавленного» состояния — фон первого блока страницы. Белый
-   блок .hero открывает главную, каталог и информационные страницы;
-   у остальных под шапкой сразу серый фон. Через :has, а не скриптом:
-   так цвет известен к первой отрисовке и не мигает при загрузке */
-body{--head-top-bg:var(--bg)}
-body:has(> main > .hero:first-child){--head-top-bg:var(--surface)}
-
-.site-head.at-top{background:var(--head-top-bg);
-  border-bottom-color:transparent;
-  /* Та же тень, только прозрачная: переход гасит её, а не обрезает */
-  box-shadow:0 10px 30px -22px rgba(18,22,27,0)}
-
-/* Переходы включаются со второго кадра: иначе при загрузке шапка
-   успевала бы показать линию и плавно её «стереть» */
-.site-head.ready{transition:background-color .45s ease, border-color .45s ease,
-  box-shadow .45s ease, -webkit-backdrop-filter .45s ease, backdrop-filter .45s ease,
-  --k .45s ease}
-
-/* ── Увеличение при прокрутке ─────────────────────────────
-   Отделившись, шапка вырастает на 10% вместе со всем содержимым.
-
-   Каждый элемент по отдельности увеличивать нельзя: широкие (меню)
-   наезжают на соседей — растут на 15px в каждую сторону при зазоре
-   в 20. Поэтому масштабируется весь ряд, как под лупой: раскладка
-   считается в ширине 100% / k и увеличивается в k раз — ровно
-   заполняет окно, а логотип, текст, кнопки и промежутки растут вместе.
-
-   Контент под шапкой при этом не сдвигается: прибавка высоты
-   (padding-bottom) тут же гасится отрицательным margin-bottom — шапка
-   нависает над контентом, а не толкает его. Иначе начало прокрутки
-   дёргало бы страницу вниз на 6px.
-
-   Анимируется одно число --k, от него синхронно считаются масштаб,
-   ширина и высота. Для этого свойство зарегистрировано через @property;
-   браузер без @property переключит размер сразу, без плавности. */
-@property --k{syntax:'<number>';inherits:true;initial-value:1}
-
-/* Только под управлением скрипта (.ready): без него шапка всегда
-   «отделена» и была бы увеличенной и в самом верху, закрывая
-   край первого блока */
-.site-head.ready:not(.at-top){--k:1.1}
-
-@supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
-  .site-head:not(.at-top){
-    /* color-mix не поддержан — правило отбрасывается, остаётся
-       сплошной белый фон; стекло здесь украшение, не функция */
-    background:color-mix(in srgb, var(--surface) 78%, transparent);
-    -webkit-backdrop-filter:saturate(1.6) blur(14px);
-    backdrop-filter:saturate(1.6) blur(14px)}
-}
-/* Шапка на всю ширину окна, а не по колонке контента: меню и корзина
-   уходят к краям экрана. Отступ растёт с шириной, чтобы на мониторе
-   логотип не прилипал к рамке, а на телефоне не съедал место */
-.site-head .wrap{display:flex;align-items:center;gap:20px;height:var(--head-h);
-  flex-wrap:nowrap;min-width:0;
-  max-width:none;padding-inline:clamp(16px, 3vw, 32px);
-  /* Увеличение: узкая раскладка, растянутая от левого верхнего угла.
-     margin-inline:0 — иначе margin:auto из .wrap центровал бы узкий
-     ряд, и после увеличения он съехал бы вправо */
-  width:calc(100% / var(--k));margin-inline:0;
-  transform:scale(var(--k));transform-origin:0 0}
-
-.brand{display:flex;align-items:center;gap:9px;flex:0 0 auto;
-  font-family:var(--display);font-weight:700;font-size:17px;
-  letter-spacing:.02em;text-transform:uppercase;white-space:nowrap}
+.brand{display:flex;align-items:center;gap:10px;flex:0 0 auto;margin-right:28px;
+  font-family:var(--display);font-weight:700;font-size:19px;
+  letter-spacing:.01em;text-transform:uppercase;white-space:nowrap;color:var(--ink)}
 .brand i{font-style:normal;color:var(--accent)}
 .brand img{width:53px;height:53px;object-fit:contain;flex:0 0 53px;
-  transform-origin:center;animation:heartbeat 1s ease-in-out infinite}
-
+  align-self:center;transform-origin:center;animation:heartbeat 1s ease-in-out infinite}
 
 /* ── Пульс логотипа ────────────────────────────────────── */
 /* Сердце бьётся не синусоидой, а «тук-тук»: сильный систолический
    толчок, через мгновение второй послабее, потом пауза диастолы.
-   Поэтому не плавное дыхание, а два всплеска в начале цикла.
-
-   Один цикл = 1 с, то есть 60 ударов в минуту — пульс спокойного
-   человека. Анимируем transform: он не трогает раскладку, шапка
-   не дёргается вместе с логотипом.
-
-   Отключать не нужно: в core.css (и в admin.css) есть общее правило
-   для prefers-reduced-motion, оно гасит и эту анимацию. */
+   Один цикл = 1 с, то есть 60 ударов в минуту. Анимируем transform:
+   он не трогает раскладку, шапка не дёргается вместе с логотипом.
+   Для prefers-reduced-motion анимацию гасит общее правило в core.css */
 @keyframes heartbeat{
    0%  {transform:scale(1)}
    8%  {transform:scale(1.13)}   /* «тук» — систола */
@@ -117,89 +45,179 @@ body:has(> main > .hero:first-child){--head-top-bg:var(--surface)}
  100%  {transform:scale(1)}      /* диастола: пауза до следующего удара */
 }
 
-/* ── Меню ──────────────────────────────────────────────── */
-/* Не прижато вправо: правый край держит блок города, меню идёт за ним */
-.site-nav{display:flex;gap:6px;min-width:0;
+/* Меню — сразу за логотипом, как в магазинных шаблонах */
+.site-nav{display:flex;align-items:center;gap:4px;min-width:0;
   overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none}
 .site-nav::-webkit-scrollbar{display:none}
-.site-nav a{flex:0 0 auto;padding:8px 12px;border-radius:8px;
-  font-size:var(--t-sm);color:var(--muted)}
-.site-nav a:hover{background:var(--surface-2);color:var(--ink)}
-.site-nav a[aria-current]{color:var(--ink);font-weight:600}
+.site-nav a{flex:0 0 auto;padding:8px 12px;font-size:14px;font-weight:500;
+  color:var(--muted);transition:color .13s}
+.site-nav a:hover{color:var(--accent)}
+.site-nav a[aria-current]{color:var(--accent);font-weight:600}
 
 /* Ход в бэкенд: заметен сотруднику, не мешает покупателю */
-.site-nav .to-admin{background:var(--ink);color:#fff;font-weight:600;
-  padding:8px 14px;border-radius:8px;margin-left:6px}
+.site-nav .to-admin{background:var(--dark);color:#fff;font-weight:600;
+  padding:7px 14px;border-radius:var(--r);margin-left:8px}
 .site-nav .to-admin:hover{background:var(--accent);color:#fff}
 
+/* Правые ячейки полосы — город и вход — разделены вертикальными
+   чертами во всю высоту полосы */
+.topbar .city,
+.topbar .acct-link{display:flex;align-items:center;border-left:1px solid var(--line-3);
+  padding:0 18px}
+.topbar .city{margin-left:auto}
+
 /* ── Город покупателя ──────────────────────────────────── */
-/* Стоит перед меню и прижат вправо: марка слева, город и навигация
-   вместе справа. Из бургера город намеренно вынесен — на телефоне
-   он нужнее пунктов меню */
-.city{position:relative;margin-left:auto;flex:0 0 auto}
+.city{position:relative;flex:0 0 auto}
 .city-btn{display:flex;align-items:center;gap:6px;background:none;border:0;
-  padding:7px 10px;border-radius:8px;font:inherit;font-size:var(--t-sm);
+  padding:6px 0;font:inherit;font-size:var(--t-sm);
   color:var(--muted);cursor:pointer;white-space:nowrap}
-.city-btn:hover{background:var(--surface-2);color:var(--ink)}
+.city-btn:hover{color:var(--ink)}
 .city-btn svg{color:var(--accent);flex:0 0 auto}
 .city-btn b{color:var(--ink);font-weight:600;
   border-bottom:1px dashed var(--line-2)}
 .city-btn[aria-expanded="true"] b{border-bottom-color:var(--accent)}
 
-.city-pop{position:absolute;top:calc(100% + 6px);right:0;z-index:50;
-  min-width:210px;background:var(--surface);border:1px solid var(--line);
-  border-radius:10px;padding:5px;box-shadow:0 12px 32px rgba(0,0,0,.13)}
+.city-pop{position:absolute;top:calc(100% - 4px);right:0;z-index:50;
+  min-width:220px;background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--r);padding:5px;box-shadow:0 12px 32px rgba(0,0,0,.13)}
 .city-pop button{display:flex;align-items:center;width:100%;gap:10px;
-  background:none;border:0;padding:9px 11px;border-radius:7px;
+  background:none;border:0;padding:9px 11px;border-radius:3px;
   font:inherit;font-size:var(--t-sm);color:var(--ink);cursor:pointer;
   text-align:left}
-.city-pop button:hover{background:var(--surface-2)}
+.city-pop button:hover{background:var(--surface-2);color:var(--accent)}
 .city-pop button[aria-selected]{font-weight:600;color:var(--accent)}
 .city-pop .n{margin-left:auto;color:var(--dim);font-size:var(--t-xs);
   font-variant-numeric:tabular-nums}
 .city-pop .all{border-top:1px solid var(--line);margin-top:4px;padding-top:11px;
-  border-radius:0 0 7px 7px;color:var(--muted)}
+  border-radius:0 0 3px 3px;color:var(--muted)}
 
-/* Догадка geoip: висит под шапкой, пока человек не ответит */
-.city-ask{position:absolute;top:calc(100% + 6px);right:0;z-index:50;width:250px;
-  background:var(--surface);border:1px solid var(--line);border-radius:10px;
+/* Догадка geoip: висит под полосой, пока человек не ответит */
+.city-ask{position:absolute;top:calc(100% - 4px);right:0;z-index:50;width:260px;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
   padding:14px;box-shadow:0 12px 32px rgba(0,0,0,.13)}
 .city-ask p{margin:0 0 11px;font-size:var(--t-sm)}
 .city-ask .row{display:flex;gap:8px}
 .city-ask .btn{flex:1;padding:8px 10px;font-size:var(--t-xs)}
 
-@media(max-width:560px){
-  /* Остаётся название города: подпись занимает место, а смысл несёт значок */
-  .city-btn .lbl{display:none}
-  .city-pop,.city-ask{right:auto;left:50%;transform:translateX(-50%)}
-  .brand img{width:43px;height:43px;flex-basis:43px}
+/* Вход — жирным, как «Sign In» у магазинов: это главное действие полосы */
+.acct-link{flex:0 0 auto;font-size:14px;font-weight:600;color:var(--ink);
+  max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  transition:color .13s}
+.acct-link:hover{color:var(--accent)}
+
+/* ── Ряд поиска ────────────────────────────────────────── */
+/* Два состояния.
+   В самом верху страницы ряд — часть страницы: без линии и тени,
+   цвета подложки под ним. Начали прокрутку — он отделяется:
+   проявляется толстая серая черта снизу, мягкая тень и матовое
+   стекло, сквозь которое размыто видно уезжающий контент.
+
+   Класс .at-top ставит static/js/chrome.js. Без скрипта ряд остаётся
+   отделённым — это безопасное состояние: черта лишней не бывает,
+   а ряд, слившийся с прокрученным контентом, — да. */
+.site-head{position:sticky;top:0;z-index:40;
+  background:var(--surface);border-bottom:5px solid var(--line-2);
+  box-shadow:0 10px 30px -22px rgba(0,0,0,.45);
+  /* Высота ряда и коэффициент увеличения (см. «Увеличение» ниже) */
+  --head-h:84px;--k:1;
+  padding-bottom:calc(var(--head-h) * (var(--k) - 1));
+  margin-bottom:calc(var(--head-h) * (1 - var(--k)))}
+
+/* Цвет «вплавленного» состояния — подложка страницы: все страницы
+   начинаются с серой подложки, первый экран лежит на ней белым блоком */
+body{--head-top-bg:var(--bg)}
+
+.site-head.at-top{background:var(--head-top-bg);
+  border-bottom-color:transparent;
+  /* Та же тень, только прозрачная: переход гасит её, а не обрезает */
+  box-shadow:0 10px 30px -22px rgba(0,0,0,0)}
+
+/* Переходы включаются со второго кадра: иначе при загрузке ряд
+   успевал бы показать черту и плавно её «стереть» */
+.site-head.ready{transition:background-color .45s ease, border-color .45s ease,
+  box-shadow .45s ease, -webkit-backdrop-filter .45s ease, backdrop-filter .45s ease,
+  --k .45s ease}
+
+/* ── Увеличение при прокрутке ─────────────────────────────
+   Отделившись, ряд вырастает на 10% вместе со всем содержимым.
+
+   Каждый элемент по отдельности увеличивать нельзя: широкие наезжают
+   на соседей. Поэтому масштабируется весь ряд, как под лупой: раскладка
+   считается в ширине 100% / k и увеличивается в k раз — ровно
+   заполняет окно.
+
+   Контент под рядом при этом не сдвигается: прибавка высоты
+   (padding-bottom) тут же гасится отрицательным margin-bottom — ряд
+   нависает над контентом, а не толкает его.
+
+   Анимируется одно число --k, от него синхронно считаются масштаб,
+   ширина и высота. Для этого свойство зарегистрировано через @property;
+   браузер без @property переключит размер сразу, без плавности. */
+@property --k{syntax:'<number>';inherits:true;initial-value:1}
+
+/* Только под управлением скрипта (.ready): без него ряд всегда
+   «отделён» и был бы увеличенным и в самом верху */
+.site-head.ready:not(.at-top){--k:1.1}
+
+@supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .site-head:not(.at-top){
+    /* color-mix не поддержан — правило отбрасывается, остаётся
+       сплошной белый фон; стекло здесь украшение, не функция */
+    background:color-mix(in srgb, var(--surface) 80%, transparent);
+    -webkit-backdrop-filter:saturate(1.6) blur(14px);
+    backdrop-filter:saturate(1.6) blur(14px)}
 }
 
-/* ── Корзина и кабинет ─────────────────────────────────── */
-/* Стоят после меню и не прячутся в бургер: на телефоне корзина
-   нужнее пунктов «Доставка» и «Контакты» */
-.cart-link{position:relative;display:flex;align-items:center;flex:0 0 auto;
-  padding:8px;border-radius:8px;color:var(--muted)}
-.cart-link:hover{background:var(--surface-2);color:var(--ink)}
-.cart-n{position:absolute;top:1px;right:0;min-width:16px;height:16px;padding:0 4px;
+/* На всю ширину окна, отступ растёт с экраном */
+.site-head .wrap{display:flex;align-items:center;gap:18px;height:var(--head-h);
+  flex-wrap:nowrap;min-width:0;
+  max-width:none;padding-inline:clamp(16px, 3vw, 32px);
+  /* Увеличение: узкая раскладка, растянутая от левого верхнего угла.
+     margin-inline:0 — иначе margin:auto из .wrap центровал бы узкий
+     ряд, и после увеличения он съехал бы вправо */
+  width:calc(100% / var(--k));margin-inline:0;
+  transform:scale(var(--k));transform-origin:0 0}
+
+/* «Все категории» — вход в каталог, тёмная плашка слева от поиска */
+.cat-btn{display:flex;align-items:center;gap:10px;flex:0 0 auto;height:48px;
+  padding:0 20px;border-radius:var(--r);background:var(--dark);color:#fff;
+  font-size:14px;font-weight:600;white-space:nowrap;transition:background .15s}
+.cat-btn:hover{background:var(--accent)}
+.cat-btn svg{flex:0 0 auto}
+
+/* Поиск — «таблетка» с оранжевой кнопкой внутри */
+.head-search{flex:1;min-width:0;display:flex;align-items:center;height:48px;
+  background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r-pill);
+  padding:0 5px 0 22px;transition:border-color .13s,box-shadow .13s}
+.head-search:focus-within{border-color:var(--accent);
+  box-shadow:0 0 0 3px rgba(245,79,12,.12)}
+.head-search input{flex:1;min-width:0;border:0;background:none;outline:none;
+  font:inherit;font-size:14px;color:var(--ink);padding:0}
+.head-search input::placeholder{color:var(--dim)}
+/* Системный крестик очистки у type=search в стиль не попадает */
+.head-search input::-webkit-search-cancel-button{-webkit-appearance:none}
+.head-search button{flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+  gap:8px;height:38px;padding:0 20px;border:0;border-radius:var(--r-pill);
+  background:var(--accent);color:#fff;font:inherit;font-size:14px;font-weight:600;
+  cursor:pointer;transition:background .15s}
+.head-search button:hover{background:var(--accent-dk)}
+
+/* Корзина — значок с числом и подписью */
+.cart-link{position:relative;display:flex;align-items:center;gap:10px;flex:0 0 auto;
+  color:var(--ink);font-size:14px;font-weight:600;transition:color .13s}
+.cart-link:hover{color:var(--accent)}
+.cart-ico{position:relative;display:flex;align-items:center;justify-content:center;
+  width:46px;height:46px;border-radius:50%;background:var(--surface-2);
+  border:1px solid var(--line)}
+.cart-n{position:absolute;top:-3px;right:-3px;min-width:19px;height:19px;padding:0 5px;
   display:flex;align-items:center;justify-content:center;
-  background:var(--accent);color:#fff;border-radius:9px;
-  font-size:10px;font-weight:600;line-height:1}
-
-.acct-link{flex:0 0 auto;padding:8px 12px;border-radius:8px;
-  font-size:var(--t-sm);color:var(--muted);max-width:150px;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.acct-link:hover{background:var(--surface-2);color:var(--ink)}
-
-@media(max-width:560px){
-  /* Имя покупателя длинное, а места нет — остаётся корзина и вход */
-  .acct-link{max-width:88px}
-}
+  background:var(--accent);color:#fff;border-radius:10px;
+  font-size:10.5px;font-weight:600;line-height:1}
 
 /* ── Бургер и мобильное меню ───────────────────────────── */
-.burger{display:none;width:42px;height:42px;padding:0;flex:0 0 42px;
-  background:none;border:1px solid var(--line-2);border-radius:9px;
-  cursor:pointer;position:relative;margin-left:auto}
+.burger{display:none;width:42px;height:42px;padding:0;flex:0 0 42px;align-self:center;
+  background:none;border:1px solid var(--line-2);border-radius:var(--r);
+  cursor:pointer;position:relative;margin-left:10px;color:var(--ink)}
 .burger span,.burger::before,.burger::after{
   content:"";position:absolute;left:11px;right:11px;height:2px;
   background:currentColor;transition:transform .18s,opacity .12s}
@@ -211,36 +229,72 @@ body:has(> main > .hero:first-child){--head-top-bg:var(--surface)}
 .burger[aria-expanded="true"]::before{transform:translateY(7px) rotate(45deg)}
 .burger[aria-expanded="true"]::after{transform:translateY(-7px) rotate(-45deg)}
 
+@media(max-width:1000px){
+  /* Подпись у корзины уступает место поиску */
+  .cart-link .cart-lbl{display:none}
+}
+
 @media(max-width:760px){
   .burger{display:block}
+  .topbar .wrap{position:relative;height:58px}
+  .brand{margin-right:0;font-size:16px}
+  .brand img{width:40px;height:40px;flex-basis:40px}
 
-  /* Меню разворачивается под шапкой на всю ширину */
+  /* Меню разворачивается под полосой на всю ширину */
   .site-nav{
     position:absolute;left:0;right:0;top:100%;
     flex-direction:column;align-items:stretch;gap:0;
     background:var(--surface);border-bottom:1px solid var(--line);
     padding:8px 16px 14px;margin:0;
-    box-shadow:0 12px 24px rgba(18,22,27,.08);
+    box-shadow:0 12px 24px rgba(0,0,0,.08);
     overflow:visible;max-height:none}
   .site-nav[hidden]{display:none}
-
-  .site-nav a{padding:13px 4px;border-bottom:1px solid var(--line);
-    font-size:var(--t-md)}
+  .site-nav a{padding:13px 4px;border-bottom:1px solid var(--line);font-size:var(--t-md)}
   .site-nav a:last-child{border-bottom:0}
-  .site-nav .to-admin{margin:10px 0 0;text-align:center;border-radius:9px}
+  .site-nav .to-admin{margin:10px 0 0;text-align:center}
 
-  .site-head{position:sticky;top:0}
-  .site-head .wrap{position:relative;flex-wrap:nowrap}
+  .topbar .city,.topbar .acct-link{padding:0 12px}
+
+  .site-head{--head-h:68px}
+  .site-head .wrap{gap:10px}
+  /* От «Все категории» остаётся значок: поиск важнее подписи */
+  .cat-btn{width:44px;height:44px;padding:0;justify-content:center}
+  .cat-btn span{display:none}
+  .head-search{height:44px;padding-left:16px}
+  .head-search button{height:34px;padding:0 14px}
+  .head-search button span{display:none}
+  .cart-ico{width:42px;height:42px}
 }
 
-@media(max-width:640px){
-  .site-head{--head-h:54px}
-  .site-head .wrap{gap:12px}
+@media(max-width:560px){
+  /* Остаётся название города: подпись занимает место, а смысл несёт значок */
+  .city-btn .lbl{display:none}
+  .city-pop,.city-ask{right:auto;left:50%;transform:translateX(-50%)}
+  /* Имя покупателя длинное, а места нет */
+  .acct-link{max-width:92px}
+  .brand span{display:none}
+  /* Картинки нет (файл не нашёлся, её убрал скрипт) — без подписи
+     на месте бренда было бы пусто */
+  .brand:not(:has(img)) span{display:inline}
 }
 
 /* ── Подвал ────────────────────────────────────────────── */
-.site-foot{border-top:1px solid var(--line);margin-top:60px;padding:28px 0;
-  background:var(--surface)}
+.site-foot{background:var(--foot);color:var(--foot-text);margin-top:70px;
+  font-size:14px;line-height:1.7}
+.foot-grid{display:grid;grid-template-columns:1.6fr 1fr 1fr;gap:40px;
+  padding-top:56px;padding-bottom:40px}
+@media(max-width:760px){.foot-grid{grid-template-columns:1fr 1fr;gap:28px}
+  .foot-about{grid-column:1/-1}}
+@media(max-width:440px){.foot-grid{grid-template-columns:1fr}}
+
+.foot-about .brand{color:#fff;margin:0 0 14px}
+.foot-about p{margin:0;max-width:40ch}
+.foot-col h4{margin:0 0 16px;color:#fff;font-size:var(--t-lg);font-weight:600}
+.foot-col a{display:block;padding:3px 0;color:var(--foot-text);transition:color .13s}
+.foot-col a:hover{color:#fff}
+
+.foot-bottom{border-top:1px solid rgba(255,255,255,.08);padding:18px 0;
+  font-size:var(--t-sm)}
 
 /* Пиксельная метка в самом верху документа: по ней скрипт шапки
    (static/js/chrome.js) понимает, прокручена ли страница */
