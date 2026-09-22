@@ -1,11 +1,12 @@
 """Машины на витрине: список и карточка машины.
 
 Покупатель ищет не только деталь, но и машину: «есть у вас разобранная
-Веста?» Здесь все машины в разборе и разобранные, у каждой — что уже
-снято и форма вопроса «а снимете ли под заказ».
+Веста?» Здесь все машины — ждут разбора, в разборе и разобранные, у каждой
+что уже снято и форма вопроса «а снимете ли под заказ».
 
 Покупателю показываем то, что помогает подобрать деталь: поколение,
-двигатель, коробку, пробег, цвет, где стоит машина. Не показываем
+двигатель, коробку, пробег, цвет, где стоит машина и описание, которое
+приёмщик пишет специально для сайта (donors.public_note). Не показываем
 госномер, цену закупки и внутренние заметки приёмщика. VIN — только
 первые 11 знаков: по ним видны завод, модель и год, но не конкретная
 машина.
@@ -24,13 +25,16 @@ from ..templating import templates
 
 router = APIRouter(tags=["cars"])
 
-# Статусы, которые видит покупатель. «Принята» ещё не на витрине —
-# так же решает каталог; «утилизирована» — снимать уже нечего
-PUBLIC = ("dismantling", "dismantled")
+# Статусы, которые видит покупатель. «Принята» тоже: разбирать ещё
+# не начали, все детали на машине — для «снять под заказ» лучше не бывает.
+# «Утилизирована» — снимать уже нечего
+PUBLIC = ("accepted", "dismantling", "dismantled")
+STATUS_LABELS = {"accepted": "Ждёт разбора", "dismantling": "В разборе",
+                 "dismantled": "Разобрана"}
 
 CARS_SQL = """
     SELECT d.id, d.code, d.status::text AS status, d.year, d.mileage_km, d.color,
-           d.accepted_at,
+           d.accepted_at, d.public_note,
            b.id AS brand_id, b.name AS brand, m.id AS model_id, m.name AS model,
            g.name AS generation, g.body_type,
            mo.engine_volume, mo.fuel, mo.power_hp, mo.transmission, mo.drive,
@@ -45,7 +49,7 @@ CARS_SQL = """
       JOIN brands b      ON b.id = m.brand_id
       LEFT JOIN modifications mo ON mo.id = d.modification_id
       LEFT JOIN branches br      ON br.id = d.branch_id
-     WHERE d.status IN ('dismantling', 'dismantled')
+     WHERE d.status IN ('accepted', 'dismantling', 'dismantled')
 """
 
 MONTHS = ("января", "февраля", "марта", "апреля", "мая", "июня", "июля",
@@ -88,14 +92,16 @@ def card(c) -> dict:
         "engine": engine_line(c),
         "mileage": km(c.mileage_km),
         "parts_label": f"{c.parts} {plural(c.parts, 'деталь', 'детали', 'деталей')}",
+        "status_label": STATUS_LABELS.get(c.status, c.status),
+        # С машины снимают под заказ, пока разбор не закрыт
+        "open": c.status in ("accepted", "dismantling"),
     }
 
 
 def order(c: dict):
-    # Сначала те, что ещё в разборе: с них можно снять под заказ.
-    # Внутри — свежие выше
-    return (c["status"] != "dismantling", -(c["accepted_at"] or date.min).toordinal(),
-            -c["id"])
+    # Сначала те, с которых можно снять под заказ (ждут разбора и
+    # в разборе), потом разобранные. Внутри — свежие выше
+    return (not c["open"], -(c["accepted_at"] or date.min).toordinal(), -c["id"])
 
 
 @router.get("/cars", response_class=HTMLResponse)

@@ -81,7 +81,10 @@ function openFromHash(rows){
   el.scrollIntoView({behavior: 'smooth', block: 'center'});
 }
 
-const val = v => v === null || v === undefined ? '' : v;
+// Значение в разметку — только экранированным: кавычка в заметке
+// обрывала атрибут value и ломала поле
+const val = v => v === null || v === undefined ? '' : String(v).replace(/[&<>"]/g,
+  c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 
 function toggleEdit(el, c){
   const open = el.querySelector('.edit');
@@ -105,6 +108,8 @@ function toggleEdit(el, c){
     <div><label>Филиал</label><select class="f-branch"></select></div>
     <div class="wide"><label>Модификация</label><select class="f-mod"></select></div>
     <div class="wide"><label>Заметки</label><input class="f-notes" value="${val(c.notes)}"></div>
+    <div class="wide"><label>Описание для покупателя · видно на сайте</label>
+      <textarea class="f-pub" rows="2" maxlength="2000">${val(c.public_note)}</textarea></div>
     <div class="wide"><button class="btn btn-accent save">Сохранить</button></div>`;
   el.appendChild(box);
 
@@ -154,6 +159,9 @@ async function save(el, id, box){
     modification_id: num(box.querySelector('.f-mod').value),
     branch_id: num(box.querySelector('.f-branch').value),
     notes: str(box.querySelector('.f-notes').value),
+    // Как есть, а не через str(): пустая строка стирает описание,
+    // null значил бы «не трогать»
+    public_note: box.querySelector('.f-pub').value.trim(),
   };
   const btn = box.querySelector('.save');
   btn.disabled = true;

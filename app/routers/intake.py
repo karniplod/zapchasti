@@ -59,6 +59,8 @@ class DonorCreate(BaseModel):
     # после того, как она реально приехала
     accepted_at: date | None = None
     notes: str | None = None
+    # Описание для покупателя — видно на сайте, в отличие от notes
+    public_note: str | None = Field(default=None, max_length=2000)
 
     @field_validator("vin")
     @classmethod
@@ -303,9 +305,10 @@ async def create_donor(
             text("""
         INSERT INTO donors (code, vin, generation_id, modification_id, complectation_id,
                             year, color, mileage_km, plate, purchase_price,
-                            accepted_at, notes, vin_source, branch_id)
+                            accepted_at, notes, public_note, vin_source, branch_id)
         VALUES (:code, :vin, :gen, :mod, :compl, :year, :color,
-                :mileage, :plate, :price, COALESCE(:accepted, CURRENT_DATE), :notes, :src,
+                :mileage, :plate, :price, COALESCE(:accepted, CURRENT_DATE), :notes,
+                :public_note, :src,
                 :branch)
         RETURNING id
     """),
@@ -325,6 +328,7 @@ async def create_donor(
                 "plate": payload.plate,
                 "price": payload.purchase_price,
                 "notes": payload.notes,
+                "public_note": (payload.public_note or "").strip() or None,
                 "src": "manual" if payload.vin else "no_vin",
             },
         )

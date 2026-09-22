@@ -200,7 +200,7 @@ async def sitemap(session: AsyncSession = Depends(get_session)):
     urls = [f"<url><loc>{settings.base_url}{p}</loc></url>"
             for p in ("/", "/catalog", "/cars", "/delivery", "/contacts")]
     for r in await session.execute(text(
-            "SELECT code FROM donors WHERE status IN ('dismantling', 'dismantled')")):
+            "SELECT code FROM donors WHERE status IN ('accepted', 'dismantling', 'dismantled')")):
         urls.append(f"<url><loc>{settings.base_url}/cars/{r.code}</loc></url>")
     for r in rows:
         stamp = f"<lastmod>{r.updated_at.date()}</lastmod>" if r.updated_at else ""

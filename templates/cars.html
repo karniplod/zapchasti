@@ -11,8 +11,9 @@
 <section class="hero page-hero">
   <div class="wrap">
     <h1>Машины на разборе</h1>
-    <p class="lead">Все машины, с которых мы снимаем детали. Откройте машину —
-       увидите, что уже снято, и спросите, что можно снять под заказ.</p>
+    <p class="lead">Все машины, с которых мы снимаем детали, — и те, что ещё
+       ждут разбора. Откройте машину — увидите, что уже снято, и спросите,
+       что можно снять под заказ.</p>
   </div>
 </section>
 
@@ -42,7 +43,7 @@
       <div class="shot">
         {% if c.photo %}<img src="{{ c.photo }}" alt="{{ c.brand }} {{ c.model }}" loading="lazy">
         {% else %}<div class="none">фото готовится</div>{% endif %}
-        <span class="status" data-s="{{ c.status }}">{{ 'В разборе' if c.status == 'dismantling' else 'Разобрана' }}</span>
+        <span class="status" data-s="{{ c.status }}">{{ c.status_label }}</span>
       </div>
       <div class="body">
         <span class="code">{{ c.code }}</span>
@@ -54,8 +55,11 @@
           {% if c.mileage %}<li>{{ c.mileage }}</li>{% endif %}
           {% if c.city %}<li>{{ c.city }}</li>{% endif %}
         </ul>
+        {% if c.public_note %}<p class="note">{{ c.public_note }}</p>{% endif %}
         <span class="parts{% if not c.parts %} none{% endif %}">
-          {% if c.parts %}{{ c.parts_label }} в наличии{% else %}деталей пока нет — спросите{% endif %}</span>
+          {% if c.parts %}{{ c.parts_label }} в наличии
+          {% elif c.status == 'accepted' %}все детали на машине — спросите
+          {% else %}деталей пока нет — спросите{% endif %}</span>
       </div>
     </a>
     {% endfor %}

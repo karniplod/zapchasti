@@ -32,11 +32,17 @@
 
   <div class="car-info">
     <p class="status-line">
-      <span class="status" data-s="{{ car.status }}">{{ 'В разборе' if car.status == 'dismantling' else 'Разобрана' }}</span>
-      {% if car.since %}<span>на разборе с {{ car.since }}</span>{% endif %}
+      <span class="status" data-s="{{ car.status }}">{{ car.status_label }}</span>
+      {% if car.since %}<span>{{ 'принята' if car.status == 'accepted' else 'на разборе с' }} {{ car.since }}</span>{% endif %}
     </p>
     <h1>{{ car.brand }} {{ car.model }}{% if car.year %}, {{ car.year }}{% endif %}</h1>
     <p class="gen">{{ car.generation }}{% if car.body_type %}, {{ car.body_type|lower }}{% endif %} · {{ car.code }}</p>
+
+    {# Описание для покупателя — отдельное поле приёмщика, не его
+       внутренние заметки. Переносы строк сохраняются стилем #}
+    {% if car.public_note %}
+    <div class="car-note"><b>Состояние машины</b><p>{{ car.public_note }}</p></div>
+    {% endif %}
 
     {# Только то, что помогает подобрать деталь. Госномер, цена закупки
        и заметки приёмщика сюда не попадают #}
@@ -84,7 +90,10 @@
   <div class="ask">
     <div class="ask-text">
       <h2>Нужна деталь, <b>которой нет в списке?</b></h2>
-      {% if car.status == 'dismantling' %}
+      {% if car.status == 'accepted' %}
+      <p>Машину только приняли, разбирать ещё не начали — все детали пока на ней.
+         Напишите, что нужно: снимем под заказ первым делом и сообщим цену.</p>
+      {% elif car.status == 'dismantling' %}
       <p>Машина ещё в разборе — нужная деталь, возможно, пока на ней. Напишите,
          что ищете: проверим, снимем под заказ и сообщим цену.</p>
       {% else %}

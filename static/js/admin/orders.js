@@ -7,6 +7,10 @@ let mode = new URLSearchParams(location.search).get('tab') === 'leads'
            ? 'leads' : 'orders';
 const startStatus = new URLSearchParams(location.search).get('s') || '';
 
+// С каких машин ещё можно снять деталь под заказ — для заявок по машине
+const CAN_REMOVE = {accepted: '(ждёт разбора — можно снять)',
+                    dismantling: '(в разборе — можно снять)'};
+
 const STATUSES = {new:'новый', confirmed:'подтверждён', paid:'оплачен',
                   shipped:'отправлен', completed:'выдан', cancelled:'отменён'};
 
@@ -111,7 +115,7 @@ async function loadLeads(){
         ${l.part_status !== 'in_stock' ? ' (уже не в наличии)' : ''}</div>` : ''}
       ${l.donor_code ? `<div class="meta">по машине
         <a href="/cars/${l.donor_code}" target="_blank">${l.donor_code}</a> — ${l.donor_car}
-        ${l.donor_status === 'dismantling' ? '(в разборе — можно снять)' : ''}</div>` : ''}
+        ${CAN_REMOVE[l.donor_status] || ''}</div>` : ''}
       ${l.message ? `<div class="meta">${l.message}</div>` : ''}
       <div class="actions-row">
         <button class="btn ${l.processed ? '' : 'btn-accent'} mark">

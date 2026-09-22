@@ -51,6 +51,9 @@
 .facts{display:flex;flex-wrap:wrap;gap:5px;list-style:none;margin:8px 0 0;padding:0;
   font-size:var(--t-xs);color:var(--muted)}
 .facts li{background:var(--surface-2);border-radius:3px;padding:3px 8px;white-space:nowrap}
+/* Описание на плитке — две строки, целиком — на странице машины */
+.car-card .note{margin:8px 0 0;font-size:var(--t-xs);color:var(--muted);line-height:1.45;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .car-card .parts{margin-top:auto;padding-top:12px;font-size:var(--t-sm);font-weight:600;
   color:var(--accent)}
 .car-card .parts.none{color:var(--dim);font-weight:500}
@@ -59,6 +62,8 @@
 .status{display:inline-block;font-size:11px;font-weight:600;line-height:1;
   padding:6px 9px;border-radius:3px;background:var(--dark);color:#fff}
 .status[data-s="dismantling"]{background:var(--accent)}
+/* Ждёт разбора — всё на машине: зелёный, «можно заказать что угодно» */
+.status[data-s="accepted"]{background:var(--ok)}
 .car-card .status{position:absolute;left:10px;top:10px;z-index:2}
 
 /* ── Карточка машины ───────────────────────────────────── */
@@ -80,6 +85,9 @@
 .car-info h1{font-size:var(--t-2xl);margin:0 0 6px;line-height:1.2}
 .car-info .gen{margin:0;color:var(--muted);font-size:var(--t-sm)}
 
+.car-note{margin:18px 0 0;padding:14px 16px;background:var(--surface-2);
+  border-left:3px solid var(--accent);border-radius:0 var(--r) var(--r) 0;font-size:var(--t-sm)}
+.car-note p{margin:4px 0 0;color:var(--muted);line-height:1.55;white-space:pre-line}
 .car-info .specs{margin:22px 0 0;border-top:1px solid var(--line)}
 .car-info .specs div{display:flex;gap:14px;padding:11px 0;border-bottom:1px solid var(--line);
   font-size:var(--t-sm)}

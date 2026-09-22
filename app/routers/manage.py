@@ -11,7 +11,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -62,6 +62,7 @@ async def donors_list(
         text("""
         SELECT d.id, d.code, d.vin, d.year, d.color, d.status::text AS status,
                d.accepted_at, d.purchase_price, d.mileage_km, d.plate, d.notes,
+               d.public_note,
                d.modification_id, d.generation_id, d.branch_id,
                (SELECT br.city || ', ' || br.name FROM branches br
                  WHERE br.id = d.branch_id) AS branch,
@@ -176,6 +177,8 @@ class DonorPatch(BaseModel):
     purchase_price: Decimal | None = None
     accepted_at: date | None = None
     notes: str | None = None
+    # Пустая строка — стереть описание; None — не трогать
+    public_note: str | None = Field(default=None, max_length=2000)
     status: str | None = None
     modification_id: int | None = None
     complectation_id: int | None = None
@@ -378,6 +381,7 @@ async def patch_donor(
         ("color", "color"),
         ("plate", "plate"),
         ("notes", "notes"),
+        ("public_note", "public_note"),
         ("mileage_km", "mileage_km"),
         ("purchase_price", "purchase_price"),
     ):

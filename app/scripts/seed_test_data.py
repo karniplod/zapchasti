@@ -63,6 +63,7 @@ CARS = [
         "plate": "К512ТЕ159", "purchase_price": 280_000,
         "accepted_at": date(2026, 8, 20), "branch_id": 1, "status": "dismantling",
         "notes": "Удар в заднюю часть, передок целый.",
+        "public_note": "Удар в заднюю часть. Передок, двигатель и коробка целые, салон чистый.",
         "parts": [
             ("Фара левая", "Фара левая", "B", "Линза чистая, потёртость у крепления", 9500, 2.4, "А-1", "original", None),
             ("Дверь передняя правая", "Дверь передняя правая", "C", "Вмятина 3 см на нижней кромке, стекло и замок в комплекте", 12000, 18.5, "В-4", "original", None),
@@ -79,6 +80,7 @@ CARS = [
         "plate": "М047ОР59", "purchase_price": 650_000,
         "accepted_at": date(2026, 8, 28), "branch_id": 2, "status": "dismantling",
         "notes": "После затопления, салон под замену, кузов и агрегаты целые.",
+        "public_note": "Была в воде по пороги: салон и электрика под замену, кузов, оптика и агрегаты целые.",
         "parts": [
             ("Бампер передний", "Бампер передний", "B", "Целый, крепления на месте, царапины по низу", 14000, 5.5, "В-1", "original", None),
             ("Капот", "Капот", "A", "Без вмятин и сколов", 16000, 12, "В-2", "original", None),
@@ -95,6 +97,7 @@ CARS = [
         "plate": "В318НА77", "purchase_price": 35_000,
         "accepted_at": date(2026, 9, 3), "branch_id": 3, "status": "dismantled",
         "notes": "Кузов гнилой, продаём агрегаты и салон.",
+        "public_note": "Кузов в коррозии — продаём агрегаты, карданную передачу и салон.",
         "parts": [
             ("Карданный вал", "Карданный вал", "C", "Крестовины без люфта, пыльник подвесного подшипника порван", 3000, 8.5, "Г-3", "original", None),
             ("Стартер", "Стартер", "B", "Крутит уверенно, бендикс заменён", 2200, 3.9, "Б-1", "aftermarket", "BATE"),
@@ -111,6 +114,7 @@ CARS = [
         "plate": "Е905КХ799", "purchase_price": 310_000,
         "accepted_at": date(2026, 9, 10), "branch_id": 4, "status": "dismantling",
         "notes": "Удар в левый бок, двигатель и коробка целые.",
+        "public_note": "Удар в левый бок. Двигатель, АКПП, передок и правая сторона целые.",
         "parts": [
             ("АКПП", "АКПП 6-ступенчатая", "B", "Переключения без толчков", 55000, 70, "Г-4", "original", None),
             ("Блок управления двигателем", "Блок управления двигателем", "A", "Прошивка заводская", 7000, 0.6, "А-2", "original", None),
@@ -127,6 +131,7 @@ CARS = [
         "plate": "Т264УМ159", "purchase_price": 290_000,
         "accepted_at": date(2026, 9, 15), "branch_id": 1, "status": "dismantled",
         "notes": "Удар в переднюю часть, зад и коробка целые.",
+        "public_note": "Удар в переднюю часть. Задняя часть, салон и МКПП целые.",
         "parts": [
             ("МКПП", "МКПП 6-ступенчатая", "B", "Без хруста, сальники сухие", 32000, 36, "Г-5", "original", None),
             ("Бампер задний", "Бампер задний", "C", "Трещина у левого крепления, под ремонт", 6000, 4.8, "В-6", "original", None),
@@ -236,15 +241,16 @@ async def create(s, car, apply: bool) -> None:
     donor = (await s.execute(text("""
         INSERT INTO donors (code, vin, generation_id, modification_id, complectation_id,
                             year, color, mileage_km, plate, purchase_price, accepted_at,
-                            notes, vin_source, vin_decoded, branch_id)
+                            notes, public_note, vin_source, vin_decoded, branch_id)
         VALUES ('D-' || lpad(nextval('donor_code_seq')::text, 4, '0'),
                 :vin, :gen, :mod, :compl, :year, :color, :mileage, :plate, :price,
-                :accepted, :notes, 'manual', CAST(:decoded AS jsonb), :branch)
+                :accepted, :notes, :public_note, 'manual', CAST(:decoded AS jsonb), :branch)
         RETURNING id, code"""), {
         "vin": car["vin"], "gen": car["generation_id"], "mod": car["modification_id"],
         "compl": compl, "year": car["year"], "color": car["color"],
         "mileage": car["mileage_km"], "plate": car["plate"], "price": car["purchase_price"],
         "accepted": car["accepted_at"], "notes": f"{car['notes']} {MARK}",
+        "public_note": car["public_note"],
         "decoded": json.dumps(dataclasses.asdict(info), ensure_ascii=False),
         "branch": car["branch_id"],
     })).first()

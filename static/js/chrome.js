@@ -102,9 +102,9 @@ document.querySelectorAll('.brand img').forEach(img => {
   const menu = document.getElementById('catMenu');
   if (!btn || !menu) return;
 
-  // Под узлом — три самые заполненные категории (сервер отдаёт их по
+  // Под узлом — две самые заполненные категории (сервер отдаёт их по
   // убыванию числа деталей), остальные раскрывает кнопка «ещё N»
-  const SHOW = 3;
+  const SHOW = 2;
   let data = null, loading = null;
 
   // Названия приходят из базы — в разметку только экранированными

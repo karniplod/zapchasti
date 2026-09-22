@@ -68,3 +68,6 @@ header .code{font-family:var(--mono);font-size:13px;color:var(--amber)}
 .legend i.seg-yr{background:#c792ea}
 .legend i.seg-ser{background:#2b333f}
 .chk{width:auto;margin-right:7px}
+/* Пометка у поля, которое уходит на сайт: приёмщик должен это видеть */
+.pub-tag{margin-left:6px;font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--amber);border:1px solid rgba(255,194,51,.4);border-radius:4px;padding:1px 5px}

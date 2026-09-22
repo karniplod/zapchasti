@@ -221,7 +221,8 @@ $('save').addEventListener('click', async () => {
     purchase_price: $('price').value ? +$('price').value : null,
     accepted_at: $('acceptedAt').value || null,
     branch_id: $('branch').value ? +$('branch').value : null,
-    notes: $('notes-field').value || null
+    notes: $('notes-field').value || null,
+    public_note: $('pub-field').value.trim() || null
   };
   // Приёмка машины и загрузка фото разнесены намеренно: раньше всё
   // лежало в одном try, и любая ошибка после успешного сохранения
@@ -273,7 +274,7 @@ function resetForm(){
   paintRuler(''); $('readout').innerHTML = ''; $('notes').innerHTML = '';
   // Дату приёмки и филиал намеренно не сбрасываем: партию машин
   // заводят одним заходом, в одном месте и обычно одной датой
-  ['year','color','mileage','plate','price','notes-field'].forEach(id => $(id).value = '');
+  ['year','color','mileage','plate','price','notes-field','pub-field'].forEach(id => $(id).value = '');
   ['model','generation','modification'].forEach(id => { $(id).innerHTML=''; $(id).disabled = true; });
   $('complectation').innerHTML = ''; $('complectationBox').hidden = true;
   $('brand').value = ''; clearAuto();
