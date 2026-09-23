@@ -4,3 +4,8 @@
 *.sh text eol=lf
 deploy/*.cron text eol=lf
 deploy/*.service text eol=lf
+
+# Шрифты — двоичные: без этого git на Windows может «поправить»
+# переводы строк внутри woff2 и файл приедет на сервер битым
+*.woff2 binary
+*.png binary

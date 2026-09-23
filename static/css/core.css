@@ -22,7 +22,7 @@
    Файлы лежат у нас (static/fonts, лицензия OFL — Montserrat-OFL.txt):
    без запроса к чужому серверу. Один файл на набор символов; браузер
    качает только те, чьи символы есть на странице. Шрифт переменный —
-   файл покрывает все начертания от 400 до 700. ₽ — в наборе latin-ext */
+   файл покрывает все начертания от 400 до 700 */
 @font-face{font-family:"Montserrat";font-style:normal;font-weight:400 700;font-display:swap;
   src:url("../fonts/montserrat-cyrillic-ext.woff2") format("woff2");
   unicode-range:U+0460-052F,U+1C80-1C8A,U+20B4,U+2DE0-2DFF,U+A640-A69F,U+FE2E-FE2F}
@@ -38,6 +38,15 @@
   src:url("../fonts/montserrat-latin.woff2") format("woff2");
   unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,
     U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+
+/* Знак рубля лежит в наборе latin-ext: 70 КБ скачивалось ради одного
+   символа на каждой странице с ценами. Вырезали его в отдельный файл
+   (3,6 КБ, ось насыщенности сохранена). Объявлен последним — по
+   правилам CSS для U+20BD берётся именно он, а latin-ext подключается
+   только если на странице действительно есть его буквы */
+@font-face{font-family:"Montserrat";font-style:normal;font-weight:400 700;font-display:swap;
+  src:url("../fonts/montserrat-rub.woff2") format("woff2");
+  unicode-range:U+20BD}
 
 :root{
   /* Палитра */

@@ -15,7 +15,12 @@
   --ink:#e8ecf2; --muted:#8794a6; --dim:#5c6878;
   --amber:#ffc233; --ok:#4cc38a; --warn:#ff9f2e; --err:#ff5f56;
   --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
-  --sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  /* Системный шрифт интерфейса, а не свой: бэкенд — плотные таблицы,
+     и системный в них читается лучше витринного Montserrat. Раньше
+     первым стоял "Inter", которого мы не отдаём: он подхватывался,
+     только если случайно стоял у сотрудника в системе, и бэкенд
+     выглядел на разных машинах по-разному */
+  --sans:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
 }
 *{box-sizing:border-box}
 
