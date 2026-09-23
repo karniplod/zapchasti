@@ -34,12 +34,38 @@ done
 
 [[ $EUID -eq 0 ]] || { echo "Нужен root"; exit 1; }
 say() { printf '\n\033[1m== %s\033[0m\n' "$1"; }
+cd /tmp   # чтобы sudo -u postgres не ругался на чужой /root
 
 say "Пакеты"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq postgresql python3-venv python3-pip git curl ufw \
+apt-get install -y -qq python3-venv python3-pip git curl ufw gnupg ca-certificates \
   debian-keyring debian-archive-keyring apt-transport-https >/dev/null
+
+# PostgreSQL. Нужен 15-й или новее: миграции используют NULLS NOT DISTINCT.
+# В Ubuntu 22.04 штатный — 14-й, поэтому берём 17-й из репозитория PGDG.
+# Ставим именно версию, а не метапакет postgresql: тот тянет самый свежий
+# выпуск и заводит рядом второй кластер
+PG_MAJOR=17
+PG_CUR="$(pg_lsclusters -h 2>/dev/null | awk '{print $1}' | sort -rn | head -1)"
+if [[ -n "$PG_CUR" && "$PG_CUR" -lt 15 ]]; then
+  echo "  На сервере PostgreSQL $PG_CUR, проекту нужен 15-й или новее."
+  echo "  Перенесите данные и запустите снова:"
+  echo "    apt-get install -y postgresql-$PG_MAJOR"
+  echo "    pg_upgradecluster $PG_CUR main && pg_dropcluster --stop $PG_CUR main"
+  exit 1
+fi
+if [[ -z "$PG_CUR" ]]; then
+  if ! apt-cache show "postgresql-$PG_MAJOR" >/dev/null 2>&1; then
+    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+      | gpg --batch --yes --dearmor -o /usr/share/keyrings/pgdg.gpg
+    . /etc/os-release
+    echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] http://apt.postgresql.org/pub/repos/apt $VERSION_CODENAME-pgdg main" \
+      > /etc/apt/sources.list.d/pgdg.list
+    apt-get update -qq
+  fi
+  apt-get install -y -qq "postgresql-$PG_MAJOR" >/dev/null
+fi
 
 if ! command -v caddy >/dev/null; then
   # Caddy: HTTPS сам, без возни с сертификатами
@@ -73,15 +99,20 @@ sudo -u "$APP_USER" "$APP_DIR/venv/bin/pip" install --quiet --upgrade pip
 sudo -u "$APP_USER" "$APP_DIR/venv/bin/pip" install --quiet -r "$APP_DIR/requirements.txt"
 
 say "База данных"
-NEW_DB=0
 if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='$DB_USER'" | grep -q 1; then
-  DB_PASS="$(openssl rand -hex 24)"
+  if [[ -f "$APP_DIR/.env" ]]; then
+    # Настройки есть, а пользователя базы нет — кластер пересоздавали.
+    # Пароль берём из .env, иначе приложение в базу не войдёт
+    DB_PASS="$(sed -n 's|^DATABASE_URL=postgresql://[^:]*:\([^@]*\)@.*|\1|p' "$APP_DIR/.env")"
+    [[ -n "$DB_PASS" ]] || { echo "  В .env не разобрать пароль базы — поправьте DATABASE_URL"; exit 1; }
+    echo "  пользователя нет, пароль беру из .env"
+  else
+    DB_PASS="$(openssl rand -hex 24)"
+  fi
   sudo -u postgres psql -qc "CREATE USER $DB_USER WITH PASSWORD '$DB_PASS'"
-  NEW_DB=1
 fi
 if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME'" | grep -q 1; then
   sudo -u postgres createdb "$DB_NAME" -O "$DB_USER"
-  NEW_DB=1
 fi
 
 say "Настройки (.env)"
