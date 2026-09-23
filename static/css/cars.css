@@ -38,7 +38,7 @@
 .cars-count{margin:22px 0 14px;font-size:var(--t-sm);color:var(--muted)}
 
 /* ── Плитка машины ─────────────────────────────────────── */
-.car-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));
+.car-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
   gap:var(--gap)}
 .car-card{display:flex;flex-direction:column;background:var(--surface);
   border-radius:var(--r);overflow:hidden;transition:box-shadow .2s}

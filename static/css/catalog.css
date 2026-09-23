@@ -122,21 +122,19 @@
 /* ── Свежие поступления ────────────────────────────────── */
 .fresh{padding-top:26px}
 .fresh-note{margin:-8px 0 14px}
-@media(min-width:641px){
-  /* Ровно три в ряд: это витрина, а не выдача */
-  .fresh .grid{grid-template-columns:repeat(3,1fr)}
-}
 @media(max-width:640px){
   .fresh{padding-top:20px}
 }
 
 /* ── Раскладка: фильтры и выдача ───────────────────────── */
-/* Ширину и поля задаёт .wrap.layout — иначе на узком экране
-   выдача теряла отступы, которые есть у первого экрана */
-.layout{display:grid;grid-template-columns:224px 1fr;gap:30px;
+/* Ширину берёт у колонки страницы: раньше здесь стояла своя, 1120, и
+   каталог был уже шапки и главной на 170 px — это бросалось в глаза.
+   Колонка фильтров 300 и зазор 30 — размеры образца: на выдачу
+   остаётся 960, то есть три плитки по 320 */
+.layout{display:grid;grid-template-columns:300px 1fr;gap:30px;
   padding:26px 0 70px;align-items:start;
-  width:100%;max-width:min(1120px, 100%);margin-inline:auto}
-.wrap.layout{padding-inline:16px}
+  width:100%;max-width:min(var(--wrap), 100%);margin-inline:auto}
+.wrap.layout{padding-inline:var(--wrap-pad)}
 
 /* Ничто внутри не распирает страницу */
 .layout .grid,

@@ -86,8 +86,10 @@
   --r:   4px;
   --r-xs: 3px;
   --r-pill: 30px;
-  /* Ширина колонки контента */
-  --wrap: 1290px;
+  /* Колонка контента. 1320 внешних при поле 15 — внутри ровно 1290,
+     столько же, сколько у образца: по 320 на плитку товара */
+  --wrap: 1320px;
+  --wrap-pad: 15px;
   --shadow: 0 6px 22px rgba(0,0,0,.08);
 }
 
@@ -113,7 +115,8 @@ img{max-width:100%;display:block}
 html,body{max-width:100%;overflow-x:clip}
 
 /* ── Ширина страницы ───────────────────────────────────── */
-.wrap{width:100%;max-width:min(var(--wrap), 100%);margin:0 auto;padding:0 16px}
+.wrap{width:100%;max-width:min(var(--wrap), 100%);margin:0 auto;
+  padding:0 var(--wrap-pad)}
 
 /* ── Типографика ───────────────────────────────────────── */
 h1,h2,h3{font-family:var(--display);font-weight:600;
@@ -218,7 +221,9 @@ label{display:block;font-size:var(--t-xs);font-weight:500;color:var(--muted);
    сливается. Края блока совпадают с колонкой контента ниже */
 .hero{padding:26px 0 0}
 .hero > .wrap{background:var(--surface);border-radius:var(--r);
-  padding:40px 44px;max-width:min(calc(var(--wrap) - 32px), calc(100% - 32px))}
+  padding:40px 44px;
+  max-width:min(calc(var(--wrap) - var(--wrap-pad) * 2),
+                calc(100% - var(--wrap-pad) * 2))}
 @media(max-width:640px){.hero > .wrap{padding:26px 20px}}
 
 .vinbar{max-width:min(620px, 100%);--sbar-h:52px}
@@ -229,7 +234,11 @@ label{display:block;font-size:var(--t-xs);font-weight:500;color:var(--muted);
 /* Одна и та же плитка в каталоге и в свежих поступлениях.
    Белая на сером, без рамки; при наведении — мягкая тень и оранжевое
    название. Не прыгает вверх: в плотной сетке это рябит */
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(216px,1fr));
+/* Плитка ~320 px, как в образце: в колонке 1290 это четыре в ряд,
+   рядом с фильтрами (960) — три. Нижняя граница 280, а не 296: на
+   экране 1280 выдача равна 920, и при 296 третья плитка не влезала
+   в ряд по четырём пикселям — вместо трёх оставалось две */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
   gap:var(--gap);grid-auto-rows:1fr}
 
 .tag-card{height:100%;background:var(--surface);border-radius:var(--r);
@@ -267,7 +276,7 @@ label{display:block;font-size:var(--t-xs);font-weight:500;color:var(--muted);
   align-items:center;gap:5px;flex:1}
 .tag-card .sku{font-family:var(--mono);font-size:11px;color:var(--dim);
   letter-spacing:.04em}
-.tag-card .name{font-size:var(--t-md);font-weight:500;line-height:1.35;
+.tag-card .name{font-size:16px;font-weight:500;line-height:1.35;
   transition:color .15s}
 .tag-card .fit{font-size:var(--t-sm);color:var(--muted)}
 .tag-card .price{margin-top:auto;padding-top:10px;font-size:var(--t-lg);
@@ -312,5 +321,6 @@ label{display:block;font-size:var(--t-xs);font-weight:500;color:var(--muted);
 @media(max-width:640px){
   :root{--t-3xl:28px;--t-2xl:24px;--t-xl:20px;--gap:12px}
   .grid{grid-template-columns:repeat(auto-fill,minmax(158px,1fr))}
+  :root{--wrap-pad:12px}
   .sec-head{margin-bottom:16px}
 }
