@@ -225,9 +225,13 @@ label{display:block;font-size:var(--t-xs);font-weight:500;color:var(--muted);
 
 .tag-card{height:100%;background:var(--surface);border-radius:var(--r);
   overflow:hidden;display:flex;flex-direction:column;position:relative;
-  transition:box-shadow .2s}
+  text-align:center;transition:box-shadow .2s}
 .tag-card:hover{box-shadow:var(--shadow)}
 .tag-card:hover .name{color:var(--accent)}
+/* Ссылка на деталь и кнопка «в корзину» — соседи, а не вложены друг
+   в друга: кнопка внутри ссылки — недопустимая разметка, и нажатие
+   на неё всё равно уводило бы на страницу детали */
+.tag-link{display:flex;flex-direction:column;flex:1;min-height:0;color:inherit}
 
 /* Квадратный кадр через padding-top, а не aspect-ratio: приём старый,
    зато работает везде, а вертикальные снимки с телефона перестают
@@ -250,8 +254,8 @@ label{display:block;font-size:var(--t-xs);font-weight:500;color:var(--muted);
 .grade[data-g="A"]{background:var(--ok)}
 .grade[data-g="C"],.grade[data-g="D"]{background:var(--warn)}
 
-.tag-card .body{padding:14px 16px 16px;display:flex;flex-direction:column;
-  gap:5px;flex:1}
+.tag-card .body{padding:14px 16px 12px;display:flex;flex-direction:column;
+  align-items:center;gap:5px;flex:1}
 .tag-card .sku{font-family:var(--mono);font-size:11px;color:var(--dim);
   letter-spacing:.04em}
 .tag-card .name{font-size:var(--t-md);font-weight:500;line-height:1.35;
@@ -261,6 +265,13 @@ label{display:block;font-size:var(--t-xs);font-weight:500;color:var(--muted);
   font-weight:600;color:var(--accent);font-variant-numeric:tabular-nums}
 .tag-card .price small{display:block;font-size:var(--t-xs);font-weight:400;
   color:var(--dim)}
+
+/* «В корзину» прямо из плитки — как в магазинных шаблонах. Деталь
+   штучная, поэтому после добавления кнопка ведёт в корзину, а не
+   добавляет второй раз (обработчик — static/js/chrome.js) */
+.buy-card{margin:0 16px 16px;width:calc(100% - 32px)}
+.buy-card[data-added]{border-color:var(--accent);color:var(--accent)}
+.buy-card:disabled{color:var(--dim);border-color:var(--line-2);cursor:default}
 
 /* ── Метки ─────────────────────────────────────────────── */
 .chip{display:inline-flex;align-items:center;gap:6px;font-size:var(--t-xs);

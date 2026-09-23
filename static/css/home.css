@@ -13,24 +13,30 @@
 .kicker{display:block;font-size:var(--t-xs);font-weight:600;letter-spacing:.16em;
   text-transform:uppercase;margin:0 0 12px}
 
-/* Баннер — тёмный, с тёплым отсветом акцента в углу: на серой
-   подложке он главный, взгляд начинается с него */
+/* Баннер — оранжевый во всю плитку, как в магазинных шаблонах: на
+   серой подложке он главный, взгляд начинается с него. Светлое пятно
+   в углу — чтобы плоская заливка не выглядела картонкой */
 .banner{position:relative;overflow:hidden;border-radius:var(--r);
   padding:48px 48px 44px;color:#fff;
   background:
-    radial-gradient(120% 90% at 100% 0%, rgba(245,79,12,.35) 0%, rgba(245,79,12,0) 55%),
-    radial-gradient(80% 70% at 0% 100%, rgba(255,255,255,.06) 0%, rgba(255,255,255,0) 60%),
-    var(--foot)}
-.banner .kicker{color:var(--accent)}
+    radial-gradient(90% 80% at 100% 0%, rgba(255,255,255,.16) 0%, rgba(255,255,255,0) 60%),
+    radial-gradient(70% 70% at 0% 100%, rgba(0,0,0,.10) 0%, rgba(0,0,0,0) 65%),
+    var(--accent)}
+.banner .kicker{color:rgba(255,255,255,.82)}
 /* 20ch: «Запчасти с разбора / под ваш VIN» — без одинокого VIN на строке */
 .banner h1{font-size:var(--t-3xl);line-height:1.15;margin:0 0 14px;max-width:20ch;
   text-wrap:balance}
-.banner .lead{color:rgba(255,255,255,.72);font-size:var(--t-md);margin:0 0 28px;
+.banner .lead{color:rgba(255,255,255,.88);font-size:var(--t-md);margin:0 0 28px;
   max-width:52ch}
 .banner .field{border-color:transparent}
-.banner-alt{margin:16px 0 0;font-size:var(--t-sm);color:rgba(255,255,255,.6)}
+/* Кнопка на оранжевом — белая: оранжевая на оранжевом не видна */
+.banner .btn-primary{background:#fff;color:var(--ink)}
+.banner .btn-primary:hover{background:var(--ink);color:#fff}
+.banner .btn-primary:disabled{background:rgba(255,255,255,.55);
+  color:rgba(0,0,0,.45);cursor:not-allowed}
+.banner-alt{margin:16px 0 0;font-size:var(--t-sm);color:rgba(255,255,255,.78)}
 .banner-alt a{color:#fff;text-decoration:underline;text-underline-offset:3px}
-.banner-alt a:hover{color:var(--accent)}
+.banner-alt a:hover{color:rgba(255,255,255,.75)}
 @media(max-width:640px){.banner{padding:30px 22px}}
 
 /* Плитки сбоку: число — главное, подпись — пояснение */
@@ -49,9 +55,7 @@
 .promo .go::after{content:" →";transition:margin-left .15s}
 .promo:hover .go::after{margin-left:4px}
 
-.promo-accent{background:var(--accent);color:#fff}
-.promo-accent .kicker{color:rgba(255,255,255,.78)}
-.promo-accent .txt{color:rgba(255,255,255,.85)}
+.promo-accent b{color:var(--accent)}
 
 /* ── Преимущества ──────────────────────────────────────── */
 .perks{padding:var(--gap) 0 0}

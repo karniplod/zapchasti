@@ -199,3 +199,35 @@ document.querySelectorAll('.brand img').forEach(img => {
     if (e.key === 'Escape' && !menu.hidden){ setOpen(false); btn.focus(); }
   });
 })();
+
+// Кнопка «в корзину» на плитке детали. Обработчик один на страницу и
+// слушает документ: плитки есть на главной, в каталоге и на странице
+// машины, а в каталоге они ещё и перерисовываются при каждом фильтре —
+// вешать обработчик на каждую пришлось бы заново после каждой выдачи.
+// Деталь штучная: добавили — кнопка ведёт в корзину, а не добавляет
+// второй раз. Счётчик в шапке обновляется тем же ответом.
+document.addEventListener('click', async e => {
+  const b = e.target.closest('.buy-card');
+  if (!b) return;
+  if (b.dataset.added){ location.href = '/cart'; return; }
+  b.disabled = true;
+  try {
+    const r = await fetch('/api/cart', {method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({sku: b.dataset.sku})});
+    const d = await r.json().catch(() => ({}));
+    if (r.ok){
+      b.dataset.added = '1';
+      b.textContent = 'В корзине — перейти';
+      b.disabled = false;
+      const n = document.getElementById('cartN');
+      if (n){ n.textContent = d.count; n.hidden = false; }
+      return;
+    }
+    // 409 — деталь уже забрали, 404 — сняли с продажи: кнопка говорит
+    // об этом на месте, уводить человека со страницы незачем
+    b.textContent = d.detail || 'Не получилось';
+    return;
+  } catch { b.textContent = 'Нет связи'; }
+  b.disabled = false;
+});

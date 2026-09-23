@@ -345,27 +345,30 @@ def svg(title: str, subtitle: str, kind: str) -> str:
     top = 450 - (len(lines) - 1) * size * 0.6
     title_svg = "".join(
         f'<text x="600" y="{top + i * size * 1.2:.0f}" font-size="{size}" '
-        f'font-weight="700" fill="#F5F7FA" text-anchor="middle">{escape(t)}</text>'
+        f'font-weight="700" fill="#22252B" text-anchor="middle">{escape(t)}</text>'
         for i, t in enumerate(lines)
     )
+    # Светлая заглушка, а не тёмная: на витрине снимок детали лежит на
+    # белой карточке, и тёмный прямоугольник вместо него перетягивал
+    # на себя всю страницу — витрина выглядела чёрной сеткой
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900"
      font-family="Arial, Helvetica, sans-serif">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="{'#1F3A5F' if kind == 'car' else '#2B2F36'}"/>
-      <stop offset="1" stop-color="{'#0E1B2C' if kind == 'car' else '#15181D'}"/>
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="{'#EDF1F6' if kind == 'car' else '#F1F0EE'}"/>
     </linearGradient>
   </defs>
   <rect width="1200" height="900" fill="url(#bg)"/>
   <rect x="40" y="40" width="1120" height="820" rx="28" fill="none"
-        stroke="#FFC233" stroke-opacity=".35" stroke-width="3" stroke-dasharray="14 10"/>
-  <text x="600" y="150" font-size="30" letter-spacing="6" fill="#FFC233"
+        stroke="#F54F0C" stroke-opacity=".22" stroke-width="3" stroke-dasharray="14 10"/>
+  <text x="600" y="150" font-size="30" letter-spacing="6" fill="#F54F0C"
         text-anchor="middle">{'МАШИНА' if kind == 'car' else 'ДЕТАЛЬ'}</text>
   {title_svg}
-  <text x="600" y="{top + len(lines) * size * 1.2 + 40:.0f}" font-size="36" fill="#AEB6C2"
+  <text x="600" y="{top + len(lines) * size * 1.2 + 40:.0f}" font-size="36" fill="#6E6E6E"
         text-anchor="middle">{escape(subtitle)}</text>
-  <text x="600" y="815" font-size="26" letter-spacing="4" fill="#6B7480"
+  <text x="600" y="815" font-size="26" letter-spacing="4" fill="#A9A9A9"
         text-anchor="middle">ТЕСТОВОЕ ФОТО</text>
 </svg>
 """

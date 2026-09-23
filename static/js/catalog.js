@@ -329,19 +329,24 @@ function card(i){
     const fit = i.brand ? `${i.brand} ${i.model}${i.year ? ', '+i.year : ''}`
       : i.fits_first ? `${i.fits_first}${i.fits_count > 1 ? ' и ещё '+(i.fits_count-1) : ''}`
       : 'применимость уточняется';
-    return `<a class="tag-card" href="/p/${i.sku}">
-      <div class="shot">
-        ${i.photo ? `<img src="${i.photo}" alt="${i.name}" loading="lazy">`
-                  : '<div class="none">фото готовится</div>'}
-        <span class="grade" data-g="${i.condition}">${i.condition}</span>
-      </div>
-      <div class="body">
-        <span class="sku">${i.sku}</span>
-        <span class="name">${i.name}</span>
-        <span class="fit">${fit}${!state.city && i.city ? ' · '+i.city : ''}</span>
-        <span class="price">${i.price ? Number(i.price).toLocaleString('ru')+' ₽'
-                                      : 'по запросу'}<small>${i.node || ''}</small></span>
-      </div></a>`;
+    return `<article class="tag-card">
+      <a class="tag-link" href="/p/${i.sku}">
+        <div class="shot">
+          ${i.photo ? `<img src="${i.photo}" alt="${i.name}" loading="lazy">`
+                    : '<div class="none">фото готовится</div>'}
+          <span class="grade" data-g="${i.condition}">${i.condition}</span>
+        </div>
+        <div class="body">
+          <span class="sku">${i.sku}</span>
+          <span class="name">${i.name}</span>
+          <span class="fit">${fit}${!state.city && i.city ? ' · '+i.city : ''}</span>
+          <span class="price">${i.price ? Number(i.price).toLocaleString('ru')+' ₽'
+                                        : 'по запросу'}<small>${i.node || ''}</small></span>
+        </div>
+      </a>
+      <button class="btn btn-ghost btn-sm buy-card" type="button"
+              data-sku="${i.sku}">В корзину</button>
+    </article>`;
   }
 }
 
