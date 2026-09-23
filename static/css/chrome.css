@@ -211,30 +211,37 @@
   font-size:10.5px;font-weight:600;line-height:1}
 
 /* ── Бургер и мобильное меню ───────────────────────────── */
-.burger{display:none;width:42px;height:42px;padding:0;flex:0 0 42px;align-self:center;
-  background:none;border:1px solid var(--line-2);border-radius:var(--r);
-  cursor:pointer;position:relative;margin-left:10px;color:var(--ink)}
-.burger span,.burger::before,.burger::after{
-  content:"";position:absolute;left:11px;right:11px;height:2px;
+/* Бургер — значок и слово в одной кнопке: на телефоне наведения нет,
+   там всё решает касание, и промахнуться мимо слова нельзя */
+.burger{display:none;align-items:center;gap:9px;padding:0;flex:0 0 auto;
+  align-self:center;background:none;border:0;cursor:pointer;
+  margin-left:10px;color:var(--ink)}
+.burger-ico{position:relative;width:42px;height:42px;flex:0 0 42px;
+  border:1px solid var(--line-2);border-radius:var(--r)}
+.burger-ico span,.burger-ico::before,.burger-ico::after{
+  content:"";position:absolute;left:10px;right:10px;height:2px;
   background:currentColor;transition:transform .18s,opacity .12s}
-.burger span{top:20px}
-.burger::before{top:13px}
-.burger::after{top:27px}
-/* Подпись у бургера: «открыть» тихо пульсирует, чтобы кнопку заметили,
-   а при наведении и в открытом меню становится «закрыть» — слово
-   говорит, что произойдёт по нажатию, а не что происходит сейчас.
-   Живёт только там, где есть сам бургер, — на узком экране */
-.burger-lbl{display:none;align-items:center;margin-left:8px;flex:0 0 auto;
-  font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
-  color:var(--accent);white-space:nowrap;transition:color .15s}
+.burger-ico span{top:19px}
+.burger-ico::before{top:12px}
+.burger-ico::after{top:26px}
+
+/* Подпись: пока меню закрыто — «открыть» оранжевым, тихо пульсирует,
+   чтобы кнопку заметили. Открыли — «закрыть» тёмным, пульс гаснет.
+   Наведение — то же самое, но это добавка для мыши: на телефоне
+   состояние меняет само нажатие */
+.burger-lbl{display:none;font-size:11px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--accent);white-space:nowrap;
+  transition:color .15s}
 .burger-lbl::after{content:attr(data-open)}
-.burger:hover + .burger-lbl::after,
-.burger:focus-visible + .burger-lbl::after,
-.burger[aria-expanded="true"] + .burger-lbl::after{content:attr(data-close)}
-/* Позвали — пульс больше не нужен */
-.burger:hover + .burger-lbl,
-.burger:focus-visible + .burger-lbl,
-.burger[aria-expanded="true"] + .burger-lbl{animation:none;color:var(--ink)}
+.burger[aria-expanded="true"] .burger-lbl::after{content:attr(data-close)}
+.burger[aria-expanded="true"] .burger-lbl{animation:none;color:var(--ink)}
+/* Наведение — только там, где есть мышь. На тач-экране :hover залипает
+   после касания и не снимается до нажатия в другом месте: меню уже
+   закрыли, а слово так и оставалось «закрыть» */
+@media (hover:hover) and (pointer:fine){
+  .burger:hover .burger-lbl::after{content:attr(data-close)}
+  .burger:hover .burger-lbl{animation:none;color:var(--ink)}
+}
 
 /* Пульс — прозрачностью и чуть-чуть размером: подпись узкая, дрожание
    ширины сдвигало бы соседей. prefers-reduced-motion гасит общее
@@ -245,14 +252,14 @@
 }
 
 /* Крестик при открытом меню */
-.burger[aria-expanded="true"] span{opacity:0}
-.burger[aria-expanded="true"]::before{transform:translateY(7px) rotate(45deg)}
-.burger[aria-expanded="true"]::after{transform:translateY(-7px) rotate(-45deg)}
+.burger[aria-expanded="true"] .burger-ico span{opacity:0}
+.burger[aria-expanded="true"] .burger-ico::before{transform:translateY(7px) rotate(45deg)}
+.burger[aria-expanded="true"] .burger-ico::after{transform:translateY(-7px) rotate(-45deg)}
 
 
 @media(max-width:760px){
-  .burger{display:block}
-  .burger-lbl{display:inline-flex;animation:lbl-pulse 2s ease-in-out infinite}
+  .burger{display:inline-flex}
+  .burger-lbl{display:inline-block;animation:lbl-pulse 2s ease-in-out infinite}
   .topbar .wrap{position:relative;height:58px}
   .brand{margin-right:0;font-size:16px}
   .brand img{width:40px;height:40px;flex-basis:40px}

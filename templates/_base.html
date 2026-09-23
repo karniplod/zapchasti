@@ -50,13 +50,15 @@
     {# Вход и кабинет: состояние приходит из /api/me, потому что шапка
        одна на все страницы, а покупателя знают не все обработчики #}
     <a class="acct-link" id="acctLink" href="/account/login">Войти</a>
+    {# Подпись — внутри кнопки, а не рядом: на телефоне наведения нет,
+       там всё решает касание, и по слову надо попадать так же, как по
+       значку. Слова лежат в шаблоне, а не в стилях, чтобы их можно было
+       найти; читалке экрана они не нужны — у кнопки есть название #}
     <button class="burger" aria-label="Меню" aria-expanded="false"
-            aria-controls="siteNav"><span></span></button>
-    {# Подпись к бургеру: слова лежат здесь, а не в стилях, чтобы их
-       можно было найти в шаблоне. Для читалки экрана она лишняя —
-       у кнопки уже есть название, поэтому aria-hidden #}
-    <span class="burger-lbl" aria-hidden="true"
-          data-open="открыть" data-close="закрыть"></span>
+            aria-controls="siteNav">
+      <span class="burger-ico"><span></span></span>
+      <span class="burger-lbl" data-open="открыть" data-close="закрыть"></span>
+    </button>
   </div>
 </div>
 
