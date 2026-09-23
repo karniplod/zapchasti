@@ -1,5 +1,21 @@
 // Скрипт шаблона templates/_base.html.
 
+// Ряд с поиском возвращается сверху, когда страница его прокрутила:
+// пока он на своём месте — обычная часть страницы, ушёл за верхний
+// край — становится плавающим и проявляется (вид и анимация —
+// chrome.css). Следим за гнездом, а не за самой прокруткой:
+// обработчик scroll срабатывал бы десятки раз в секунду, наблюдатель —
+// только на границе. Без наблюдателя ряд просто уезжает со страницей:
+// поиск и корзина остаются доступны в начале страницы.
+(function(){
+  const slot = document.querySelector('.head-slot');
+  const head = slot && slot.querySelector('.site-head');
+  if (!head || !('IntersectionObserver' in window)) return;
+  new IntersectionObserver(([e]) => {
+    head.classList.toggle('stuck', !e.isIntersecting && e.boundingClientRect.top < 0);
+  }).observe(slot);
+})();
+
 (function(){
   // Одно поведение на витрине и в бэкенде: кнопка переключает список
   const burger = document.querySelector('.burger');
