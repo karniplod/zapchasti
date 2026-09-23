@@ -22,8 +22,10 @@
    живут в ней и должны ложиться поверх ряда с поиском */
 .topbar{position:relative;z-index:45;background:var(--topbar);
   border-bottom:1px solid var(--line-3)}
-.topbar .wrap{display:flex;align-items:stretch;height:56px;gap:0;
-  max-width:none;padding-inline:clamp(16px, 3vw, 32px)}
+/* Содержимое полосы — по той же колонке, что и ряд поиска и страница:
+   иначе город с меню висят у самого края окна, а логотип под ними —
+   с отступом */
+.topbar .wrap{display:flex;align-items:stretch;height:56px;gap:0}
 
 .brand{display:flex;align-items:center;gap:10px;flex:0 0 auto;margin-right:28px;
   font-family:var(--display);font-weight:700;font-size:19px;
@@ -169,15 +171,20 @@ body{--head-top-bg:var(--bg)}
     backdrop-filter:saturate(1.6) blur(14px)}
 }
 
-/* На всю ширину окна, отступ растёт с экраном */
+/* Содержимое ряда — по колонке страницы: логотип встаёт над левым
+   краем первого экрана, корзина — над правым. Полоса при этом
+   остаётся во всю ширину окна, по колонке выровнено только то,
+   что внутри.
+
+   Увеличение при прокрутке: раскладка считается в ширине колонки,
+   делённой на k, и увеличивается в k раз — на экране колонка нужной
+   ширины, а всё внутри крупнее. Центр при этом не уезжает: ряд
+   центрован полями auto, и увеличение идёт от его середины
+   (transform-origin по горизонтали — 50%) */
 .site-head .wrap{display:flex;align-items:center;gap:18px;height:var(--head-h);
-  flex-wrap:nowrap;min-width:0;
-  max-width:none;padding-inline:clamp(16px, 3vw, 32px);
-  /* Увеличение: узкая раскладка, растянутая от левого верхнего угла.
-     margin-inline:0 — иначе margin:auto из .wrap центровал бы узкий
-     ряд, и после увеличения он съехал бы вправо */
-  width:calc(100% / var(--k));margin-inline:0;
-  transform:scale(var(--k));transform-origin:0 0}
+  flex-wrap:nowrap;min-width:0;max-width:none;
+  width:calc(min(var(--wrap), 100%) / var(--k));margin-inline:auto;
+  transform:scale(var(--k));transform-origin:50% 0}
 
 /* Логотип в ряду поиска: слева, дальше строка поиска и корзина */
 .site-head .brand{margin-right:10px}
@@ -201,8 +208,8 @@ body{--head-top-bg:var(--bg)}
    Панель под рядом поиска: узлы колонками, в каждом — самые частые
    детали и «ещё N». Лежит в .site-head, но вне .wrap: иначе при
    прокрутке увеличивалась бы вместе с рядом. Левый край — по кнопке */
-.cat-menu{position:absolute;top:100%;left:clamp(16px, 3vw, 32px);z-index:5;
-  width:min(920px, calc(100vw - 2 * clamp(16px, 3vw, 32px)));
+.cat-menu{position:absolute;top:100%;left:calc(max(0px, (100% - var(--wrap)) / 2) + 16px);
+  z-index:5;width:min(920px, calc(min(var(--wrap), 100%) - 32px));
   max-height:calc(100vh - 170px);overflow-y:auto;overscroll-behavior:contain;
   margin-top:8px;background:var(--surface);border:1px solid var(--line);
   border-radius:var(--r);box-shadow:0 18px 44px rgba(0,0,0,.14);
