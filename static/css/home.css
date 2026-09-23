@@ -65,8 +65,10 @@
   border-right:1px solid var(--line)}
 .perk:first-child{border-radius:var(--r) 0 0 var(--r)}
 .perk:last-child{border-right:0;border-radius:0 var(--r) var(--r) 0}
-.perk svg{width:34px;height:34px;flex:0 0 34px;fill:none;stroke:var(--accent);
-  stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+/* Значок крупнее подписи: в образце значок преимущества — главное
+   в плитке, а не украшение у строки текста */
+.perk svg{width:40px;height:40px;flex:0 0 40px;fill:none;stroke:var(--accent);
+  stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .perk b{display:block;font-size:var(--t-md);font-weight:600;line-height:1.3}
 .perk span{display:block;font-size:var(--t-sm);color:var(--muted);margin-top:3px;
   line-height:1.45}
