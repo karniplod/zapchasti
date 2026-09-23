@@ -52,6 +52,11 @@
     <a class="acct-link" id="acctLink" href="/account/login">Войти</a>
     <button class="burger" aria-label="Меню" aria-expanded="false"
             aria-controls="siteNav"><span></span></button>
+    {# Подпись к бургеру: слова лежат здесь, а не в стилях, чтобы их
+       можно было найти в шаблоне. Для читалки экрана она лишняя —
+       у кнопки уже есть название, поэтому aria-hidden #}
+    <span class="burger-lbl" aria-hidden="true"
+          data-open="открыть" data-close="закрыть"></span>
   </div>
 </div>
 

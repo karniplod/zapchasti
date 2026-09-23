@@ -220,6 +220,30 @@
 .burger span{top:20px}
 .burger::before{top:13px}
 .burger::after{top:27px}
+/* Подпись у бургера: «открыть» тихо пульсирует, чтобы кнопку заметили,
+   а при наведении и в открытом меню становится «закрыть» — слово
+   говорит, что произойдёт по нажатию, а не что происходит сейчас.
+   Живёт только там, где есть сам бургер, — на узком экране */
+.burger-lbl{display:none;align-items:center;margin-left:8px;flex:0 0 auto;
+  font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--accent);white-space:nowrap;transition:color .15s}
+.burger-lbl::after{content:attr(data-open)}
+.burger:hover + .burger-lbl::after,
+.burger:focus-visible + .burger-lbl::after,
+.burger[aria-expanded="true"] + .burger-lbl::after{content:attr(data-close)}
+/* Позвали — пульс больше не нужен */
+.burger:hover + .burger-lbl,
+.burger:focus-visible + .burger-lbl,
+.burger[aria-expanded="true"] + .burger-lbl{animation:none;color:var(--ink)}
+
+/* Пульс — прозрачностью и чуть-чуть размером: подпись узкая, дрожание
+   ширины сдвигало бы соседей. prefers-reduced-motion гасит общее
+   правило в core.css */
+@keyframes lbl-pulse{
+   0%, 100%{opacity:1;transform:scale(1)}
+  50%      {opacity:.45;transform:scale(.94)}
+}
+
 /* Крестик при открытом меню */
 .burger[aria-expanded="true"] span{opacity:0}
 .burger[aria-expanded="true"]::before{transform:translateY(7px) rotate(45deg)}
@@ -228,6 +252,7 @@
 
 @media(max-width:760px){
   .burger{display:block}
+  .burger-lbl{display:inline-flex;animation:lbl-pulse 2s ease-in-out infinite}
   .topbar .wrap{position:relative;height:58px}
   .brand{margin-right:0;font-size:16px}
   .brand img{width:40px;height:40px;flex-basis:40px}
