@@ -185,7 +185,7 @@ p.hint{margin:4px 0 0}
 .sbar .field{flex:1 1 auto;min-width:0;padding:0 16px}
 /* Подсветка фокуса не должна уходить под соседа */
 .sbar .field:focus{position:relative;z-index:1}
-.sbar .btn{padding:0 26px;border-color:transparent}
+.sbar .btn{padding:0 22px;font-weight:500;border-color:transparent}
 /* Системный крестик очистки у type=search в стиль не попадает */
 .sbar input::-webkit-search-cancel-button{-webkit-appearance:none}
 @media(max-width:560px){

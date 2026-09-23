@@ -55,12 +55,22 @@
   {% endif %}
 
   {% if cars %}
-  <p class="cars-count">{{ count_label }}</p>
-  <div class="car-grid">
+  <p class="cars-count">{{ count_label }}{% if shown < found %} — показаны первые {{ shown }}{% endif %}</p>
+  <div class="car-grid" id="carGrid">
     {% for c in cars %}
     {{ car_card(c) }}
     {% endfor %}
   </div>
+  {% if shown < found %}
+  {# Без скрипта — обычная ссылка, которая покажет на 20 больше.
+     Со скриптом те же 20 приезжают в конец списка (static/js/cars.js) #}
+  <div class="more-wrap">
+    <a class="btn btn-ghost" id="moreCars" data-offset="{{ shown }}"
+       href="/cars?{% if brand %}brand={{ brand }}&amp;{% endif %}{% if model %}model={{ model }}&amp;{% endif %}n={{ shown + page }}">
+      Показать ещё {{ page if found - shown > page else found - shown }}</a>
+    <span class="more-left">осталось {{ found - shown }}</span>
+  </div>
+  {% endif %}
   {% else %}
   <div class="empty">
     <h3>Таких машин сейчас нет</h3>

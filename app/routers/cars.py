@@ -120,32 +120,82 @@ def order(c: dict):
     return (not c["open"], -(c["accepted_at"] or date.min).toordinal(), -c["id"])
 
 
+# Сколько машин показывать сразу и сколько добавлять по кнопке.
+# Раньше страница отдавала все: на складе с четырьмя сотнями машин это
+# 421 карточка в одном списке и мегабайт разметки
+PAGE = 20
+MAX_SHOWN = 400   # предел на случай ?n=99999 в адресе
+
+# Порядок тот же, что в order(): сначала те, с которых можно снять под
+# заказ, внутри — свежие выше. Считается теперь базой, а не Питоном,
+# иначе для сортировки пришлось бы снова тянуть все строки
+ORDER_SQL = " ORDER BY (d.status = 'dismantled'), d.accepted_at DESC, d.id DESC"
+# CAST, а не :brand::int — двоеточие сразу после имени параметра
+# драйвер принимает за начало следующего параметра
+FILTER_SQL = (" AND (CAST(:brand AS int) IS NULL OR b.id = CAST(:brand AS int))"
+              " AND (CAST(:model AS int) IS NULL OR m.id = CAST(:model AS int))")
+
+COUNT_SQL = """
+    SELECT count(*)
+      FROM donors d
+      JOIN generations g ON g.id = d.generation_id
+      JOIN models m      ON m.id = g.model_id
+      JOIN brands b      ON b.id = m.brand_id
+     WHERE d.status IN ('accepted', 'dismantling', 'dismantled')
+"""
+
+BRANDS_SQL = """
+    SELECT b.id, b.name, count(*)::int AS cnt
+      FROM donors d
+      JOIN generations g ON g.id = d.generation_id
+      JOIN models m      ON m.id = g.model_id
+      JOIN brands b      ON b.id = m.brand_id
+     WHERE d.status IN ('accepted', 'dismantling', 'dismantled')
+     GROUP BY b.id, b.name
+"""
+
+MODELS_SQL = """
+    SELECT m.id, m.name, count(*)::int AS cnt
+      FROM donors d
+      JOIN generations g ON g.id = d.generation_id
+      JOIN models m      ON m.id = g.model_id
+     WHERE d.status IN ('accepted', 'dismantling', 'dismantled')
+       AND m.brand_id = :brand
+     GROUP BY m.id, m.name
+"""
+
+
+async def page_of_cars(session, brand, model, offset: int, limit: int) -> list[dict]:
+    """Одна страница выдачи — ровно limit строк из базы."""
+    rows = await session.execute(
+        text(CARS_SQL + FILTER_SQL + ORDER_SQL + " LIMIT :limit OFFSET :offset"),
+        {"brand": brand, "model": model, "limit": limit, "offset": offset})
+    return [card(r) for r in rows]
+
+
 @router.get("/cars", response_class=HTMLResponse)
 async def cars_page(
     request: Request,
     brand: int | None = None,
     model: int | None = None,
+    n: int = PAGE,
     session: AsyncSession = Depends(get_session),
 ):
     user = await optional_user(request, session)
-    everything = [card(r) for r in await session.execute(text(CARS_SQL))]
+    # n — сколько карточек на странице. Без скрипта «показать ещё» —
+    # обычная ссылка, которая увеличивает n; со скриптом дозагрузка идёт
+    # без перезагрузки страницы (static/js/cars.js)
+    n = max(PAGE, min(n, MAX_SHOWN))
 
-    # Мини-фильтр: марки считаются по всем машинам, модели — по марке
-    brands: dict[int, dict] = {}
-    for c in everything:
-        b = brands.setdefault(c["brand_id"], {"id": c["brand_id"], "name": c["brand"], "cnt": 0})
-        b["cnt"] += 1
-    models: dict[int, dict] = {}
-    if brand:
-        for c in everything:
-            if c["brand_id"] == brand:
-                m = models.setdefault(c["model_id"],
-                                      {"id": c["model_id"], "name": c["model"], "cnt": 0})
-                m["cnt"] += 1
+    found = (await session.execute(text(COUNT_SQL + FILTER_SQL),
+                                   {"brand": brand, "model": model})).scalar()
+    total = (await session.execute(text(COUNT_SQL),
+                                   {"brand": None, "model": None})).scalar()
+    cars = await page_of_cars(session, brand, model, 0, n)
 
-    cars = [c for c in everything
-            if (not brand or c["brand_id"] == brand) and (not model or c["model_id"] == model)]
-    cars.sort(key=order)
+    brands = [dict(r._mapping) for r in await session.execute(text(BRANDS_SQL))]
+    models = ([dict(r._mapping) for r in
+               await session.execute(text(MODELS_SQL), {"brand": brand})] if brand else [])
 
     return templates.TemplateResponse(
         "cars.html",
@@ -153,15 +203,34 @@ async def cars_page(
             "request": request,
             "user": user,
             "cars": cars,
-            "total": len(everything),
-            "count_label": f"{len(cars)} {plural(len(cars), 'машина', 'машины', 'машин')}",
-            "brands": sorted(brands.values(), key=lambda b: b["name"].lower()),
-            "brands_top": top_brands(brands.values(), brand),
-            "models": sorted(models.values(), key=lambda m: m["name"].lower()),
+            "total": total,
+            "found": found,
+            "shown": len(cars),
+            "page": PAGE,
+            "count_label": f"{found} {plural(found, 'машина', 'машины', 'машин')}",
+            "brands": sorted(brands, key=lambda b: b["name"].lower()),
+            "brands_top": top_brands(brands, brand),
+            "models": sorted(models, key=lambda m: m["name"].lower()),
             "brand": brand,
             "model": model,
         },
     )
+
+
+@router.get("/cars/more", response_class=HTMLResponse)
+async def cars_more(
+    request: Request,
+    offset: int,
+    brand: int | None = None,
+    model: int | None = None,
+    session: AsyncSession = Depends(get_session),
+):
+    """Следующие 20 карточек — для кнопки «показать ещё». Отдаёт только
+    плитки, без страницы: скрипт вставляет их в конец списка."""
+    offset = max(0, min(offset, MAX_SHOWN))
+    cars = await page_of_cars(session, brand, model, offset, PAGE)
+    return templates.TemplateResponse("_car_rows.html",
+                                      {"request": request, "cars": cars})
 
 
 @router.get("/cars/{code}", response_class=HTMLResponse)

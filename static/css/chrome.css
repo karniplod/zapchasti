@@ -32,8 +32,10 @@
   letter-spacing:.01em;text-transform:uppercase;white-space:nowrap;color:var(--ink)}
 .brand i{font-style:normal;color:var(--accent)}
 /* Пульс живёт внутри static/logo.svg и бьётся только сердце: раньше
-   дёргался весь знак целиком, потому что логотип был картинкой */
-.brand img{width:53px;height:53px;flex:0 0 53px;align-self:center}
+   дёргался весь знак целиком, потому что логотип был картинкой.
+   40 px — как логотип образца: 53 в ряду высотой 100 смотрелись
+   тяжело и спорили с надписью */
+.brand img{width:40px;height:40px;flex:0 0 40px;align-self:center}
 
 /* Меню — справа, рядом со входом: слева в полосе стоит город */
 .site-nav{display:flex;align-items:center;gap:4px;min-width:0;margin-left:auto;
@@ -129,9 +131,9 @@
 
 /* «Все категории» — левый сегмент строки поиска, как «выбор раздела»
    в магазинных шапках: та же высота и рамка, что у поля */
-.cat-btn{display:flex;align-items:center;gap:9px;padding:0 16px;
+.cat-btn{display:flex;align-items:center;gap:8px;padding:0 12px;
   background:var(--surface);border:1px solid var(--line-2);color:var(--ink);
-  font-size:14px;font-weight:500;white-space:nowrap;
+  font-size:15px;font-weight:400;white-space:nowrap;
   transition:color .13s,border-color .13s}
 .cat-btn:hover,
 .cat-btn[aria-expanded="true"]{position:relative;z-index:1;
@@ -188,7 +190,9 @@
 /* Поиск в шапке — общий компонент .sbar (core.css), здесь только
    ширина: занимает середину ряда, но не растягивается во всю ширину
    на большом мониторе — строка в 1200 px выглядит нелепо */
-.head-search{flex:1 1 auto;min-width:0;max-width:780px;--sbar-h:48px;
+/* 680 — ширина такой же группы у образца (165 + 420 + 81): шире она
+   расползается по пустому месту и перестаёт читаться как один блок */
+.head-search{flex:1 1 auto;min-width:0;max-width:680px;--sbar-h:40px;
   /* Прижата к корзине, а не приклеена к логотипу: между названием
      магазина и полем нужен воздух */
   margin-left:auto}
@@ -198,14 +202,14 @@
    значок, а слово «Корзина» съедало место у строки поиска. Название
    осталось в aria-label — читалка экрана его произнесёт */
 .cart-link{position:relative;display:flex;align-items:center;flex:0 0 auto;
-  padding:11px;color:var(--ink);transition:color .13s}
+  padding:7px;color:var(--ink);transition:color .13s}
 .cart-link:hover{color:var(--accent)}
 /* Рамка значка — по самому значку, а не по области нажатия: иначе
    счётчик висел бы в пустом углу, в стороне от сумки. Палец при этом
    не страдает — 44 px даёт padding ссылки */
 .cart-ico{position:relative;display:flex;align-items:center;justify-content:center;
-  width:22px;height:22px}
-.cart-n{position:absolute;top:-8px;right:-9px;min-width:18px;height:18px;padding:0 5px;
+  width:30px;height:30px}
+.cart-n{position:absolute;top:-6px;right:-8px;min-width:18px;height:18px;padding:0 5px;
   display:flex;align-items:center;justify-content:center;
   background:var(--accent);color:#fff;border-radius:10px;
   font-size:10.5px;font-weight:600;line-height:1}

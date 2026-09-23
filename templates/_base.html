@@ -68,7 +68,7 @@
 <header class="site-head">
   <div class="wrap">
     <a class="brand" href="/">
-      <img src="/static/logo.svg" alt="" width="53" height="53">
+      <img src="/static/logo.svg" alt="" width="40" height="40">
       <span>Авто<i>·</i>Донор</span>
     </a>
 
@@ -97,20 +97,15 @@
              spellcheck="false" placeholder="Деталь, номер или VIN"
              aria-label="Поиск по каталогу">
       <input type="hidden" name="from" value="head">
-      <button class="btn btn-primary" type="submit" aria-label="Найти">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true"
-             stroke="currentColor" stroke-width="2" stroke-linecap="round"
-             stroke-linejoin="round">
-          <circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>
-        </svg>
-        <span>Найти</span>
-      </button>
+      {# Кнопка — одно слово, как в образце: значок рядом с ним делал её
+         в полтора раза шире и перетягивал внимание с поля #}
+      <button class="btn btn-primary" type="submit">Найти</button>
     </form>
 
     <a class="cart-link" href="/cart" aria-label="Корзина">
       <span class="cart-ico">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"
-             stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true"
+             stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
              stroke-linejoin="round">
           <path d="M8.2 9.3V6.3a3.8 3.8 0 0 1 7.6 0v3"/>
           <path d="M6.3 7.5h11.4l1.3 12.4a1.6 1.6 0 0 1-1.6 1.7H6.6a1.6 1.6 0 0 1-1.6-1.7L6.3 7.5Z"/>

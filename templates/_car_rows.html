@@ -1,0 +1,4 @@
+{# Только плитки машин: этот кусок скрипт вставляет в конец списка,
+   когда нажали «показать ещё» (app/routers/cars.py → /cars/more) #}
+{% from "_macros.html" import car_card %}
+{% for c in cars %}{{ car_card(c) }}{% endfor %}
