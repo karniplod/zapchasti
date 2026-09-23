@@ -194,13 +194,18 @@
   margin-left:auto}
 .head-search .field{font-size:14px}
 
-/* Корзина — значок с числом и подписью */
-.cart-link{position:relative;display:flex;align-items:center;gap:8px;flex:0 0 auto;
-  color:var(--ink);font-size:14px;font-weight:600;transition:color .13s}
+/* Корзина — один значок с числом, без подписи: в образце тоже только
+   значок, а слово «Корзина» съедало место у строки поиска. Название
+   осталось в aria-label — читалка экрана его произнесёт */
+.cart-link{position:relative;display:flex;align-items:center;flex:0 0 auto;
+  padding:11px;color:var(--ink);transition:color .13s}
 .cart-link:hover{color:var(--accent)}
+/* Рамка значка — по самому значку, а не по области нажатия: иначе
+   счётчик висел бы в пустом углу, в стороне от сумки. Палец при этом
+   не страдает — 44 px даёт padding ссылки */
 .cart-ico{position:relative;display:flex;align-items:center;justify-content:center;
-  width:44px;height:44px}
-.cart-n{position:absolute;top:-3px;right:-3px;min-width:19px;height:19px;padding:0 5px;
+  width:22px;height:22px}
+.cart-n{position:absolute;top:-8px;right:-9px;min-width:18px;height:18px;padding:0 5px;
   display:flex;align-items:center;justify-content:center;
   background:var(--accent);color:#fff;border-radius:10px;
   font-size:10.5px;font-weight:600;line-height:1}
@@ -220,10 +225,6 @@
 .burger[aria-expanded="true"]::before{transform:translateY(7px) rotate(45deg)}
 .burger[aria-expanded="true"]::after{transform:translateY(-7px) rotate(-45deg)}
 
-@media(max-width:1000px){
-  /* Подпись у корзины уступает место поиску */
-  .cart-link .cart-lbl{display:none}
-}
 
 @media(max-width:760px){
   .burger{display:block}
