@@ -27,15 +27,18 @@
    с отступом */
 .topbar .wrap{display:flex;align-items:stretch;height:56px;gap:0}
 
+/* Пропорции как у образца: знак чуть выше надписи, надпись крупная и
+   не в верхнем регистре — капс на кириллице вдвое шире латиницы, и при
+   таком размере «АВТО·ДОНОР» вылезало за 300 px вместо их 209 */
 .brand{display:flex;align-items:center;gap:11px;flex:0 0 auto;margin-right:28px;
-  font-family:var(--display);font-weight:700;font-size:22px;
-  letter-spacing:-.01em;text-transform:uppercase;white-space:nowrap;color:var(--ink)}
+  font-family:var(--display);font-weight:600;font-size:26px;
+  letter-spacing:-.02em;white-space:nowrap;color:var(--ink)}
 .brand i{font-style:normal;color:var(--accent)}
 /* Пульс живёт внутри static/logo.svg и бьётся только сердце: раньше
    дёргался весь знак целиком, потому что логотип был картинкой.
    40 px — как логотип образца: 53 в ряду высотой 100 смотрелись
    тяжело и спорили с надписью */
-.brand img{width:40px;height:40px;flex:0 0 40px;align-self:center}
+.brand img{width:54px;height:34px;flex:0 0 54px;align-self:center}
 
 /* Меню — справа, рядом со входом: слева в полосе стоит город */
 .site-nav{display:flex;align-items:center;gap:4px;min-width:0;margin-left:auto;
