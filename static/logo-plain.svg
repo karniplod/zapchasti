@@ -1,13 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 8.2 45 28.4" role="img"
-     aria-label="Автодонор" fill="none" stroke="#F54F0C" stroke-width="2.4"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="4 6.6 40.6 35.4" role="img"
+     aria-label="Автодонор" fill="none" stroke="#F54F0C" stroke-width="2.8"
      stroke-linecap="round" stroke-linejoin="round">
   <title>Автодонор</title>
-  <!-- Тот же знак без сердца: спокойнее и лучше читается в мелком
-       размере. Чтобы поставить его, поменяйте путь в templates/_base.html
-       и templates/admin/_nav.html -->
-  <path d="M10 31.5V27.4l4.2-7.6a2.6 2.6 0 0 1 2.3-1.4h12.9a2.6 2.6 0 0 1 2 1l4.6 7.9
-           2.6.6a2.6 2.6 0 0 1 2 2.5v1.1"/>
-  <path d="M10 31.5h1.2M18.6 31.5h12.1M38.1 31.5h1.5"/>
-  <path d="M11.2 31.5a3.7 3.7 0 0 1 7.4 0M30.7 31.5a3.7 3.7 0 0 1 7.4 0"/>
-  <path d="M2 21.5h5M1 26.5h4.4M3 31.5h3.4"/>
+  <!-- Тот же знак без анимации — для печати, писем и мест, где
+       шевелящийся логотип неуместен. Чтобы поставить его, поменяйте
+       путь в templates/_base.html и templates/admin/_nav.html -->
+  <path d="M22 40C11.5 32.6 5 26.4 5 19.6A7.9 7.9 0 0 1 22 15.6 7.9 7.9 0 0 1 36 17"/>
+  <path d="M36 24.6c0 4.2-5 9.2-14 15.4"/>
+  <path d="M8 26h5.5l2.6-5.4 4 10.4 2.8-6.2 1.9 3.6h4.4"/>
+  <circle cx="38.5" cy="12.5" r="5.2"/>
+  <path d="M38.5 5.3v1.9M38.5 17.8v1.9M44.8 8.9l-1.6 1M33.8 15.1l-1.6 1M44.8 16.1l-1.6-1M33.8 9.9l-1.6-1"/>
 </svg>

@@ -38,7 +38,7 @@
    дёргался весь знак целиком, потому что логотип был картинкой.
    40 px — как логотип образца: 53 в ряду высотой 100 смотрелись
    тяжело и спорили с надписью */
-.brand img{width:54px;height:34px;flex:0 0 54px;align-self:center}
+.brand img{width:42px;height:37px;flex:0 0 42px;align-self:center}
 
 /* Меню — справа, рядом со входом: слева в полосе стоит город */
 .site-nav{display:flex;align-items:center;gap:4px;min-width:0;margin-left:auto;
