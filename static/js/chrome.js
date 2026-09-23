@@ -1,35 +1,4 @@
 // Скрипт шаблона templates/_base.html.
-// Склеены 3 блока, стоявшие подряд, — порядок прежний.
-
-(function(){
-  // Шапка «вплавлена» в страницу, пока та в самом верху, и отделяется
-  // при прокрутке. Вид обоих состояний — в chrome.css, здесь только
-  // переключение.
-  const head = document.querySelector('.site-head');
-  if (!head) return;
-
-  // Без наблюдателя следить нечем — шапка остаётся отделённой, как была
-  if (!('IntersectionObserver' in window)) return;
-
-  // Скрипт стоит сразу после шапки и выполняется до первой отрисовки:
-  // верное состояние видно с первого кадра, без мигания линии
-  head.classList.toggle('at-top', window.scrollY < 1);
-
-  // Следим не за scroll, а за пиксельной меткой в самом верху документа:
-  // обработчик прокрутки срабатывал бы десятки раз в секунду, а
-  // наблюдатель — только когда метка уходит с экрана или возвращается
-  {
-    const mark = document.createElement('div');
-    mark.setAttribute('aria-hidden', 'true');
-    mark.className = 'head-mark';
-    document.body.prepend(mark);
-    new IntersectionObserver(([e]) => head.classList.toggle('at-top', e.isIntersecting))
-      .observe(mark);
-  }
-
-  // Переходы — только после того, как начальное состояние нарисовано
-  requestAnimationFrame(() => requestAnimationFrame(() => head.classList.add('ready')));
-})();
 
 (function(){
   // Одно поведение на витрине и в бэкенде: кнопка переключает список
