@@ -29,6 +29,7 @@
 <link rel="icon" href="/static/logo.svg" type="image/svg+xml">
 <link rel="stylesheet" href="{{ asset('css/core.css') }}">
 <link rel="stylesheet" href="{{ asset('css/chrome.css') }}">
+<link rel="stylesheet" href="{{ asset('css/combo.css') }}">
 {% block head %}{% endblock %}
 </head>
 <body>
@@ -121,6 +122,9 @@
 </div>
 
 <script src="{{ asset('js/chrome.js') }}"></script>
+{# Длинные списки получают поиск: марки, модели, категории.
+   Без него остаются обычными системными списками #}
+<script defer src="{{ asset('js/combo.js') }}"></script>
 
 <main>{% block content %}{% endblock %}</main>
 

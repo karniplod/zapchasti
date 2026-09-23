@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <title>Этикетки {{ donor.code }}</title>
 <link rel="stylesheet" href="/static/admin.css?v={{ admin_css_version() }}">
+{# Длинные списки (марки, модели, категории) получают поиск;
+   без скрипта остаются обычными системными списками #}
+<link rel="stylesheet" href="{{ asset('css/combo.css') }}">
+<script defer src="{{ asset('js/combo.js') }}"></script>
 <link rel="stylesheet" href="{{ asset('css/admin/labels.css') }}">
 </head>
 <body data-donor-id="{{ donor.id }}" data-ids="{{ labels | map(attribute='id') | join(',') }}">
