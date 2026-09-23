@@ -21,18 +21,44 @@
 .chip-link:hover{border-color:var(--accent);color:var(--accent)}
 .chip-link.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .chip-link.on span{color:rgba(255,255,255,.8)}
-/* Модели — вторым рядом, мельче: уточнение к выбранной марке */
+/* Модели — вторым рядом, мельче: уточнение к выбранной марке.
+   Выбранная модель — оранжевым контуром, а не тёмной заливкой: сплошной
+   оранжевый уже занят маркой, а тёмная плашка рядом с ней читалась как
+   «выключено» */
 .chips-sub .chip-link{padding:6px 12px;font-size:var(--t-xs)}
-.chips-sub .chip-link.on{background:var(--dark);border-color:var(--dark)}
+.chips-sub .chip-link.on{background:var(--accent-bg);border-color:var(--accent);
+  color:var(--accent-dk)}
+.chips-sub .chip-link.on span{color:var(--accent)}
 
-/* Выбор марки списком — когда плашками все не показать */
-.brand-pick{display:flex;align-items:center;gap:10px;margin-top:12px}
+/* Выбор марки списком — когда плашками все не показать. Поле стоит в
+   одном ряду с плашками, поэтому и выглядит плашкой: та же высота,
+   та же рамка, то же скругление. Прямоугольное поле среди пилюль
+   выпадало из ряда */
+.brand-pick{display:flex;align-items:center;gap:10px;margin-top:10px}
 .brand-pick label{margin:0;font-size:var(--t-sm);color:var(--muted);white-space:nowrap}
-.brand-pick .field{width:auto;min-width:240px;max-width:100%;padding:9px 12px;
-  font-size:var(--t-sm)}
+.brand-pick .combo{width:auto;min-width:250px;max-width:100%}
+.brand-pick .combo-input{
+  height:36px;padding:0 34px 0 14px;
+  border-radius:var(--r-pill);border-color:var(--line);
+  font-size:var(--t-sm);font-weight:500;
+  background-position:right 14px center;
+}
+.brand-pick .combo-input:hover{border-color:var(--line-2)}
+.brand-pick .combo-input:focus{border-color:var(--accent)}
+/* Выпадающий список — от края поля, с тем же скруглением, что у панелей */
+.brand-pick .combo-list{border-radius:var(--r)}
+/* Без скрипта тут остаётся системный список и кнопка «Показать» */
+.brand-pick .field{width:auto;min-width:250px;max-width:100%;height:36px;
+  padding:0 12px;border-radius:var(--r-pill);font-size:var(--t-sm)}
+
 @media(max-width:560px){
-  .brand-pick{flex-wrap:wrap}
+  .brand-pick{flex-wrap:wrap;gap:6px}
+  .brand-pick .combo,
   .brand-pick .field{flex:1 1 100%;min-width:0}
+  /* Плашки на телефоне занимали пять рядов до первой машины. Оставляем
+     «Все марки» и шесть самых частых, остальные ищутся полем ниже.
+     Выбранная марка показывается всегда, даже если она седьмая */
+  .chips .chip-link:nth-child(n+8):not(.on){display:none}
 }
 
 .cars-count{margin:22px 0 14px;font-size:var(--t-sm);color:var(--muted)}
