@@ -83,6 +83,9 @@ mkdir -p "$APP_DIR" /opt/backups
 chown "$APP_USER:$APP_USER" /opt/backups
 
 say "Код"
+# Каталог принадлежит razbor, а git запускается от root: без этого
+# git отказывается работать с «чужим» репозиторием
+git config --global --get-all safe.directory 2>/dev/null | grep -qx "$APP_DIR" || git config --global --add safe.directory "$APP_DIR"
 if [[ -d "$APP_DIR/.git" ]]; then
   git -C "$APP_DIR" fetch --quiet origin "$BRANCH"
   git -C "$APP_DIR" reset --hard --quiet "origin/$BRANCH"
