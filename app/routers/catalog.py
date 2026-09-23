@@ -25,6 +25,7 @@ from ..database import get_session
 from ..services.geo import detect_city
 from ..templating import templates
 from ..vin_decoder import decode
+from .cars import CARS_SQL, card as car_row
 
 router = APIRouter(tags=["catalog"])
 
@@ -90,28 +91,15 @@ async def home(request: Request, session: AsyncSession = Depends(get_session)):
         ).mappings()
     ]
 
-    # Машины в разборе: покупатель ищет «свою» марку в списке
+    # Машины в разборе — той же плиткой, что и на странице «Машины»:
+    # берём тот же запрос и те же готовые подписи, иначе на главной
+    # заводится своя карточка и со временем расходится с общей
     cars = [
-        dict(r)
-        for r in (
-            await session.execute(
-                text("""
-        SELECT d.id, d.code, d.year, b.name AS brand, m.name AS model,
-               g.name AS generation,
-               (SELECT count(*) FROM parts p
-                 WHERE p.donor_id = d.id AND p.status = 'in_stock'
-                   AND p.published) AS parts,
-               (SELECT coalesce(thumb, path) FROM donor_photos dp
-                 WHERE dp.donor_id = d.id ORDER BY sort_order LIMIT 1) AS photo
-          FROM donors d
-          JOIN generations g ON g.id = d.generation_id
-          JOIN models m      ON m.id = g.model_id
-          JOIN brands b      ON b.id = m.brand_id
-         WHERE d.status IN ('dismantling', 'dismantled')
-         ORDER BY d.id DESC LIMIT 6
-    """)
-            )
-        ).mappings()
+        car_row(r)
+        for r in await session.execute(text(
+            f"SELECT * FROM ({CARS_SQL}) c "
+            "WHERE c.parts > 0 AND c.status <> 'accepted' "
+            "ORDER BY c.id DESC LIMIT 4"))
     ]
 
     return templates.TemplateResponse(
@@ -121,7 +109,7 @@ async def home(request: Request, session: AsyncSession = Depends(get_session)):
             "user": user,
             "s": stats,
             "fresh": fresh,
-            "cars": [c for c in cars if c["parts"]],
+            "cars": cars,
         },
     )
 

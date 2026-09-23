@@ -1,5 +1,5 @@
 {% extends "_base.html" %}
-{% from "_macros.html" import part_card %}
+{% from "_macros.html" import part_card, car_card %}
 {% block title %}Запчасти с разбора{% endblock %}
 {% block description %}Б/у автозапчасти с разбора: подбор по VIN, фото каждой детали, честная оценка состояния.{% endblock %}
 
@@ -85,17 +85,8 @@
 <section class="block" id="cars">
   <div class="wrap">
     <div class="sec-head"><h2>Машины <b>на разборе</b></h2><a href="/cars">Все машины</a></div>
-    <div class="cars">
-      {% for c in cars %}
-      <a class="car" href="/cars/{{ c.code }}">
-        <div class="pic">{% if c.photo %}<img src="{{ c.photo }}" alt="" loading="lazy">{% endif %}</div>
-        <div>
-          <div class="nm">{{ c.brand }} {{ c.model }}</div>
-          <div class="sub">{{ c.generation }}{% if c.year %}, {{ c.year }}{% endif %}</div>
-        </div>
-        <span class="cnt">{{ c.parts }} дет.</span>
-      </a>
-      {% endfor %}
+    <div class="car-grid">
+      {% for c in cars %}{{ car_card(c) }}{% endfor %}
     </div>
   </div>
 </section>

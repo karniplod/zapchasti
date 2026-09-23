@@ -1,4 +1,5 @@
 {% extends "_base.html" %}
+{% from "_macros.html" import car_card %}
 {% block title %}Машины на разборе{% endblock %}
 {% block description %}Машины в разборе и разобранные: марка, двигатель, пробег, что уже снято. Детали можно заказать под снятие.{% endblock %}
 
@@ -57,29 +58,7 @@
   <p class="cars-count">{{ count_label }}</p>
   <div class="car-grid">
     {% for c in cars %}
-    <a class="car-card" href="/cars/{{ c.code }}">
-      <div class="shot">
-        {% if c.photo %}<img src="{{ c.photo }}" alt="{{ c.brand }} {{ c.model }}" loading="lazy">
-        {% else %}<div class="none">фото готовится</div>{% endif %}
-        <span class="status" data-s="{{ c.status }}">{{ c.status_label }}</span>
-      </div>
-      <div class="body">
-        <span class="code">{{ c.code }}</span>
-        <span class="name">{{ c.brand }} {{ c.model }}{% if c.year %}, {{ c.year }}{% endif %}</span>
-        <span class="gen">{{ c.generation }}{% if c.body_type %}, {{ c.body_type|lower }}{% endif %}</span>
-        <ul class="facts">
-          {% if c.engine %}<li>{{ c.engine }}</li>{% endif %}
-          {% if c.transmission %}<li>{{ c.transmission|lower }}</li>{% endif %}
-          {% if c.mileage %}<li>{{ c.mileage }}</li>{% endif %}
-          {% if c.city %}<li>{{ c.city }}</li>{% endif %}
-        </ul>
-        {% if c.public_note %}<p class="note">{{ c.public_note }}</p>{% endif %}
-        <span class="parts{% if not c.parts %} none{% endif %}">
-          {% if c.parts %}{{ c.parts_label }} в наличии
-          {% elif c.status == 'accepted' %}все детали на машине — спросите
-          {% else %}деталей пока нет — спросите{% endif %}</span>
-      </div>
-    </a>
+    {{ car_card(c) }}
     {% endfor %}
   </div>
   {% else %}
