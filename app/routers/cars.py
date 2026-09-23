@@ -56,6 +56,22 @@ MONTHS = ("января", "февраля", "марта", "апреля", "ма�
           "августа", "сентября", "октября", "ноября", "декабря")
 
 
+# Сколько марок показывать плашками. Остальные уходят в список: на
+# складе с сотнями марок стена плашек занимала два с половиной экрана,
+# и до самих машин приходилось листать
+CHIPS = 14
+
+
+def top_brands(brands, chosen: int | None) -> list[dict]:
+    """Частые марки плашками. Выбранная — всегда среди них, иначе
+    непонятно, по чему отфильтровано."""
+    top = sorted(brands, key=lambda b: (-b["cnt"], b["name"].lower()))[:CHIPS]
+    if chosen and not any(b["id"] == chosen for b in top):
+        rest = [b for b in brands if b["id"] == chosen]
+        top = top[:CHIPS - 1] + rest
+    return sorted(top, key=lambda b: b["name"].lower())
+
+
 def plural(n: int, one: str, few: str, many: str) -> str:
     a, b = n % 10, n % 100
     if a == 1 and b != 11:
@@ -140,6 +156,7 @@ async def cars_page(
             "total": len(everything),
             "count_label": f"{len(cars)} {plural(len(cars), 'машина', 'машины', 'машин')}",
             "brands": sorted(brands.values(), key=lambda b: b["name"].lower()),
+            "brands_top": top_brands(brands.values(), brand),
             "models": sorted(models.values(), key=lambda m: m["name"].lower()),
             "brand": brand,
             "model": model,

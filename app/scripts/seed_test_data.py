@@ -4,6 +4,15 @@
     python -m app.scripts.seed_test_data --apply            создаст
     python -m app.scripts.seed_test_data --remove           покажет, что будет удалено
     python -m app.scripts.seed_test_data --remove --apply   уберёт всё, что создал
+    python -m app.scripts.seed_test_data --per-brand        по машине на каждую марку
+
+Режим --per-brand — проверка «на ширину»: по одной машине на каждую марку
+справочника, которой ещё нет на складе, и по одной детали к ней. Нужен,
+чтобы посмотреть витрину не на десятке машин, а на четырёх сотнях: как
+ведут себя фильтр по маркам, меню узлов и выдача каталога. Машины заводятся
+без VIN — настоящих кодов WMI на четыреста марок взять неоткуда, а выдумывать
+нельзя: они ушли бы в подсказку номеров. Убираются той же командой --remove,
+по общей пометке.
 
 Что покрыто.
 
@@ -327,6 +336,115 @@ MANUAL = [
 # ------------------------------------------------------------------
 
 
+# Детали для режима --per-brand: по кругу, чтобы каталог не состоял из
+# четырёхсот одинаковых фар. Категории должны быть в дереве узлов
+BULK_PARTS = [
+    ("Фара левая", "B", "Стекло без трещин, крепления целы", 4500, 3.2),
+    ("Бампер передний", "C", "Потёртости по нижней кромке, без трещин", 6000, 6.0),
+    ("Генератор", "A", "Проверен на стенде, щётки свежие", 7000, 5.5),
+    ("Зеркало левое", "B", "Механизм складывания работает", 3200, 1.4),
+    ("Радиатор охлаждения", "B", "Соты ровные, не паян", 5200, 4.1),
+    ("Тормозной диск передний", "C", "Износ в пределах допуска", 2800, 7.3),
+]
+BULK_COLORS = ["чёрный", "белый", "серебристый", "синий", "красный", "серый", "зелёный"]
+
+# Марки, у которых на складе ещё нет ни одной машины: берём самое свежее
+# поколение и первую его модификацию с комплектацией
+BULK_SQL = """
+SELECT DISTINCT ON (b.id)
+       b.id AS brand_id, b.name AS brand, m.name AS model,
+       g.id AS gen_id, g.year_from, g.year_to,
+       mo.id AS mod_id, c.id AS compl_id
+  FROM brands b
+  JOIN models m         ON m.brand_id = b.id
+  JOIN generations g    ON g.model_id = m.id
+  JOIN modifications mo ON mo.generation_id = g.id
+  JOIN complectations c ON c.modification_id = mo.id
+ WHERE b.id NOT IN (SELECT m2.brand_id
+                      FROM donors d
+                      JOIN generations g2 ON g2.id = d.generation_id
+                      JOIN models m2      ON m2.id = g2.model_id)
+ ORDER BY b.id, g.year_from DESC, mo.id
+"""
+
+
+async def create_per_brand(s, apply: bool) -> None:
+    rows = (await s.execute(text(BULK_SQL))).all()
+    branches = (await s.execute(text("SELECT id FROM branches ORDER BY id"))).scalars().all()
+    if not branches:
+        raise SystemExit("Нет ни одного филиала — заведите его в бэкенде")
+    cats = {}
+    for name, *_ in BULK_PARTS:
+        cid = (await s.execute(text("SELECT id FROM part_categories WHERE name = :n"),
+                               {"n": name})).scalar()
+        if cid is None:
+            raise SystemExit("Нет категории «" + name + "» — поправьте BULK_PARTS")
+        cats[name] = cid
+
+    print("  марок без машины: " + str(len(rows)))
+    if rows[:3]:
+        print("  например: " + ", ".join(r.brand + " " + r.model for r in rows[:3]))
+    if not apply:
+        print("  будет заведено машин и деталей: "
+              + str(len(rows)) + " и " + str(len(rows)) + " (--apply чтобы создать)")
+        return
+
+    now = date.today().year
+    for n, r in enumerate(rows, 1):
+        part_name, cond, note, price, weight = BULK_PARTS[n % len(BULK_PARTS)]
+        year = max(r.year_from, min(r.year_to or now - 2, now - 2))
+        donor = (await s.execute(text("""
+            INSERT INTO donors (code, generation_id, modification_id, complectation_id,
+                                year, color, mileage_km, plate, purchase_price,
+                                notes, public_note, vin_source, status, branch_id)
+            VALUES ('D-' || lpad(nextval('donor_code_seq')::text, 4, '0'),
+                    :gen, :mod, :compl, :year, :color, :mileage, :plate, :price,
+                    :notes, :public_note, 'no_vin', 'dismantling', :branch)
+            RETURNING id, code"""), {
+            "gen": r.gen_id, "mod": r.mod_id, "compl": r.compl_id, "year": year,
+            "color": BULK_COLORS[n % len(BULK_COLORS)],
+            "mileage": 60_000 + (n * 1_370) % 180_000,
+            "plate": "Т{:03d}ТТ716".format(n),
+            "price": 40_000 + (n * 2_500) % 200_000,
+            "notes": "Машина заведена для проверки витрины. " + MARK,
+            "public_note": "Тестовая запись: машина добавлена, чтобы посмотреть, "
+                           "как выглядит витрина с большим числом марок.",
+            "branch": branches[n % len(branches)],
+        })).first()
+
+        path = write_svg(settings.media_root / "donors" / str(donor.id), "test.svg",
+                         svg(r.brand + " " + r.model,
+                             str(year) + " · " + donor.code, "car"))
+        await s.execute(text("""
+            INSERT INTO donor_photos (donor_id, path, thumb, width, height, sort_order)
+            VALUES (:d, :p, :p, 1200, 900, 0)"""), {"d": donor.id, "p": path})
+
+        sku = (await s.execute(text("""
+            UPDATE donors SET part_counter = part_counter + 1 WHERE id = :d
+            RETURNING code || '-' || lpad(part_counter::text, 4, '0')"""),
+            {"d": donor.id})).scalar()
+        part_id = (await s.execute(text("""
+            INSERT INTO parts (sku, donor_id, category_id, name, oem_number, condition,
+                               condition_note, price, status, location, weight_kg,
+                               published, source, branch_id, oem_source, oem_verified,
+                               origin, part_brand)
+            VALUES (:sku, :d, :cat, :name, :oem, CAST(:cond AS part_condition), :note,
+                    :price, 'in_stock', :loc, :weight, true, 'donor', :branch,
+                    'test', false, 'original', NULL)
+            RETURNING id"""), {
+            "sku": sku, "d": donor.id, "cat": cats[part_name], "name": part_name,
+            "oem": "TESTB{:04d}".format(r.brand_id), "cond": cond, "note": note,
+            "price": price, "loc": "С-{:02d}".format(n % 40 + 1), "weight": weight,
+            "branch": branches[n % len(branches)],
+        })).scalar()
+        await add_photo(s, part_id, part_name, r.brand + " " + r.model + " · " + sku)
+
+        if n % 25 == 0 or n == len(rows):
+            await s.commit()
+            print("  создано " + str(n) + " из " + str(len(rows)))
+    await s.commit()
+
+
 def wrap(line: str, width: int) -> list[str]:
     """Перенос по словам: длинное название в одну строку не влезет."""
     out, cur = [], ""
@@ -615,6 +733,8 @@ async def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--apply", action="store_true", help="без него только показывает")
     ap.add_argument("--remove", action="store_true", help="убрать созданное")
+    ap.add_argument("--per-brand", action="store_true",
+                    help="по машине на каждую марку справочника, которой ещё нет")
     a = ap.parse_args()
 
     agen = get_session()
@@ -623,6 +743,10 @@ async def main() -> None:
         if a.remove:
             print("Удаление тестовых данных" + ("" if a.apply else " (проверка, --apply чтобы удалить)"))
             await remove(s, a.apply)
+        elif a.per_brand:
+            print("По машине на марку"
+                  + ("" if a.apply else " (проверка, --apply чтобы создать)"))
+            await create_per_brand(s, a.apply)
         else:
             print("Тестовые данные" + ("" if a.apply else " (проверка, --apply чтобы создать)"))
             for car in CARS:

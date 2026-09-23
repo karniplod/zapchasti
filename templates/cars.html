@@ -6,6 +6,10 @@
 <link rel="stylesheet" href="{{ asset('css/cars.css') }}">
 {% endblock %}
 
+{% block scripts %}
+<script src="{{ asset('js/cars.js') }}"></script>
+{% endblock %}
+
 {% block content %}
 
 <section class="hero page-hero">
@@ -22,10 +26,24 @@
      с выбранной маркой можно отправить #}
   <nav class="chips" aria-label="Марка">
     <a class="chip-link{% if not brand %} on{% endif %}" href="/cars">Все марки <span>{{ total }}</span></a>
-    {% for b in brands %}
+    {% for b in brands_top %}
     <a class="chip-link{% if brand == b.id %} on{% endif %}" href="/cars?brand={{ b.id }}">{{ b.name }} <span>{{ b.cnt }}</span></a>
     {% endfor %}
   </nav>
+  {% if brands|length > brands_top|length %}
+  {# Марок больше, чем влезает плашками, — остальные списком. Это форма,
+     а не скрипт: без JS работает кнопкой, со скриптом уходит по выбору #}
+  <form class="brand-pick" action="/cars" method="get">
+    <label for="brandPick">Другая марка</label>
+    <select class="field" id="brandPick" name="brand">
+      <option value="">все марки ({{ brands|length }})</option>
+      {% for b in brands %}
+      <option value="{{ b.id }}"{% if brand == b.id %} selected{% endif %}>{{ b.name }} — {{ b.cnt }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-ghost btn-sm" id="brandGo" type="submit">Показать</button>
+  </form>
+  {% endif %}
   {% if models %}
   <nav class="chips chips-sub" aria-label="Модель">
     <a class="chip-link{% if not model %} on{% endif %}" href="/cars?brand={{ brand }}">Все модели</a>

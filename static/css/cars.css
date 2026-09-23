@@ -25,6 +25,16 @@
 .chips-sub .chip-link{padding:6px 12px;font-size:var(--t-xs)}
 .chips-sub .chip-link.on{background:var(--dark);border-color:var(--dark)}
 
+/* Выбор марки списком — когда плашками все не показать */
+.brand-pick{display:flex;align-items:center;gap:10px;margin-top:12px}
+.brand-pick label{margin:0;font-size:var(--t-sm);color:var(--muted);white-space:nowrap}
+.brand-pick .field{width:auto;min-width:240px;max-width:100%;padding:9px 12px;
+  font-size:var(--t-sm)}
+@media(max-width:560px){
+  .brand-pick{flex-wrap:wrap}
+  .brand-pick .field{flex:1 1 100%;min-width:0}
+}
+
 .cars-count{margin:22px 0 14px;font-size:var(--t-sm);color:var(--muted)}
 
 /* ── Плитка машины ─────────────────────────────────────── */
