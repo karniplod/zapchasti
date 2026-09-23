@@ -1,0 +1,6 @@
+# Скрипты для сервера — всегда с переводами строк Linux. С CRLF bash
+# отвечает «bad interpreter: No such file or directory», и установка
+# падает на первой же строке
+*.sh text eol=lf
+deploy/*.cron text eol=lf
+deploy/*.service text eol=lf
