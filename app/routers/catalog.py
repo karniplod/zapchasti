@@ -99,7 +99,9 @@ async def home(request: Request, session: AsyncSession = Depends(get_session)):
         for r in await session.execute(text(
             f"SELECT * FROM ({CARS_SQL}) c "
             "WHERE c.parts > 0 AND c.status <> 'accepted' "
-            "ORDER BY c.id DESC LIMIT 4"))
+            # С запасом: сколько строчек влезет в ряд, зависит от
+            # ширины экрана, лишние прячет static/js/home.js
+            "ORDER BY c.id DESC LIMIT 8"))
     ]
 
     return templates.TemplateResponse(
