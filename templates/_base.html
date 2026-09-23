@@ -26,7 +26,7 @@
    версии, иначе браузер скачал бы файл дважды #}
 <link rel="preload" href="/static/fonts/montserrat-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/static/fonts/montserrat-latin.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="icon" href="/static/logo.svg" type="image/svg+xml">
+<link rel="icon" href="{{ asset('logo.svg') }}" type="image/svg+xml">
 <link rel="stylesheet" href="{{ asset('css/core.css') }}">
 <link rel="stylesheet" href="{{ asset('css/chrome.css') }}">
 <link rel="stylesheet" href="{{ asset('css/combo.css') }}">
@@ -69,7 +69,7 @@
 <header class="site-head">
   <div class="wrap">
     <a class="brand" href="/">
-      <img src="/static/logo.svg" alt="" width="40" height="39">
+      <img src="{{ asset('logo.svg') }}" alt="" width="40" height="39">
       <span>Авто<i>·</i>Донор</span>
     </a>
 
