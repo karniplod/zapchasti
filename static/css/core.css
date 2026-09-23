@@ -79,7 +79,9 @@
   --t-xs: 12px; --t-sm: 13.5px; --t-md: 15px;
   --t-lg: 18px; --t-xl: 24px;  --t-2xl: 32px; --t-3xl: 40px;
 
-  --gap: 20px;
+  /* Зазор между колонками и плитками. 30 — как у образца: там колонки
+     ряда разведены полями по 15 с каждой стороны */
+  --gap: 30px;
   /* Скругления. Два размера на всё: 4 px — поля, блоки, поиск;
      «пилюля» — действия (кнопки, метки-переключатели). Третий,
      мелкий, только для бейджей поверх снимка */
@@ -319,7 +321,7 @@ label{display:block;font-size:var(--t-xs);font-weight:500;color:var(--muted);
 
 /* ── Узкий экран ───────────────────────────────────────── */
 @media(max-width:640px){
-  :root{--t-3xl:28px;--t-2xl:24px;--t-xl:20px;--gap:12px}
+  :root{--t-3xl:28px;--t-2xl:24px;--t-xl:20px;--gap:16px}
   .grid{grid-template-columns:repeat(auto-fill,minmax(158px,1fr))}
   :root{--wrap-pad:12px}
   .sec-head{margin-bottom:16px}
