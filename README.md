@@ -90,6 +90,16 @@ razbor/
 
 ## Установка на сервере (прод)
 
+Одной командой — `deploy/bootstrap.sh`, порядок и что делать дальше
+(администратор, справочник машин, домен) — в [deploy/README-deploy.md](deploy/README-deploy.md):
+
+```bash
+git clone https://github.com/karniplod/zapchasti.git /tmp/zapchasti
+bash /tmp/zapchasti/deploy/bootstrap.sh --domain ваш-домен.ру
+```
+
+То же самое по шагам, если ставить руками:
+
 ```bash
 # 1. Разложить на сервере
 sudo mv razbor /opt/razbor
