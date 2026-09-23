@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img"
+     aria-label="Автодонор" fill="none" stroke="#F54F0C" stroke-width="2.4"
+     stroke-linecap="round" stroke-linejoin="round">
+  <title>Автодонор</title>
+  <!-- Тот же знак без сердца: спокойнее и лучше читается в мелком
+       размере. Чтобы поставить его, поменяйте путь в templates/_base.html
+       и templates/admin/_nav.html -->
+  <path d="M10 31.5V27.4l4.2-7.6a2.6 2.6 0 0 1 2.3-1.4h12.9a2.6 2.6 0 0 1 2 1l4.6 7.9
+           2.6.6a2.6 2.6 0 0 1 2 2.5v1.1"/>
+  <path d="M10 31.5h1.2M18.6 31.5h12.1M38.1 31.5h1.5"/>
+  <path d="M11.2 31.5a3.7 3.7 0 0 1 7.4 0M30.7 31.5a3.7 3.7 0 0 1 7.4 0"/>
+  <path d="M2 21.5h5M1 26.5h4.4M3 31.5h3.4"/>
+</svg>

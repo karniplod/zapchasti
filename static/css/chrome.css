@@ -31,23 +31,9 @@
   font-family:var(--display);font-weight:700;font-size:19px;
   letter-spacing:.01em;text-transform:uppercase;white-space:nowrap;color:var(--ink)}
 .brand i{font-style:normal;color:var(--accent)}
-.brand img{width:53px;height:53px;object-fit:contain;flex:0 0 53px;
-  align-self:center;transform-origin:center;animation:heartbeat 1s ease-in-out infinite}
-
-/* ── Пульс логотипа ────────────────────────────────────── */
-/* Сердце бьётся не синусоидой, а «тук-тук»: сильный систолический
-   толчок, через мгновение второй послабее, потом пауза диастолы.
-   Один цикл = 1 с, то есть 60 ударов в минуту. Анимируем transform:
-   он не трогает раскладку, шапка не дёргается вместе с логотипом.
-   Для prefers-reduced-motion анимацию гасит общее правило в core.css */
-@keyframes heartbeat{
-   0%  {transform:scale(1)}
-   8%  {transform:scale(1.13)}   /* «тук» — систола */
-  16%  {transform:scale(1.01)}
-  24%  {transform:scale(1.08)}   /* «тук» послабее — закрытие клапанов */
-  34%  {transform:scale(1)}
- 100%  {transform:scale(1)}      /* диастола: пауза до следующего удара */
-}
+/* Пульс живёт внутри static/logo.svg и бьётся только сердце: раньше
+   дёргался весь знак целиком, потому что логотип был картинкой */
+.brand img{width:53px;height:53px;flex:0 0 53px;align-self:center}
 
 /* Меню — справа, рядом со входом: слева в полосе стоит город */
 .site-nav{display:flex;align-items:center;gap:4px;min-width:0;margin-left:auto;
