@@ -340,8 +340,10 @@ def wrap(line: str, width: int) -> list[str]:
 
 
 def svg(title: str, subtitle: str, kind: str) -> str:
-    lines = wrap(title, 20)[:3]
-    size = 84 if len(lines) == 1 else 70
+    # 15 знаков в строке, а не 20: картинка 4:3, а плитка на витрине
+    # квадратная — бока обрезаются, и длинное название теряло края
+    lines = wrap(title, 15)[:3]
+    size = 76 if len(lines) == 1 else 64
     top = 450 - (len(lines) - 1) * size * 0.6
     title_svg = "".join(
         f'<text x="600" y="{top + i * size * 1.2:.0f}" font-size="{size}" '
