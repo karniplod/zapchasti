@@ -331,17 +331,25 @@ body{--head-top-bg:var(--bg)}
 /* ── Подвал ────────────────────────────────────────────── */
 .site-foot{background:var(--foot);color:var(--foot-text);margin-top:70px;
   font-size:14px;line-height:1.7}
-.foot-grid{display:grid;grid-template-columns:1.6fr 1fr 1fr;gap:40px;
-  padding-top:56px;padding-bottom:40px}
-@media(max-width:760px){.foot-grid{grid-template-columns:1fr 1fr;gap:28px}
-  .foot-about{grid-column:1/-1}}
+.foot-grid{display:grid;grid-template-columns:1.5fr .9fr .9fr 1.5fr;gap:40px;
+  padding-top:56px;padding-bottom:44px}
+@media(max-width:900px){.foot-grid{grid-template-columns:1fr 1fr;gap:28px}
+  .foot-about,.foot-cta{grid-column:1/-1}}
 @media(max-width:440px){.foot-grid{grid-template-columns:1fr}}
 
 .foot-about .brand{color:#fff;margin:0 0 14px}
 .foot-about p{margin:0;max-width:40ch}
-.foot-col h4{margin:0 0 16px;color:#fff;font-size:var(--t-lg);font-weight:600}
+/* Заголовок колонки — мелким в разрядку, как в магазинных подвалах:
+   он подписывает список, а не спорит с ним за внимание */
+.foot-col h4{margin:0 0 16px;color:#fff;font-size:var(--t-xs);font-weight:600;
+  letter-spacing:.12em;text-transform:uppercase}
 .foot-col a{display:block;padding:3px 0;color:var(--foot-text);transition:color .13s}
 .foot-col a:hover{color:#fff}
+
+/* Правый блок: крупная строка и одно действие */
+.foot-cta h4{margin:0 0 10px;color:#fff;font-size:var(--t-2xl);font-weight:700;
+  line-height:1.15;letter-spacing:-.01em;text-wrap:balance}
+.foot-cta p{margin:0 0 18px;max-width:42ch}
 
 .foot-bottom{border-top:1px solid rgba(255,255,255,.08);padding:18px 0;
   font-size:var(--t-sm)}
