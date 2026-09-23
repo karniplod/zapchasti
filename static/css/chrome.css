@@ -27,9 +27,9 @@
    с отступом */
 .topbar .wrap{display:flex;align-items:stretch;height:56px;gap:0}
 
-.brand{display:flex;align-items:center;gap:10px;flex:0 0 auto;margin-right:28px;
-  font-family:var(--display);font-weight:700;font-size:19px;
-  letter-spacing:.01em;text-transform:uppercase;white-space:nowrap;color:var(--ink)}
+.brand{display:flex;align-items:center;gap:11px;flex:0 0 auto;margin-right:28px;
+  font-family:var(--display);font-weight:700;font-size:22px;
+  letter-spacing:-.01em;text-transform:uppercase;white-space:nowrap;color:var(--ink)}
 .brand i{font-style:normal;color:var(--accent)}
 /* Пульс живёт внутри static/logo.svg и бьётся только сердце: раньше
    дёргался весь знак целиком, потому что логотип был картинкой.
@@ -131,7 +131,7 @@
 
 /* «Все категории» — левый сегмент строки поиска, как «выбор раздела»
    в магазинных шапках: та же высота и рамка, что у поля */
-.cat-btn{display:flex;align-items:center;gap:8px;padding:0 12px;
+.cat-btn{display:flex;align-items:center;gap:8px;padding:0 14px 0 12px;
   background:var(--surface);border:1px solid var(--line-2);color:var(--ink);
   font-size:15px;font-weight:400;white-space:nowrap;
   transition:color .13s,border-color .13s}
@@ -201,8 +201,10 @@
 /* Корзина — один значок с числом, без подписи: в образце тоже только
    значок, а слово «Корзина» съедало место у строки поиска. Название
    осталось в aria-label — читалка экрана его произнесёт */
+/* Отступы только сверху и снизу: у образца правый край значка совпадает
+   с краем колонки, а боковой отступ отодвигал бы его внутрь */
 .cart-link{position:relative;display:flex;align-items:center;flex:0 0 auto;
-  padding:7px;color:var(--ink);transition:color .13s}
+  padding:7px 0;color:var(--ink);transition:color .13s}
 .cart-link:hover{color:var(--accent)}
 /* Рамка значка — по самому значку, а не по области нажатия: иначе
    счётчик висел бы в пустом углу, в стороне от сумки. Палец при этом
@@ -289,7 +291,8 @@
   .cat-btn{padding:0 12px}
   .cat-btn .lbl,.cat-btn .chev{display:none}
   .head-search{--sbar-h:44px}
-  .cart-ico{width:40px;height:40px}
+  /* На телефоне палец шире курсора: добавляем боковой отступ */
+  .cart-link{padding:7px 6px}
 
   /* Меню категорий — на всю ширину, листается внутри себя */
   .cat-menu{left:0;right:0;width:auto;margin-top:0;border-radius:0;
