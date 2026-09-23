@@ -37,10 +37,7 @@
    static/js/chrome.js #}
 <div class="topbar">
   <div class="wrap">
-    <a class="brand" href="/">
-      <img src="/static/logo.png" alt="" width="53" height="53">
-      <span>Авто<i>·</i>Донор</span>
-    </a>
+    {% include "_city.html" %}
     <nav class="site-nav" id="siteNav">
       <a href="/catalog" {% if request.url.path.startswith('/catalog') %}aria-current="page"{% endif %}>Каталог</a>
       <a href="/cars" {% if request.url.path.startswith('/cars') %}aria-current="page"{% endif %}>Машины</a>
@@ -48,7 +45,6 @@
       <a href="/contacts" {% if request.url.path == '/contacts' %}aria-current="page"{% endif %}>Контакты</a>
       {% if user %}<a class="to-admin" href="/admin">Бэкенд</a>{% endif %}
     </nav>
-    {% include "_city.html" %}
     {# Вход и кабинет: состояние приходит из /api/me, потому что шапка
        одна на все страницы, а покупателя знают не все обработчики #}
     <a class="acct-link" id="acctLink" href="/account/login">Войти</a>
@@ -59,24 +55,36 @@
 
 <header class="site-head">
   <div class="wrap">
-    {# Без скрипта — ссылка в каталог. Со скриптом раскрывает меню узлов
-       (static/js/chrome.js, данные — /api/catalog/nodes) #}
-    <a class="cat-btn" id="catBtn" href="/catalog" aria-label="Все категории"
-       aria-expanded="false" aria-controls="catMenu">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"
-           stroke="currentColor" stroke-width="2" stroke-linecap="round">
-        <path d="M4 6h16M4 12h16M4 18h10"/>
-      </svg>
-      <span>Все категории</span>
+    <a class="brand" href="/">
+      <img src="/static/logo.png" alt="" width="53" height="53">
+      <span>Авто<i>·</i>Донор</span>
     </a>
 
-    {# Без скрипта форма уходит в каталог обычным GET с ?q=. Скрипт
-       отличает VIN от названия детали и ведёт в подбор по VIN #}
-    <form class="head-search" id="headSearch" action="/catalog" method="get" role="search">
-      <input type="search" name="q" id="headQ" autocomplete="off" spellcheck="false"
-             placeholder="Деталь, номер или VIN" aria-label="Поиск по каталогу">
+    {# Строка поиска — общий компонент .sbar (core.css): выбор узла,
+       поле, кнопка. Без скрипта форма уходит в каталог обычным GET
+       с ?q=, а «Все категории» — просто ссылка в каталог. Со скриптом
+       поиск отличает VIN от названия детали, а «Все категории»
+       раскрывает меню узлов (static/js/chrome.js, /api/catalog/nodes) #}
+    <form class="sbar head-search" id="headSearch" action="/catalog" method="get"
+          role="search">
+      <a class="cat-btn" id="catBtn" href="/catalog" aria-label="Все категории"
+         aria-expanded="false" aria-controls="catMenu">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M4 6h16M4 12h16M4 18h10"/>
+        </svg>
+        <span class="lbl">Все категории</span>
+        <svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none"
+             aria-hidden="true" stroke="currentColor" stroke-width="2.6"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 9l7 7 7-7"/>
+        </svg>
+      </a>
+      <input class="field" type="search" name="q" id="headQ" autocomplete="off"
+             spellcheck="false" placeholder="Деталь, номер или VIN"
+             aria-label="Поиск по каталогу">
       <input type="hidden" name="from" value="head">
-      <button type="submit" aria-label="Найти">
+      <button class="btn btn-primary" type="submit" aria-label="Найти">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"
              stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
           <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>

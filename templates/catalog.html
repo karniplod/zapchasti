@@ -75,10 +75,10 @@
     <div id="donorNote"></div>
     {# Форма, а не одинокое поле: Enter в форме — это отправка,
        её не нужно ловить отдельным обработчиком клавиш #}
-    <form class="search" id="searchForm">
-      <input class="field" id="q" placeholder="Название или каталожный номер"
+    <form class="sbar search" id="searchForm">
+      <input class="field" id="q" type="search" placeholder="Название или каталожный номер"
              autocomplete="off" aria-label="Поиск по названию или номеру">
-      <button class="btn btn-primary btn-sm" type="submit">Искать</button>
+      <button class="btn btn-primary" type="submit">Искать</button>
     </form>
     <div class="toolbar">
       <span class="count" id="count"></span>

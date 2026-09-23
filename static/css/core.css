@@ -71,8 +71,14 @@
   --t-lg: 18px; --t-xl: 24px;  --t-2xl: 32px; --t-3xl: 40px;
 
   --gap: 20px;
+  /* Скругления. Два размера на всё: 4 px — поля, блоки, поиск;
+     «пилюля» — действия (кнопки, метки-переключатели). Третий,
+     мелкий, только для бейджей поверх снимка */
   --r:   4px;
+  --r-xs: 3px;
   --r-pill: 30px;
+  /* Ширина колонки контента */
+  --wrap: 1290px;
   --shadow: 0 6px 22px rgba(0,0,0,.08);
 }
 
@@ -98,7 +104,7 @@ img{max-width:100%;display:block}
 html,body{max-width:100%;overflow-x:clip}
 
 /* ── Ширина страницы ───────────────────────────────────── */
-.wrap{width:100%;max-width:min(1120px, 100%);margin:0 auto;padding:0 16px}
+.wrap{width:100%;max-width:min(var(--wrap), 100%);margin:0 auto;padding:0 16px}
 
 /* ── Типографика ───────────────────────────────────────── */
 h1,h2,h3{font-family:var(--display);font-weight:600;
@@ -133,9 +139,14 @@ p.hint{margin:4px 0 0}
 .crumbs a:hover{color:var(--accent)}
 
 /* ── Кнопки ────────────────────────────────────────────── */
+/* Кнопка — это действие: «в корзину», «отправить», «подобрать».
+   Форма у всех одна — «пилюля». Поле ввода и поиск — не действие,
+   у них скругление --r: так по одному взгляду видно, куда нажимать,
+   а куда писать. Единственное исключение — кнопка внутри строки
+   поиска: она приклеена к полю и повторяет его угол (см. .sbar) */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
   font-family:var(--body);font-size:14px;font-weight:600;line-height:1.2;
-  padding:13px 24px;border-radius:var(--r);border:1px solid transparent;
+  padding:13px 28px;border-radius:var(--r-pill);border:1px solid transparent;
   cursor:pointer;transition:background .15s,border-color .15s,color .15s}
 .btn-primary{background:var(--accent);color:#fff}
 .btn-primary:hover{background:var(--accent-dk)}
@@ -144,7 +155,32 @@ p.hint{margin:4px 0 0}
 .btn-dark:hover{background:var(--dark-dk)}
 .btn-ghost{background:var(--surface);color:var(--ink);border-color:var(--line-2)}
 .btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
-.btn-sm{padding:9px 16px;font-size:var(--t-sm)}
+.btn-sm{padding:9px 20px;font-size:var(--t-sm)}
+
+/* ── Строка поиска ─────────────────────────────────────── */
+/* Одна на всю витрину: шапка, каталог, подбор по VIN. Слитная
+   группа «выбор + поле + кнопка» — как в магазинных шаблонах:
+   скругление только по внешним углам, внутренние рамки стыкуются.
+   Раньше поиск в шапке был «таблеткой» с круглой кнопкой, а на
+   странице каталога — прямоугольным: два разных поиска в одном
+   магазине. Теперь размер задаётся одной переменной --sbar-h. */
+.sbar{display:flex;align-items:stretch;min-width:0;--sbar-h:46px}
+.sbar > *{height:var(--sbar-h);border-radius:0;flex:0 0 auto}
+/* Соседние рамки накладываются, а не удваиваются */
+.sbar > * + *{margin-left:-1px}
+.sbar > :first-child{border-top-left-radius:var(--r);border-bottom-left-radius:var(--r)}
+.sbar > :last-child{border-top-right-radius:var(--r);border-bottom-right-radius:var(--r)}
+.sbar .field{flex:1 1 auto;min-width:0;padding:0 16px}
+/* Подсветка фокуса не должна уходить под соседа */
+.sbar .field:focus{position:relative;z-index:1}
+.sbar .btn{padding:0 26px;border-color:transparent}
+/* Системный крестик очистки у type=search в стиль не попадает */
+.sbar input::-webkit-search-cancel-button{-webkit-appearance:none}
+@media(max-width:560px){
+  .sbar{--sbar-h:44px}
+  .sbar .btn{padding:0 16px}
+  .sbar .btn span{display:none}
+}
 
 /* Ссылка, которая на самом деле кнопка: внутри текста абзаца */
 .linkish{background:none;border:0;padding:0;font:inherit;color:var(--accent);
@@ -173,16 +209,12 @@ label{display:block;font-size:var(--t-xs);font-weight:500;color:var(--muted);
    сливается. Края блока совпадают с колонкой контента ниже */
 .hero{padding:26px 0 0}
 .hero > .wrap{background:var(--surface);border-radius:var(--r);
-  padding:40px 44px;max-width:min(1088px, calc(100% - 32px))}
+  padding:40px 44px;max-width:min(calc(var(--wrap) - 32px), calc(100% - 32px))}
 @media(max-width:640px){.hero > .wrap{padding:26px 20px}}
 
-.vinbar{display:flex;gap:10px;max-width:min(620px, 100%)}
-.vinbar .field{flex:1;width:100%;min-width:0}
-.vinbar .field.bad{border-color:var(--err)}
-@media(max-width:560px){
-  .vinbar{flex-direction:column}
-  .vinbar .btn{width:100%}
-}
+.vinbar{max-width:min(620px, 100%);--sbar-h:52px}
+.vinbar .field.bad{border-color:var(--err);position:relative;z-index:1}
+@media(max-width:560px){.vinbar{--sbar-h:46px}}
 
 /* ── Карточка товара ───────────────────────────────────── */
 /* Одна и та же плитка в каталоге и в свежих поступлениях.
@@ -213,7 +245,7 @@ label{display:block;font-size:var(--t-xs);font-weight:500;color:var(--muted);
    «Класс A» читается без легенды, одна буква — нет */
 .grade{position:absolute;left:10px;top:10px;z-index:3;
   font-size:11px;font-weight:600;line-height:1;letter-spacing:.02em;
-  padding:6px 8px;border-radius:3px;background:var(--dark);color:#fff}
+  padding:6px 8px;border-radius:var(--r-xs);background:var(--dark);color:#fff}
 .grade::before{content:"Класс "}
 .grade[data-g="A"]{background:var(--ok)}
 .grade[data-g="C"],.grade[data-g="D"]{background:var(--warn)}
@@ -232,7 +264,7 @@ label{display:block;font-size:var(--t-xs);font-weight:500;color:var(--muted);
 
 /* ── Метки ─────────────────────────────────────────────── */
 .chip{display:inline-flex;align-items:center;gap:6px;font-size:var(--t-xs);
-  padding:4px 10px;border-radius:3px;background:var(--surface-2);
+  padding:4px 10px;border-radius:var(--r-xs);background:var(--surface-2);
   color:var(--muted);border:1px solid var(--line)}
 .chip-ok{background:#E7F4ED;color:var(--ok);border-color:#C3E3D2}
 .chip-warn{background:#FCF1E3;color:var(--warn);border-color:#F1DAB8}

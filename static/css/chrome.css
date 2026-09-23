@@ -8,11 +8,13 @@
    витрины и молча не работали — переменных --panel и --amber здесь
    нет и не будет.
 
-   Шапка в два ряда:
-     .topbar    — серая полоса: логотип, меню, город, вход. Уезжает
-                  вместе со страницей;
-     .site-head — белый ряд: «Все категории», поиск, корзина. Прилипает
-                  к верху — поиск и корзина нужны на любой глубине.
+   Шапка в два ряда, как в магазинных шаблонах:
+     .topbar    — серая полоса: город слева, меню и вход справа.
+                  Уезжает вместе со страницей;
+     .site-head — белый ряд: логотип, строка поиска, корзина. Прилипает
+                  к верху: на любой глубине видно, где ты и как искать.
+                  Логотип именно здесь — иначе при прокрутке от магазина
+                  остаётся безымянный ряд с полем.
    ───────────────────────────────────────────────────────── */
 
 /* ── Верхняя полоса ────────────────────────────────────── */
@@ -20,7 +22,7 @@
    живут в ней и должны ложиться поверх ряда с поиском */
 .topbar{position:relative;z-index:45;background:var(--topbar);
   border-bottom:1px solid var(--line-3)}
-.topbar .wrap{display:flex;align-items:stretch;height:64px;gap:0;
+.topbar .wrap{display:flex;align-items:stretch;height:56px;gap:0;
   max-width:none;padding-inline:clamp(16px, 3vw, 32px)}
 
 .brand{display:flex;align-items:center;gap:10px;flex:0 0 auto;margin-right:28px;
@@ -45,8 +47,8 @@
  100%  {transform:scale(1)}      /* диастола: пауза до следующего удара */
 }
 
-/* Меню — сразу за логотипом, как в магазинных шаблонах */
-.site-nav{display:flex;align-items:center;gap:4px;min-width:0;
+/* Меню — справа, рядом со входом: слева в полосе стоит город */
+.site-nav{display:flex;align-items:center;gap:4px;min-width:0;margin-left:auto;
   overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none}
 .site-nav::-webkit-scrollbar{display:none}
 .site-nav a{flex:0 0 auto;padding:8px 12px;font-size:14px;font-weight:500;
@@ -59,12 +61,11 @@
   padding:7px 14px;border-radius:var(--r);margin-left:8px}
 .site-nav .to-admin:hover{background:var(--accent);color:#fff}
 
-/* Правые ячейки полосы — город и вход — разделены вертикальными
-   чертами во всю высоту полосы */
-.topbar .city,
-.topbar .acct-link{display:flex;align-items:center;border-left:1px solid var(--line-3);
-  padding:0 18px}
-.topbar .city{margin-left:auto}
+/* Вход отделён вертикальной чертой во всю высоту полосы, город
+   слева — без черты: он первый в ряду */
+.topbar .acct-link{display:flex;align-items:center;
+  border-left:1px solid var(--line-3);padding:0 18px;margin-left:18px}
+.topbar .city{display:flex;align-items:center;padding-right:18px}
 
 /* ── Город покупателя ──────────────────────────────────── */
 .city{position:relative;flex:0 0 auto}
@@ -178,13 +179,23 @@ body{--head-top-bg:var(--bg)}
   width:calc(100% / var(--k));margin-inline:0;
   transform:scale(var(--k));transform-origin:0 0}
 
-/* «Все категории» — вход в каталог, тёмная плашка слева от поиска */
-.cat-btn{display:flex;align-items:center;gap:10px;flex:0 0 auto;height:48px;
-  padding:0 20px;border-radius:var(--r);background:var(--dark);color:#fff;
-  font-size:14px;font-weight:600;white-space:nowrap;transition:background .15s}
+/* Логотип в ряду поиска: слева, дальше строка поиска и корзина */
+.site-head .brand{margin-right:10px}
+
+/* «Все категории» — левый сегмент строки поиска, как «выбор раздела»
+   в магазинных шапках: та же высота и рамка, что у поля */
+.cat-btn{display:flex;align-items:center;gap:9px;padding:0 16px;
+  background:var(--surface);border:1px solid var(--line-2);color:var(--ink);
+  font-size:14px;font-weight:500;white-space:nowrap;
+  transition:color .13s,border-color .13s}
 .cat-btn:hover,
-.cat-btn[aria-expanded="true"]{background:var(--accent)}
+.cat-btn[aria-expanded="true"]{position:relative;z-index:1;
+  color:var(--accent);border-color:var(--accent)}
 .cat-btn svg{flex:0 0 auto}
+.cat-btn .chev{color:var(--dim);transition:transform .18s}
+.cat-btn:hover .chev,
+.cat-btn[aria-expanded="true"] .chev{color:inherit}
+.cat-btn[aria-expanded="true"] .chev{transform:rotate(180deg)}
 
 /* ── Меню «Все категории» ─────────────────────────────────
    Панель под рядом поиска: узлы колонками, в каждом — самые частые
@@ -229,30 +240,21 @@ body{--head-top-bg:var(--bg)}
 .cm-state{margin:0;padding:6px 0 10px;font-size:var(--t-sm);color:var(--muted)}
 .cm-state a{color:var(--accent);text-decoration:underline}
 
-/* Поиск — «таблетка» с оранжевой кнопкой внутри */
-.head-search{flex:1;min-width:0;display:flex;align-items:center;height:48px;
-  background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r-pill);
-  padding:0 5px 0 22px;transition:border-color .13s,box-shadow .13s}
-.head-search:focus-within{border-color:var(--accent);
-  box-shadow:0 0 0 3px rgba(245,79,12,.12)}
-.head-search input{flex:1;min-width:0;border:0;background:none;outline:none;
-  font:inherit;font-size:14px;color:var(--ink);padding:0}
-.head-search input::placeholder{color:var(--dim)}
-/* Системный крестик очистки у type=search в стиль не попадает */
-.head-search input::-webkit-search-cancel-button{-webkit-appearance:none}
-.head-search button{flex:0 0 auto;display:flex;align-items:center;justify-content:center;
-  gap:8px;height:38px;padding:0 20px;border:0;border-radius:var(--r-pill);
-  background:var(--accent);color:#fff;font:inherit;font-size:14px;font-weight:600;
-  cursor:pointer;transition:background .15s}
-.head-search button:hover{background:var(--accent-dk)}
+/* Поиск в шапке — общий компонент .sbar (core.css), здесь только
+   ширина: занимает середину ряда, но не растягивается во всю ширину
+   на большом мониторе — строка в 1200 px выглядит нелепо */
+.head-search{flex:1 1 auto;min-width:0;max-width:780px;--sbar-h:48px;
+  /* Прижата к корзине, а не приклеена к логотипу: между названием
+     магазина и полем нужен воздух */
+  margin-left:auto}
+.head-search .field{font-size:14px}
 
 /* Корзина — значок с числом и подписью */
-.cart-link{position:relative;display:flex;align-items:center;gap:10px;flex:0 0 auto;
+.cart-link{position:relative;display:flex;align-items:center;gap:8px;flex:0 0 auto;
   color:var(--ink);font-size:14px;font-weight:600;transition:color .13s}
 .cart-link:hover{color:var(--accent)}
 .cart-ico{position:relative;display:flex;align-items:center;justify-content:center;
-  width:46px;height:46px;border-radius:50%;background:var(--surface-2);
-  border:1px solid var(--line)}
+  width:44px;height:44px}
 .cart-n{position:absolute;top:-3px;right:-3px;min-width:19px;height:19px;padding:0 5px;
   display:flex;align-items:center;justify-content:center;
   background:var(--accent);color:#fff;border-radius:10px;
@@ -302,12 +304,10 @@ body{--head-top-bg:var(--bg)}
   .site-head{--head-h:68px}
   .site-head .wrap{gap:10px}
   /* От «Все категории» остаётся значок: поиск важнее подписи */
-  .cat-btn{width:44px;height:44px;padding:0;justify-content:center}
-  .cat-btn span{display:none}
-  .head-search{height:44px;padding-left:16px}
-  .head-search button{height:34px;padding:0 14px}
-  .head-search button span{display:none}
-  .cart-ico{width:42px;height:42px}
+  .cat-btn{padding:0 12px}
+  .cat-btn .lbl,.cat-btn .chev{display:none}
+  .head-search{--sbar-h:44px}
+  .cart-ico{width:40px;height:40px}
 
   /* Меню категорий — на всю ширину, листается внутри себя */
   .cat-menu{left:0;right:0;width:auto;margin-top:0;border-radius:0;
