@@ -24,6 +24,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import require_role
+from ..config import settings
 from ..database import get_session
 from ..services import oem as oem_service
 from ..templating import templates
@@ -35,7 +36,6 @@ ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 EXT_BY_TYPE = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 MAX_PHOTO_BYTES = 12 * 1024 * 1024
 
-PUBLIC_BASE_URL = "https://example.ru"  # вынести в settings
 ORIGINS = {
     "original": "Оригинал",
     "oem": "ОЕМ",
@@ -462,7 +462,9 @@ async def print_labels(
 
     labels = []
     for r in rows:
-        url = f"{PUBLIC_BASE_URL}/p/{r.sku}"
+        # Домен из настроек, как в sitemap: этикетка живёт на детали годами,
+        # и QR с заглушкой вместо адреса уже не перепечатать незаметно
+        url = f"{settings.base_url}/p/{r.sku}"
         labels.append({**dict(r._mapping), "qr": qr_svg(url), "url": url})
 
     return templates.TemplateResponse(

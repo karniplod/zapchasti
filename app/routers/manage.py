@@ -111,7 +111,7 @@ async def parts_list(
                p.source, c.name AS category,
                (SELECT pc.name FROM part_categories pc
                  WHERE pc.id = c.parent_id) AS node,
-               d.code AS donor_code,
+               p.donor_id, d.code AS donor_code,
                b.name AS brand, m.name AS model,
                (SELECT count(*) FROM part_photos ph WHERE ph.part_id = p.id) AS photos,
                (SELECT count(*) FROM part_applicability pa WHERE pa.part_id = p.id) AS fits
