@@ -16,3 +16,6 @@ data/
 # в истории репозитория ему не место — берётся заново при надобности:
 # github.com/blanzh/carsBase
 cars-base.json
+
+# Claude Code (личные настройки)
+.claude/settings.local.json
