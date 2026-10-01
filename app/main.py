@@ -14,11 +14,12 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, Form, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from .auth import authenticate, drop_session, issue_session
+from .auth import authenticate, current_user, drop_session, issue_app_token, issue_session
 from .config import settings
 from .database import check_connection, dispose, get_session
 from .routers import (
@@ -174,6 +175,39 @@ async def logout():
     response = RedirectResponse("/login", status_code=303)
     drop_session(response)
     return response
+
+
+class AppLogin(BaseModel):
+    login: str
+    password: str
+
+
+@app.post("/api/auth/login")
+async def app_login(
+    request: Request, body: AppLogin, session: AsyncSession = Depends(get_session)
+):
+    """Вход из Android-приложения: тот же счётчик попыток, ответ — токен."""
+    key = _login_key(request, body.login)
+    if login_blocked(key):
+        log.warning("Перебор пароля (приложение): %s / %s", key[0], key[1])
+        return JSONResponse(
+            {"detail": "Слишком много попыток. Подождите 5 минут."}, status_code=429
+        )
+
+    user = await authenticate(session, body.login, body.password)
+    if not user:
+        login_failed(key)
+        return JSONResponse({"detail": "Неверный логин или пароль"}, status_code=401)
+
+    _login_fails.pop(key, None)
+    log.info("Вход из приложения: %s (%s)", user["login"], user["role"])
+    return {"token": issue_app_token(user["id"], user["role"]), "user": user}
+
+
+@app.get("/api/auth/me")
+async def app_me(user: dict = Depends(current_user)):
+    """Приложение проверяет при запуске, жив ли сохранённый токен."""
+    return user
 
 
 # ------------------------------------------------------------------

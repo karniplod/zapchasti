@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     secret_key: str  # openssl rand -hex 32
     session_cookie: str = "razbor_session"
     session_ttl_hours: int = 12  # смена закончилась — вход заново
+    # Токен Android-приложения живёт дольше куки: телефон закреплён за
+    # человеком, а роль и is_active всё равно перечитываются на каждом запросе
+    app_token_ttl_days: int = 30
 
     # --- файлы ---
     # База GeoIP для подсказки города в каталоге. Файла может не быть —

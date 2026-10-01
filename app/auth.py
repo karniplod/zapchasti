@@ -20,6 +20,9 @@ from .config import settings
 from .database import get_session
 
 signer = URLSafeTimedSerializer(settings.secret_key, salt="razbor-session")
+# Отдельная соль: куку браузера нельзя выдать за токен приложения и наоборот,
+# у них разный срок жизни
+app_signer = URLSafeTimedSerializer(settings.secret_key, salt="razbor-app")
 
 ROLE_RANK = {"dismantler": 1, "manager": 2, "admin": 3}
 
@@ -64,6 +67,32 @@ def drop_session(response: Response) -> None:
     response.delete_cookie(settings.session_cookie, path="/")
 
 
+def issue_app_token(user_id: int, role: str) -> str:
+    """Токен для Android-приложения: приходит в заголовке Authorization."""
+    return app_signer.dumps({"uid": user_id, "role": role})
+
+
+def _read_token(request: Request) -> dict:
+    """Bearer-токен приложения, иначе кука браузера."""
+    auth = request.headers.get("authorization", "")
+    if auth[:7].lower() == "bearer ":
+        token, s, ttl = auth[7:].strip(), app_signer, settings.app_token_ttl_days * 86400
+    else:
+        token = request.cookies.get(settings.session_cookie)
+        s, ttl = signer, settings.session_ttl_hours * 3600
+    if not token:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Нужно войти")
+
+    try:
+        return s.loads(token, max_age=ttl)
+    except SignatureExpired:
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, "Смена закончилась, войдите заново"
+        ) from None
+    except BadSignature:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Сессия недействительна") from None
+
+
 # ------------------------------------------------------------------
 # Аутентификация
 # ------------------------------------------------------------------
@@ -97,18 +126,7 @@ async def authenticate(session: AsyncSession, login: str, password: str) -> dict
 
 
 async def current_user(request: Request, session: AsyncSession = Depends(get_session)) -> dict:
-    token = request.cookies.get(settings.session_cookie)
-    if not token:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Нужно войти")
-
-    try:
-        data = signer.loads(token, max_age=settings.session_ttl_hours * 3600)
-    except SignatureExpired:
-        raise HTTPException(
-            status.HTTP_401_UNAUTHORIZED, "Смена закончилась, войдите заново"
-        ) from None
-    except BadSignature:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Сессия недействительна") from None
+    data = _read_token(request)
 
     # Роль перечитываем из БД: понизили права — действует сразу,
     # не после истечения куки
