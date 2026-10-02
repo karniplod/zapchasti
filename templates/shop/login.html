@@ -6,6 +6,8 @@
 <link rel="stylesheet" href="{{ asset('css/shop.css') }}">
 {% endblock %}
 
+{% import "shop/_quick_icons.html" as qi %}
+
 {% block content %}
 <div class="wrap shop narrow">
   <h1>Кабинет</h1>
@@ -84,18 +86,18 @@
       <div class="quick-list">
         {% for p in providers %}
           {% if p.code == 'telegram' %}
-          {# Виджет Telegram рисует свою кнопку и сам спрашивает подтверждение #}
-          <div class="tg-slot">
-            <script async src="https://telegram.org/js/telegram-widget.js?22"
-                    data-telegram-login="{{ telegram_bot }}" data-size="large"
-                    data-radius="8" data-request-access="write" data-lang="ru"
-                    data-auth-url="/auth/telegram/callback?next={{ next | urlencode }}"></script>
-          </div>
+          {# Своя кнопка вместо виджета Telegram: виджет рисуется в чужом
+             iframe, и его не подогнать под остальные. Окно входа открывает
+             тот же скрипт Telegram (Telegram.Login.auth), подпись данных
+             проверяет сервер, как и раньше #}
+          <button type="button" class="quick-btn qb-telegram" id="tgLogin"
+                  data-bot-id="{{ telegram_bot_id }}" data-next="{{ next }}">
+            <span class="qb-ico">{{ qi.icon('telegram') }}</span>Telegram
+          </button>
           {% else %}
           <a class="quick-btn qb-{{ p.code }}"
              href="/auth/{{ p.code }}/start?next={{ next | urlencode }}">
-            <span class="qb-ico" aria-hidden="true">{{ {'google': 'G', 'vk': 'VK', 'max': 'M'}[p.code] }}</span>
-            {{ p.label }}
+            <span class="qb-ico">{{ qi.icon(p.code) }}</span>{{ p.label }}
           </a>
           {% endif %}
         {% endfor %}
@@ -114,5 +116,10 @@
 
 {% block scripts %}
 <script src="{{ asset('js/validate.js') }}"></script>
+{% if telegram_bot_id %}
+{# Только ради Telegram.Login.auth: без data-атрибутов скрипт ничего
+   на странице не рисует #}
+<script src="https://telegram.org/js/telegram-widget.js?22"></script>
+{% endif %}
 <script src="{{ asset('js/shop/login.js') }}"></script>
 {% endblock %}

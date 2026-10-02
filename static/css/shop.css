@@ -102,16 +102,14 @@
 .quick-or::before,.quick-or::after{content:"";flex:1;height:1px;background:var(--line)}
 .quick-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
 .quick-btn{display:flex;align-items:center;justify-content:center;gap:10px;
-  height:44px;border-radius:8px;border:1px solid var(--line-2);background:var(--surface);
-  color:var(--ink);font-weight:600;font-size:var(--t-sm);text-decoration:none}
+  height:46px;padding:0 14px;border-radius:var(--r);border:1px solid var(--line-2);
+  background:var(--surface);color:var(--ink);font:inherit;font-weight:600;
+  font-size:var(--t-sm);text-decoration:none;cursor:pointer;
+  transition:border-color .13s,box-shadow .13s}
 .quick-btn:hover{border-color:var(--ink)}
-.qb-ico{display:inline-flex;align-items:center;justify-content:center;
-  min-width:24px;height:24px;padding:0 4px;border-radius:6px;font-size:12px;
-  font-weight:800;color:#fff}
-.qb-google .qb-ico{background:#4285F4}
-.qb-vk .qb-ico{background:#0077FF}
-.qb-max .qb-ico{background:linear-gradient(135deg,#3A7BFF,#9B4DFF)}
-.tg-slot{display:flex;align-items:center;justify-content:center;min-height:44px}
+.quick-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.qb-ico{display:inline-flex;width:20px;height:20px;flex:0 0 auto}
+.qb-ico svg{width:100%;height:100%;display:block}
 
 /* Ожидание входа через MAX */
 .max-wait{display:grid;grid-template-columns:200px 1fr;gap:24px;align-items:center;

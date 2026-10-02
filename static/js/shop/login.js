@@ -112,3 +112,20 @@ function cooldown(btn, sec){
 
 $('resend').onclick = () => resend($('resend'));
 $('resend2').onclick = () => resend($('resend2'));
+
+// ── Вход через Telegram ─────────────────────────────────────────
+// Окно подтверждения — официальное, Telegram.Login.auth из скрипта
+// виджета. Он возвращает данные с подписью; сервер проверяет её
+// токеном бота в /auth/telegram/callback
+const tg = $('tgLogin');
+if (tg) tg.onclick = () => {
+  if (!window.Telegram || !Telegram.Login){
+    show('Telegram не загрузился — проверьте связь и обновите страницу');
+    return;
+  }
+  Telegram.Login.auth({bot_id: tg.dataset.botId, request_access: 'write', lang: 'ru'}, data => {
+    if (!data) return;          // окно закрыли, ничего не подтвердив
+    location.href = '/auth/telegram/callback?'
+      + new URLSearchParams({...data, next: tg.dataset.next});
+  });
+};

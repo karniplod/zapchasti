@@ -230,7 +230,10 @@ async def login_form(request: Request, next: str = "/account", error: str | None
         "shop/login.html",
         {"request": request, "user": None, "customer": None,
          "next": safe_next(next), "error": error, "providers": enabled(),
-         "telegram_bot": settings.telegram_bot_name},
+         # Числовой id бота — начало токена до двоеточия; сам токен
+         # на страницу не попадает
+         "telegram_bot_id": settings.telegram_bot_token.split(":")[0]
+                            if any(p["code"] == "telegram" for p in enabled()) else ""},
     )
 
 
