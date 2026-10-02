@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{# Страница для сотрудников: в поиске ей делать нечего #}
+<meta name="robots" content="noindex, nofollow">
+<title>Приложение для сотрудников — {{ app_name }}</title>
+<link rel="stylesheet" href="{{ asset('css/core.css') }}">
+<link rel="stylesheet" href="{{ asset('css/staff_app.css') }}">
+</head>
+<body>
+<div class="box">
+  <img class="logo" src="/static/logo-plain.svg" alt="" width="72" height="72">
+  <h1>Приложение для сотрудников</h1>
+
+  {% if release %}
+    <p class="ver">Версия {{ release.version_name }}{% if release.notes %} · {{ release.notes }}{% endif %}</p>
+    <a class="btn btn-primary" href="{{ release.url }}" download>Скачать для Android</a>
+
+    <ol class="steps">
+      <li>Откройте эту страницу на телефоне и нажмите «Скачать».</li>
+      <li>Когда файл скачается, откройте его. Телефон спросит, можно ли
+          ставить приложения из браузера, — разрешите.</li>
+      <li>Нажмите «Установить», откройте «Автодонор» и войдите своим логином.</li>
+    </ol>
+    <p class="note">Обновлять отсюда не нужно: приложение само скажет, когда
+       выйдет новая версия, и поставит её поверх — данные сохранятся.</p>
+  {% else %}
+    <p class="ver">Сборка ещё не выложена. Спросите администратора.</p>
+  {% endif %}
+</div>
+</body>
+</html>

@@ -32,6 +32,7 @@ from .routers import (
     pages,
     reference,
     shop,
+    staff_app,
     stock,
 )
 from .templating import templates
@@ -84,6 +85,7 @@ app.include_router(reference.router)
 app.include_router(admin.router)
 app.include_router(manage.router)
 app.include_router(stock.router)
+app.include_router(staff_app.router)
 
 
 # ------------------------------------------------------------------
