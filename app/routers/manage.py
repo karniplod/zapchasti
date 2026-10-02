@@ -55,6 +55,9 @@ async def branches(session: AsyncSession = Depends(get_session), user=Depends(cu
 @router.get("/api/manage/donors")
 async def donors_list(
     status: str | None = None,
+    # Карточка машины в приложении: одна строка, даже если машина старше
+    # двухсот последних
+    id: int | None = None,
     session: AsyncSession = Depends(get_session),
     user=Depends(current_user),
 ):
@@ -81,9 +84,10 @@ async def donors_list(
           JOIN models m      ON m.id = g.model_id
           JOIN brands b      ON b.id = m.brand_id
          WHERE (CAST(:st AS text) IS NULL OR d.status::text = CAST(:st AS text))
+           AND (CAST(:id AS int) IS NULL OR d.id = CAST(:id AS int))
          ORDER BY d.id DESC LIMIT 200
     """),
-        {"st": status},
+        {"st": status, "id": id},
     )
     return [dict(r._mapping) for r in rows]
 
