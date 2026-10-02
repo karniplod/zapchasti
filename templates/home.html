@@ -75,7 +75,9 @@
       <h2>Свежие <b>поступления</b></h2>
       <a href="/catalog">Весь каталог</a>
     </div>
-    <div class="grid">
+    {# Сколько карточек видно — решает fillRows в static/js/home.js:
+       два полных ряда при любой ширине экрана #}
+    <div class="grid grid-fill" id="freshGrid">
       {% for i in fresh %}{{ part_card(i) }}{% endfor %}
     </div>
   </div>

@@ -35,3 +35,7 @@ function go(){ location.href = '/catalog?vin=' + encodeURIComponent($('vin').val
   let t;
   addEventListener('resize', () => { clearTimeout(t); t = setTimeout(fit, 120); });
 })();
+
+// Свежие поступления: два полных ряда при любой ширине экрана
+const freshGrid = document.getElementById('freshGrid');
+if (freshGrid) fillRows(freshGrid, 2);

@@ -85,7 +85,9 @@ async def home(request: Request, session: AsyncSession = Depends(get_session)):
           LEFT JOIN models m      ON m.id = g.model_id
           LEFT JOIN brands b      ON b.id = m.brand_id
          WHERE p.status = 'in_stock' AND p.published
-         ORDER BY p.id DESC LIMIT 8
+         -- С запасом: на главной два полных ряда, а в ряд влезает
+         -- от двух (телефон) до четырёх-пяти карточек
+         ORDER BY p.id DESC LIMIT 12
     """)
             )
         ).mappings()

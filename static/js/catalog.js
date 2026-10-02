@@ -450,7 +450,10 @@ async function loadFresh(){
       $('freshNote').textContent =
         `В городе ${state.city} пока ничего не выложено — показываем склад целиком.`;
     }
-    $('freshGrid').innerHTML = d.items.slice(0, 3).map(card).join('');
+    // Карточек с запасом, лишние спрячет fillRows: сколько влезет
+    // в один полный ряд, зависит от ширины экрана
+    $('freshGrid').innerHTML = d.items.slice(0, 12).map(card).join('');
+    fillRows($('freshGrid'), 1);
   } catch { /* каталог ниже всё равно загрузится */ }
 }
 

@@ -216,3 +216,29 @@ document.addEventListener('click', async e => {
   } catch { b.textContent = 'Нет связи'; }
   b.disabled = false;
 });
+
+// Плитка без дыр: показываем ровно столько карточек, сколько заполняет
+// целые ряды, — на 1290 это четыре в ряд, на ноутбуке три, на телефоне
+// две. Сколько колонок, берём у самой сетки (её раскладка), а не
+// считаем формулой — так совпадёт с тем, что нарисовал браузер.
+// Лишние прячутся атрибутом hidden: не ловят фокус, не читаются вслух.
+//   fillRows(grid, 2) — не больше двух полных рядов
+window.fillRows = function(grid, rows){
+  const apply = () => {
+    const items = [...grid.children];
+    items.forEach(el => { el.hidden = false; });
+    // У auto-fit пустые колонки схлопнуты в 0px, но в списке они есть —
+    // считаем все: это столько, сколько карточек помещается в ряд
+    const cols = getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length || 1;
+    const full = Math.min(rows, Math.floor(items.length / cols));
+    const show = full ? full * cols : items.length;
+    items.forEach((el, i) => { el.hidden = i >= show; });
+  };
+  apply();
+  if (!grid.dataset.fillRows){
+    grid.dataset.fillRows = rows;
+    let t;
+    addEventListener('resize', () => { clearTimeout(t); t = setTimeout(apply, 120); });
+  }
+  grid.dataset.fillRows = rows;
+};
