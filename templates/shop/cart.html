@@ -188,8 +188,20 @@
           <div class="co-tiles d-options" id="dOptions" role="radiogroup" aria-label="Вариант доставки"></div>
           <div class="fld" id="dPointBox" hidden>
             <label for="dPointQ">Пункт выдачи</label>
-            <input class="field" id="dPointQ" autocomplete="off" placeholder="Поиск по адресу или названию">
-            <div class="points" id="dPoints" role="radiogroup" aria-label="Пункт выдачи"></div>
+            {# Выбранный пункт — карточкой; список прячется, пока не нажали
+               «Выбрать другой»: иначе непонятно, выбрано что-то или нет #}
+            <div class="pt-picked" id="dPointPicked" hidden>
+              <span class="pt-pin" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M12 22s7-6.2 7-12a7 7 0 10-14 0c0 5.8 7 12 7 12z"
+                  fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="10" r="2.6"
+                  fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span>
+              <span class="pt-text"><b id="dPointAddr"></b><small id="dPointMeta"></small></span>
+              <button type="button" class="linkish" id="dPointChange">Выбрать другой</button>
+            </div>
+            <div id="dPointPick">
+              <input class="field" id="dPointQ" autocomplete="off" placeholder="Поиск по адресу или названию">
+              <div class="points" id="dPoints" role="radiogroup" aria-label="Пункт выдачи"></div>
+            </div>
             <p class="fld-err" id="dPointErr" hidden></p>
           </div>
           {% endif %}
@@ -265,6 +277,7 @@
         {% if customer %}
         <dl class="co-picked">
           <dt>Получение:</dt><dd id="sumShip">Самовывоз</dd>
+          <dt id="sumPointL" hidden>Пункт:</dt><dd id="sumPoint" hidden></dd>
           <dt>Оплата:</dt><dd id="sumPay">{{ methods[0].title if methods else 'При получении' }}</dd>
         </dl>
         {% endif %}

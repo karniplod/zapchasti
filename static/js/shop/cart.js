@@ -79,6 +79,10 @@ if (form && $('cname')){
     // Адрес не нужен только для пункта выдачи: его адрес — у пункта
     $('addrBox').hidden = !ship || !!(o && o.mode === 'pvz');
     if (hasCarriers) $('dPointBox').hidden = !(o && o.mode === 'pvz');
+    // Выбранный пункт — и в сводке: адрес рядом с итогом и кнопкой
+    const pt = o && o.mode === 'pvz' && D.points.find(x => x.code === D.point);
+    $('sumPointL').hidden = $('sumPoint').hidden = !pt;
+    if (pt) $('sumPoint').textContent = pt.address;
     const br = $('branch').selectedOptions[0];
     $('sumShip').textContent = !ship ? 'Самовывоз' + (br ? ' — ' + br.text : '')
       : o ? o.title : hasCarriers ? 'Доставка — выберите вариант' : 'Доставка ТК';
@@ -227,6 +231,7 @@ if (form && $('cname')){
       else {
         $('dPointErr').textContent = 'В этот пункт Яндекс не доставляет — выберите другой';
         $('dPointErr').hidden = false; D.point = null;
+        drawPoints(); showPicked();
       }
       drawOptions(); sync(); return;
     }
@@ -266,6 +271,7 @@ if (form && $('cname')){
     D.points = await (await fetch('/api/delivery/points?' + p)).json();
     $('dPointQ').value = '';
     drawPoints();
+    showPicked();
   }
   function drawPoints(){
     const q = $('dPointQ').value.trim().toLowerCase();
@@ -278,10 +284,29 @@ if (form && $('cname')){
       : '<p class="hint">Пунктов не нашлось</p>';
     $('dPoints').querySelectorAll('input').forEach(i => i.onchange = () => {
       D.point = i.value; $('dPointErr').hidden = true;
+      showPicked();
       if (opt() && opt().carrier === 'yandex') loadQuotes(D.point); else sync();
     });
   }
-  if (hasCarriers) $('dPointQ').addEventListener('input', drawPoints);
+
+  // Выбранный пункт — карточкой вместо списка; «Выбрать другой» снова
+  // открывает список. Без пункта — сразу список
+  function showPicked(){
+    const p = D.points.find(x => x.code === D.point);
+    $('dPointPicked').hidden = !p;
+    $('dPointPick').hidden = !!p;
+    if (!p) return;
+    $('dPointAddr').textContent = p.address;
+    $('dPointMeta').textContent = p.name + (p.hours ? ' · ' + p.hours : '');
+  }
+  if (hasCarriers){
+    $('dPointQ').addEventListener('input', drawPoints);
+    $('dPointChange').onclick = () => {
+      $('dPointPicked').hidden = true;
+      $('dPointPick').hidden = false;
+      $('dPointQ').focus();
+    };
+  }
   sync();
 
   phoneMask($('cphone'));

@@ -196,10 +196,18 @@ async def _cdek_quotes(http, origin: dict, dest: dict, pkg: dict) -> list[dict]:
 async def _cdek_points(http, dest: dict) -> list[dict]:
     rows = await _cdek(http, "GET", "/deliverypoints",
                        params={"city_code": dest["cdek_code"], "type": "PVZ"})
-    return [{"code": p["code"], "name": p.get("name") or p["code"],
-             "address": p["location"].get("address_full") or p["location"].get("address"),
-             "lat": p["location"].get("latitude"), "lon": p["location"].get("longitude"),
-             "hours": p.get("work_time")} for p in rows]
+    out = []
+    for p in rows:
+        loc = p["location"]
+        # Коротко — «город, улица, дом»: полный адрес с индексом, страной
+        # и областью в списке не читается. Индекс — в подписи под адресом
+        short = ", ".join(x for x in (loc.get("city"), loc.get("address")) if x)
+        out.append({"code": p["code"],
+                     "name": " · ".join(x for x in (p["code"], loc.get("postal_code")) if x),
+                     "address": short or loc.get("address_full") or p["code"],
+                     "lat": loc.get("latitude"), "lon": loc.get("longitude"),
+                     "hours": p.get("work_time")})
+    return out
 
 
 # ------------------------------------------------------------------
