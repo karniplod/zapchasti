@@ -99,7 +99,11 @@ python tools/check_js.py    # в файле поменять B на адрес �
 ## Дальше
 
 - **Филиалы** — в бэкенде: без них у деталей не будет города и самовывоза.
-- **Почта** — `SMTP_HOST`, `SMTP_PORT` (465 — SSL, 587 — STARTTLS), `SMTP_USER`,
+- **Почта** — свой maddy на сервере, только на отправку:
+  `sudo bash /opt/razbor/deploy/install-maddy.sh` ставит его, заводит
+  noreply@avt.vpn-x.fun, пишет `SMTP_*` в `.env` и печатает записи DNS
+  (SPF, DKIM, DMARC) и PTR, без которых письма уйдут в спам. Либо чужой
+  ящик — `SMTP_HOST`, `SMTP_PORT` (465 — SSL, 587 — STARTTLS), `SMTP_USER`,
   `SMTP_PASSWORD`, `MAIL_FROM` в `/opt/razbor/.env`. С ней регистрация по email
   требует подтверждения письмом (ссылка на сутки); без неё кабинет по email
   открывается сразу, как раньше. Для Яндекса: smtp.yandex.ru, 465, пароль

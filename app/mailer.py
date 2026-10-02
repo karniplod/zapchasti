@@ -15,7 +15,7 @@ import smtplib
 import ssl
 from datetime import datetime
 from email.message import EmailMessage
-from email.utils import formataddr, make_msgid
+from email.utils import formataddr, formatdate, make_msgid
 
 from .config import BASE_DIR, settings
 
@@ -42,6 +42,8 @@ def _build(to: str, subject: str, text: str, html: str | None) -> EmailMessage:
     msg["To"] = to
     msg["Subject"] = subject
     msg["Message-ID"] = make_msgid(domain=_sender().split("@")[-1])
+    # Без Date часть фильтров считает письмо подозрительным
+    msg["Date"] = formatdate(localtime=True)
     msg.set_content(text)
     if html:
         msg.add_alternative(html, subtype="html")
