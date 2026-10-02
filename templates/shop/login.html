@@ -64,7 +64,18 @@
 
       <button class="btn btn-primary" id="go" type="submit">Войти</button>
       <p class="err" id="err" role="alert" hidden></p>
+      <button class="linkish" id="resend" type="button" hidden>Отправить письмо ещё раз</button>
     </form>
+
+    {# После регистрации по email — вместо формы: ждём перехода по ссылке #}
+    <div class="auth sent" id="sentBox" hidden>
+      <h2>Проверьте почту</h2>
+      <p>Мы отправили письмо на <b id="sentTo"></b>. Откройте ссылку в нём —
+        и кабинет откроется. Ссылка действует сутки.</p>
+      <p class="hint">Письма нет несколько минут — загляните в «Спам».</p>
+      <button class="btn btn-ghost" id="resend2" type="button">Отправить ещё раз</button>
+      <p class="hint" id="resendNote" role="status"></p>
+    </div>
 
     {% if providers %}
     {# Быстрый вход: кнопка есть, только если у способа заданы ключи #}

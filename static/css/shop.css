@@ -229,3 +229,8 @@
 .demo-pay .row{display:flex;gap:10px;flex-wrap:wrap}
 .demo-pay .row .btn{flex:1}
 @media (max-width:420px){ .choice{grid-template-columns:1fr} }
+
+/* «Проверьте почту» после регистрации по email */
+.auth.sent h2{margin:0;font-size:var(--t-lg)}
+.auth.sent p{margin:0}
+.auth .linkish{justify-self:start;font-size:var(--t-sm)}

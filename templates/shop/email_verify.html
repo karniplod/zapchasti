@@ -1,0 +1,22 @@
+{# Письмо подтверждения email. Почтовики режут внешние стили и скрипты,
+   поэтому всё оформление — атрибутами прямо в разметке письма #}
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8"><title>Подтвердите email</title></head>
+<body bgcolor="#F1F2F4">
+<table width="100%" cellpadding="0" cellspacing="0" bgcolor="#F1F2F4"><tr><td align="center">
+  <table width="520" cellpadding="28" cellspacing="0" bgcolor="#FFFFFF">
+    <tr><td>
+      <font face="Arial, sans-serif" color="#1B1F24">
+        <p><font size="5"><b>{{ app_name }}</b></font></p>
+        <p>Здравствуйте! С этим адресом зарегистрировались на {{ host }}.
+           Подтвердите почту — и кабинет откроется.</p>
+        <p><a href="{{ link }}"><font color="#F54F0C"><b>Подтвердить email</b></font></a></p>
+        <p><font size="2" color="#6B7280">Ссылка действует {{ hours }} часа.
+           Если вы не регистрировались, просто удалите письмо — без подтверждения
+           кабинет не откроется.</font></p>
+        <p><font size="2" color="#6B7280">Кнопка не открывается — скопируйте адрес:<br>{{ link }}</font></p>
+      </font>
+    </td></tr>
+  </table>
+</td></tr></table>
+</body></html>

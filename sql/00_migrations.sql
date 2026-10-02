@@ -515,3 +515,13 @@ ALTER TABLE payments ADD COLUMN IF NOT EXISTS confirmation_url text;
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS provider text;
 CREATE UNIQUE INDEX IF NOT EXISTS payments_external_uniq
     ON payments (provider, external_id) WHERE external_id IS NOT NULL;
+
+
+-- ------------------------------------------------------------
+-- Подтверждение email письмом
+-- ------------------------------------------------------------
+-- Регистрация по email требует перейти по ссылке из письма: без этого
+-- кабинет можно завести на чужой адрес. Телефон и вход через соцсети
+-- не затронуты. Время отправки — чтобы не слать письмо чаще раза в минуту.
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS email_verified_at timestamptz;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS email_verify_sent_at timestamptz;

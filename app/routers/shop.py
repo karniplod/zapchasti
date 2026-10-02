@@ -8,15 +8,16 @@
 
 import secrets
 from datetime import date
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import customer_auth as ca
-from .. import payments
+from .. import mailer, payments
 from ..config import settings
 from ..database import get_session
 from ..templating import templates
@@ -283,9 +284,110 @@ async def register(
         payload.name,
         value if kind == "email" else None,
     )
+    # Регистрация по email — только после перехода по ссылке из письма.
+    # Почта не настроена — подтверждать нечем, кабинет открывается сразу
+    if kind == "email" and mailer.enabled():
+        await adopt_cart(session, cart_token(request), customer["id"])
+        sent = await send_verification(session, customer["id"], value, safe_next_url(request))
+        return {"confirm": True, "email": value, "sent": sent}
+
     await adopt_cart(session, cart_token(request), customer["id"])
     ca.issue(response, customer["id"])
     return {"ok": True}
+
+
+def safe_next_url(request: Request) -> str:
+    """Куда вернуть после подтверждения — страница, с которой регистрировались."""
+    raw = request.headers.get("x-next") or "/account"
+    return raw if raw.startswith("/") and not raw.startswith("//") else "/account"
+
+
+VERIFY_COOLDOWN_SEC = 60
+
+
+async def send_verification(session: AsyncSession, customer_id: int, email: str,
+                            next_url: str = "/account") -> bool:
+    """Письмо со ссылкой подтверждения. Не чаще раза в минуту: кнопку
+    «отправить ещё раз» жмут подряд, а почтовик за поток писем банит."""
+    took = (await session.execute(text(f"""
+        UPDATE customers SET email_verify_sent_at = now()
+         WHERE id = :id AND (email_verify_sent_at IS NULL
+               OR email_verify_sent_at < now() - interval '{VERIFY_COOLDOWN_SEC} seconds')
+        RETURNING id"""), {"id": customer_id})).first()
+    await session.commit()
+    if not took:
+        return False
+
+    link = (f"{settings.base_url}/account/verify?"
+            + urlencode({"t": ca.verify_token(customer_id, email), "next": next_url}))
+    host = settings.base_url.split("://")[-1]
+    text_body = (
+        f"Здравствуйте!\n\n"
+        f"Кто-то — надеемся, вы — зарегистрировался на {host} с этим адресом.\n"
+        f"Чтобы подтвердить почту и войти в кабинет, откройте ссылку:\n\n{link}\n\n"
+        f"Ссылка действует {ca.VERIFY_TTL_HOURS} часа. Если вы не регистрировались, "
+        f"просто удалите письмо — без подтверждения кабинет не откроется.\n\n"
+        f"{settings.app_name}"
+    )
+    html_body = templates.get_template("shop/email_verify.html").render(
+        link=link, host=host, hours=ca.VERIFY_TTL_HOURS, app_name=settings.app_name)
+    return await mailer.send(email, f"Подтвердите email — {settings.app_name}",
+                             text_body, html_body)
+
+
+class ResendIn(BaseModel):
+    login: str = Field(min_length=3, max_length=200)
+
+
+@router.post("/api/account/verify/resend")
+async def resend_verification(
+    payload: ResendIn,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    """Ещё одно письмо. Отвечает одинаково, есть такой адрес или нет:
+    иначе по ответу можно было бы перебирать, чьи адреса у нас есть."""
+    email = ca.normalize_email(payload.login)
+    if not email:
+        raise HTTPException(422, "Проверьте email: mail@example.ru")
+    row = (await session.execute(text("""
+        SELECT id FROM customers
+         WHERE lower(email) = :e AND email_verified_at IS NULL"""), {"e": email})).first()
+    if row:
+        await send_verification(session, row.id, email, safe_next_url(request))
+    return {"ok": True, "cooldown": VERIFY_COOLDOWN_SEC}
+
+
+@router.get("/account/verify")
+async def verify_email(
+    request: Request,
+    t: str = "",
+    next: str = "/account",
+    session: AsyncSession = Depends(get_session),
+):
+    """Переход по ссылке из письма: почта подтверждена, человек сразу
+    в кабинете — второй раз вводить пароль незачем."""
+    data = ca.read_verify_token(t)
+    row = None
+    if data:
+        row = (await session.execute(text("""
+            UPDATE customers SET email_verified_at = coalesce(email_verified_at, now()),
+                                 last_login_at = now()
+             WHERE id = :id AND lower(email) = :e
+            RETURNING id"""), {"id": data["cid"], "e": data["e"]})).first()
+        await session.commit()
+    if not row:
+        return templates.TemplateResponse("shop/verify_failed.html", {
+            "request": request, "user": None, "customer": None,
+            "hours": ca.VERIFY_TTL_HOURS,
+        }, status_code=400)
+
+    await adopt_cart(session, cart_token(request), row.id)
+    dest = next if next.startswith("/") and not next.startswith("//") else "/account"
+    response = RedirectResponse(dest + ("&" if "?" in dest else "?") + "verified=1",
+                                status_code=303)
+    ca.issue(response, row.id)
+    return response
 
 
 @router.post("/api/account/login")
@@ -302,6 +404,14 @@ async def login(
     customer = await ca.authenticate(session, *who, payload.password)
     if not customer:
         raise HTTPException(401, "Неверный логин или пароль")
+    # Пароль верный, но почту так и не подтвердили — сначала письмо.
+    # Ответ отдельным кодом: форма покажет кнопку «отправить ещё раз»
+    if who[0] == "email" and not customer["email_verified"] and mailer.enabled():
+        return JSONResponse({
+            "detail": f"Подтвердите email: ссылка в письме на {customer['email']}. "
+                      "Не пришло — проверьте «Спам» или отправьте ещё раз.",
+            "code": "email_unverified", "email": customer["email"],
+        }, status_code=403)
 
     await adopt_cart(session, cart_token(request), customer["id"])
     ca.issue(response, customer["id"])

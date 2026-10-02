@@ -30,6 +30,11 @@ from .database import get_session
 signer = URLSafeTimedSerializer(settings.secret_key, salt="razbor-customer")
 
 COOKIE = "razbor_customer"
+
+# Ссылка из письма: в токене покупатель и сам адрес — сменил email
+# после отправки, старая ссылка новый адрес не подтвердит
+verify_signer = URLSafeTimedSerializer(settings.secret_key, salt="razbor-email-verify")
+VERIFY_TTL_HOURS = 24
 TTL_DAYS = 90  # покупатель заходит раз в полгода, гонять его за паролем незачем
 
 
@@ -72,6 +77,18 @@ def parse_login(raw: str) -> tuple[str, str] | None:
         return ("email", v) if v else None
     v = normalize_phone(raw)
     return ("phone", v) if v else None
+
+
+def verify_token(customer_id: int, email: str) -> str:
+    return verify_signer.dumps({"cid": customer_id, "e": email})
+
+
+def read_verify_token(token: str) -> dict | None:
+    """{"cid", "e"} — или None, если подпись чужая или ссылка старше суток."""
+    try:
+        return verify_signer.loads(token, max_age=VERIFY_TTL_HOURS * 3600)
+    except (BadSignature, SignatureExpired):
+        return None
 
 
 def issue(response: Response, customer_id: int) -> None:
@@ -151,10 +168,19 @@ async def register(
             raise HTTPException(409, "Этот телефон уже зарегистрирован — войдите")
 
     if email:
-        taken = (await session.execute(
-            text("SELECT id FROM customers WHERE lower(email) = :e"),
+        taken = (await session.execute(text("""
+            SELECT c.id, c.email_verified_at, c.phone,
+                   EXISTS (SELECT 1 FROM customer_identities i WHERE i.customer_id = c.id)
+                   OR EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.id) AS used
+              FROM customers c WHERE lower(c.email) = :e"""),
             {"e": email})).first()
-        if taken and (not row or taken.id != row.id):
+        # Адрес зарегистрировали, но так и не подтвердили — это мог быть
+        # кто угодно, вписавший чужую почту. Настоящий владелец заводит
+        # кабинет заново: войти без письма всё равно нельзя
+        if taken and not taken.email_verified_at and not taken.phone and not taken.used \
+                and not row:
+            row = taken
+        elif taken and (not row or taken.id != row.id):
             raise HTTPException(409, "Этот email уже зарегистрирован — войдите")
 
     params = {
@@ -198,7 +224,8 @@ async def authenticate(session: AsyncSession, kind: str, login: str,
     where = "phone = :l" if kind == "phone" else "lower(email) = :l"
     row = (
         await session.execute(
-            text(f"SELECT id, phone, password_hash FROM customers WHERE {where}"),
+            text(f"""SELECT id, phone, email, email_verified_at, password_hash
+                       FROM customers WHERE {where}"""),
             {"l": login},
         )
     ).first()
@@ -211,11 +238,15 @@ async def authenticate(session: AsyncSession, kind: str, login: str,
     if not row or not row.password_hash or not ok:
         return None
 
+    result = {"id": row.id, "phone": row.phone, "email": row.email,
+              "email_verified": row.email_verified_at is not None}
+    if kind == "email" and not result["email_verified"]:
+        return result      # вход ещё не состоялся — время входа не трогаем
     await session.execute(
         text("UPDATE customers SET last_login_at = now() WHERE id = :id"), {"id": row.id}
     )
     await session.commit()
-    return {"id": row.id, "phone": row.phone}
+    return result
 
 
 async def identity_login(
@@ -271,5 +302,11 @@ async def identity_login(
         {"pr": provider, "s": subject, "c": cid, "d": display or name})
     await session.execute(
         text("UPDATE customers SET last_login_at = now() WHERE id = :id"), {"id": cid})
+    # Провайдер подтвердил почту — письмо от нас уже не нужно
+    if email and email_verified:
+        await session.execute(text("""
+            UPDATE customers SET email_verified_at = now()
+             WHERE id = :id AND lower(email) = :e AND email_verified_at IS NULL"""),
+            {"id": cid, "e": email})
     await session.commit()
     return cid

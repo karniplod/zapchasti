@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_password: str = ""
     order_notify_to: str = ""
+    # Адрес отправителя; пусто — тот же, что SMTP_USER. Почтовики
+    # (Яндекс, Mail.ru) отправляют только от адреса самого ящика
+    mail_from: str = ""
 
     # --- внешние источники ---
     # Парсеры выключены по умолчанию: поднятый где-то стенд не должен

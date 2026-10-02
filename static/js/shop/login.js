@@ -41,14 +41,25 @@ $('authForm').onsubmit = async e => {
   $('go').disabled = true;
   try {
     const r = await fetch('/api/account/' + mode, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
+      method: 'POST',
+      // Куда вернуть после ссылки из письма — туда, откуда пришли
+      headers: {'Content-Type': 'application/json', 'X-Next': $('authForm').dataset.next},
       body: JSON.stringify({
         login: $('login').value.trim(),
         password: $('password').value,
         name: mode === 'register' ? ($('name').value.trim() || null) : null,
       })});
-    if (r.ok){ location.href = $('authForm').dataset.next; return; }
     const d = await r.json().catch(() => ({}));
+    if (r.ok && d.confirm){ showSent(d.email, d.sent); return; }
+    if (r.ok){ location.href = $('authForm').dataset.next; return; }
+    // Пароль верный, но почта не подтверждена — предлагаем письмо
+    if (d.code === 'email_unverified'){
+      show(d.detail);
+      $('resend').hidden = false;
+      $('resend').dataset.email = d.email;
+      $('go').disabled = false;
+      return;
+    }
     if (!serverErrors(d, {login: $('login'), password: $('password'), name: $('name')}))
       show(typeof d.detail === 'string' ? d.detail : 'Не получилось');
   } catch { show('Нет связи с сервером'); }
@@ -56,3 +67,48 @@ $('authForm').onsubmit = async e => {
 };
 
 function show(m){ $('err').textContent = m; $('err').hidden = false; }
+
+// ── Подтверждение email ─────────────────────────────────────────
+function showSent(email, sent){
+  $('authForm').hidden = true;
+  $('tabs').hidden = true;
+  $('sentTo').textContent = email;
+  $('sentBox').hidden = false;
+  $('resend2').dataset.email = email;
+  // Письмо только что ушло — раньше минуты сервер второе не отправит
+  cooldown($('resend2'), 60);
+  if (sent === false){
+    $('resendNote').textContent = 'Письмо не ушло — попробуйте через минуту.';
+  }
+}
+
+// Повторное письмо — не чаще раза в минуту: так же считает сервер
+async function resend(btn){
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/account/verify/resend', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-Next': $('authForm').dataset.next},
+      body: JSON.stringify({login: btn.dataset.email})});
+    const d = await r.json().catch(() => ({}));
+    const note = btn.id === 'resend2' ? $('resendNote') : $('err');
+    note.hidden = false;
+    note.textContent = r.ok ? 'Письмо отправлено. Проверьте почту и папку «Спам».'
+                            : (d.detail || 'Не получилось отправить');
+    cooldown(btn, (d.cooldown || 60));
+  } catch { btn.disabled = false; }
+}
+
+function cooldown(btn, sec){
+  const label = btn.dataset.label || (btn.dataset.label = btn.textContent);
+  btn.disabled = true;
+  const tick = () => {
+    if (sec <= 0){ btn.disabled = false; btn.textContent = label; return; }
+    btn.textContent = `${label} (через ${sec--} с)`;
+    setTimeout(tick, 1000);
+  };
+  tick();
+}
+
+$('resend').onclick = () => resend($('resend'));
+$('resend2').onclick = () => resend($('resend2'));

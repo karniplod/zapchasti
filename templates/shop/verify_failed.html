@@ -1,0 +1,18 @@
+{% extends "_base.html" %}
+{% block title %}Ссылка не подошла{% endblock %}
+{% block description %}Подтверждение email: ссылка устарела или неверна.{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ asset('css/shop.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="wrap shop narrow">
+  <h1>Ссылка не подошла</h1>
+  <p class="lead">Ссылка из письма действует {{ hours }} часа и только для того адреса,
+    на который ушло письмо. Эта устарела или повреждена при копировании.</p>
+  <p>Попробуйте войти — если почта ещё не подтверждена, форма предложит
+    отправить новое письмо.</p>
+  <p><a class="btn btn-primary" href="/account/login">Войти</a></p>
+</div>
+{% endblock %}

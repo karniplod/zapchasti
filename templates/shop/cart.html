@@ -15,6 +15,10 @@
     {% if items %}<a class="act-link" href="/catalog">← Продолжить покупки</a>{% endif %}
   </div>
 
+  {% if request.query_params.get('verified') %}
+  <div class="notice notice-ok">Email подтверждён — можно оформлять заказ.</div>
+  {% endif %}
+
   {% if not items %}
     <div class="empty">
       <h3>Пока пусто</h3>

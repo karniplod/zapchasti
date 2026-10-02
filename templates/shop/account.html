@@ -16,6 +16,10 @@
     <a class="btn btn-ghost btn-sm" href="/account/logout">Выйти</a>
   </div>
 
+  {% if request.query_params.get('verified') %}
+  <div class="notice notice-ok">Email подтверждён — добро пожаловать!</div>
+  {% endif %}
+
   <div class="figures">
     <div><b>{{ orders | length }}</b><span>{{ orders | length | plural('заказ', 'заказа', 'заказов') }}</span></div>
     <div><b>{{ "{:,.0f}".format(spent).replace(",", " ") }} ₽</b><span>на покупки</span></div>
