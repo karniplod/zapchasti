@@ -130,6 +130,9 @@
 
 /* Доставка службой: город с подсказкой, варианты, пункты выдачи */
 #shipBox{margin-top:14px;display:grid;gap:12px}
+/* Блок меняет высоту на глазах (список ↔ карточка пункта): привязка
+   прокрутки браузера здесь только мешает — страница прыгала вниз */
+.co-main{overflow-anchor:none}
 #shipBox[hidden]{display:none}
 #shipBox .hint{margin:0}
 .city-fld,.sug-fld{position:relative}
@@ -154,8 +157,12 @@
 .d-options:empty{display:none}
 .points{margin-top:8px;max-height:320px;overflow:auto;border:1px solid var(--line);
   border-radius:var(--r)}
-.pt{display:block;margin:0;cursor:pointer;letter-spacing:0;font-weight:400;color:var(--ink)}
-.pt input{position:absolute;opacity:0;pointer-events:none}
+/* position:relative — радиокнопка живёт внутри своей строки. Без этого
+   она вставала относительно блока страницы, вне прокрутки списка, и у
+   нижних пунктов оказывалась далеко внизу: клик отдавал ей фокус, и
+   браузер уводил страницу к ней */
+.pt{display:block;position:relative;margin:0;cursor:pointer;letter-spacing:0;font-weight:400;color:var(--ink)}
+.pt input{position:absolute;left:14px;top:13px;width:14px;height:14px;margin:0;opacity:0;pointer-events:none}
 .pt span{display:block;padding:10px 14px 10px 40px;position:relative;
   border-bottom:1px solid var(--line)}
 .pt:last-child span{border-bottom:0}
@@ -175,7 +182,9 @@
 .pt-text small{display:block;margin-top:2px;font-size:var(--t-xs);color:var(--muted)}
 .pt-picked .linkish{flex:0 0 auto;font-size:var(--t-sm);white-space:nowrap}
 .co-picked dd#sumPoint{color:var(--ink);font-weight:400;font-size:var(--t-xs);line-height:1.4}
-@media(max-width:560px){.pt-picked{flex-wrap:wrap}.pt-picked .linkish{margin-left:34px}}
+@media(max-width:560px){.pt-picked{flex-wrap:wrap}
+  .pt-picked .pt-text{flex-basis:calc(100% - 34px)}
+  .pt-picked .linkish{margin-left:34px}}
 .pt input:checked + span{background:rgba(245,79,12,.06)}
 .pt input:checked + span::before{border-color:var(--accent);background:var(--accent);
   box-shadow:inset 0 0 0 3px var(--surface)}

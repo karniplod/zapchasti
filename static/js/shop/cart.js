@@ -293,11 +293,23 @@ if (form && $('cname')){
   // открывает список. Без пункта — сразу список
   function showPicked(){
     const p = D.points.find(x => x.code === D.point);
+    // Список в сотни пикселей сворачивается в карточку — без поправки
+    // браузер держит на месте то, что ниже, и страница уезжает вниз,
+    // а выбранный пункт оказывается за верхним краем. Возвращаем блок
+    // пункта выдачи туда, где он был на экране
+    const box = $('dPointBox'), top = box.getBoundingClientRect().top;
     $('dPointPicked').hidden = !p;
     $('dPointPick').hidden = !!p;
-    if (!p) return;
-    $('dPointAddr').textContent = p.address;
-    $('dPointMeta').textContent = p.name + (p.hours ? ' · ' + p.hours : '');
+    if (p){
+      $('dPointAddr').textContent = p.address;
+      $('dPointMeta').textContent = p.name + (p.hours ? ' · ' + p.hours : '');
+    }
+    const shift = box.getBoundingClientRect().top - top;
+    if (shift) window.scrollBy({top: shift, behavior: 'instant'});
+    // Блок ушёл за верх экрана (выбирали из самого низа длинного
+    // списка) — показываем его целиком
+    const r = box.getBoundingClientRect();
+    if (r.top < 0 || r.bottom > innerHeight) box.scrollIntoView({block: 'nearest'});
   }
   if (hasCarriers){
     $('dPointQ').addEventListener('input', drawPoints);
