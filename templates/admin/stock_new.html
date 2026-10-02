@@ -59,8 +59,13 @@
         {% for k, v in sources.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
       </select>
     </div>
-    <div><label for="price">Цена, ₽</label>
+    <div><label for="price">Цена за штуку, ₽</label>
       <input type="number" id="price" min="0" max="100000000" step="50" inputmode="numeric"></div>
+  </div>
+  <div class="row mt-14">
+    <div><label for="qty">Количество, шт</label>
+      <input type="number" id="qty" min="1" max="9999" step="1" value="1" inputmode="numeric"></div>
+    <div></div>
   </div>
 
   <div class="row mt-14">

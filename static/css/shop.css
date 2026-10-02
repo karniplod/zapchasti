@@ -76,6 +76,9 @@
 .co-items .sub{display:block;margin-top:3px;font-size:var(--t-xs);color:var(--muted)}
 .co-items .gone-note{display:block;font-size:var(--t-xs);color:var(--err)}
 .co-items .c-qty{white-space:nowrap;color:var(--muted);font-size:var(--t-sm)}
+.co-items .stock-left{display:block;margin-top:4px;font-size:11px;color:var(--dim)}
+.co-items .per{display:block;font-family:var(--body);font-size:var(--t-xs);font-weight:400;
+  color:var(--muted)}
 .co-items .c-price{font-family:var(--display);font-size:var(--t-lg);font-weight:600;
   white-space:nowrap;font-variant-numeric:tabular-nums}
 .co-items .c-price .ask{font-family:var(--body);font-size:var(--t-sm);color:var(--muted);
@@ -100,7 +103,9 @@
   .co-items td{display:block;padding:0;border:0}
   .co-items .c-pic{grid-row:1/4;width:auto}
   .co-items .c-nm{grid-column:2/4}
-  .co-items .c-cond,.co-items .c-qty{display:none}
+  .co-items .c-cond{display:none}
+  .co-items .c-qty{grid-column:2;grid-row:3}
+  .co-items .stock-left{display:inline;margin:0 0 0 8px}
   .co-items .c-price{grid-column:2;text-align:left;font-size:var(--t-md)}
   .co-items .c-drop{grid-column:3;grid-row:2;width:auto}
 }
@@ -231,6 +236,7 @@
   justify-content:center;border:1.5px solid var(--ink);border-radius:5px}
 .order .items .sum{font-variant-numeric:tabular-nums;font-size:var(--t-sm);
   white-space:nowrap}
+.order .items .sum small{display:block;font-size:var(--t-xs);color:var(--muted);text-align:right}
 
 .order footer{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);
   font-size:var(--t-sm);color:var(--muted)}

@@ -1,9 +1,10 @@
 """Покупательская часть: корзина, заказ, оплата, личный кабинет.
 
-Деталь штучная — это определяет здесь почти всё. Количества в корзине
-нет, две одинаковые позиции невозможны, а заказ занимает деталь
-физически: как только он оформлен, деталь уходит в reserved и с витрины
-пропадает. Иначе двое купят один и тот же бампер.
+У детали есть остаток — parts.quantity, обычно 1, у одинаковых (четыре
+диска с одной машины) больше. В корзине — сколько штук берут, не больше
+остатка. Заказ списывает штуки сразу, при оформлении: иначе двое купят
+один и тот же бампер. Остаток дошёл до нуля — деталь уходит в reserved
+и пропадает с витрины; отмена заказа возвращает штуки.
 """
 
 import secrets
@@ -62,25 +63,37 @@ async def cart_rows(session: AsyncSession, token: str | None, customer: dict | N
     if not token and not customer:
         return []
 
+    # Одна и та же деталь могла лечь и в корзину этого браузера, и в
+    # корзину кабинета с другого устройства — показываем одной строкой
     rows = await session.execute(
         text("""
-        SELECT ci.part_id, p.sku, p.name, p.price, p.status::text AS status,
-               p.condition::text AS condition,
+        SELECT p.id AS part_id, p.sku, p.name, p.price, p.status::text AS status,
+               p.condition::text AS condition, p.quantity AS stock,
+               max(ci.qty) AS qty,
                (SELECT coalesce(ph.thumb, ph.path) FROM part_photos ph
                  WHERE ph.part_id = p.id ORDER BY sort_order LIMIT 1) AS photo,
                (SELECT br.city || ', ' || br.name FROM branches br
                  WHERE br.id = p.branch_id) AS branch,
                p.branch_id,
-               ci.added_at
+               min(ci.added_at) AS added_at
           FROM cart_items ci
           JOIN parts p ON p.id = ci.part_id
          WHERE ci.cart_token = coalesce(:t, '')
             OR (ci.customer_id IS NOT NULL AND ci.customer_id = :c)
-         ORDER BY ci.added_at
+         GROUP BY p.id
+         ORDER BY min(ci.added_at)
     """),
         {"t": token, "c": customer["id"] if customer else None},
     )
-    return [dict(r._mapping) for r in rows]
+    out = []
+    for r in rows:
+        i = dict(r._mapping)
+        # Пока лежало в корзине, остаток мог уменьшиться — берём сколько есть
+        i["short"] = i["status"] == "in_stock" and i["qty"] > i["stock"]
+        i["take"] = min(i["qty"], i["stock"]) if i["status"] == "in_stock" else 0
+        i["sum"] = (i["price"] or 0) * i["take"]
+        out.append(i)
+    return out
 
 
 @router.get("/cart", response_class=HTMLResponse)
@@ -90,6 +103,17 @@ async def cart_page(
     customer: dict | None = Depends(ca.optional_customer),
 ):
     items = await cart_rows(session, cart_token(request), customer)
+    # Пока деталь лежала в корзине, часть штук купили — сразу уменьшаем
+    # количество до остатка, чтобы оформление не упёрлось в «столько нет»
+    for i in items:
+        if i["short"] and i["take"]:
+            await session.execute(text("""
+                UPDATE cart_items SET qty = :q
+                 WHERE part_id = :p AND (cart_token = coalesce(:t, '')
+                       OR (customer_id IS NOT NULL AND customer_id = :c))"""),
+                {"q": i["take"], "p": i["part_id"], "t": cart_token(request),
+                 "c": customer["id"] if customer else None})
+    await session.commit()
     branches = [dict(r._mapping) for r in await session.execute(text("""
         SELECT id, city || ', ' || name AS label FROM branches
          WHERE is_active ORDER BY sort_order, city, name"""))]
@@ -112,14 +136,20 @@ async def cart_page(
             # Деталь могли продать, пока она лежала в корзине
             "gone": [i for i in items if i["status"] != "in_stock"],
             "no_price": [i for i in items if i["price"] is None],
-            "total": sum(i["price"] for i in items
-                         if i["price"] is not None and i["status"] == "in_stock"),
+            "short": [i for i in items if i["short"]],
+            "units": sum(i["take"] for i in items),
+            "total": sum(i["sum"] for i in items if i["price"] is not None),
         },
     )
 
 
 class CartAdd(BaseModel):
     sku: str = Field(max_length=32)
+    qty: int = Field(default=1, ge=1, le=999)
+
+
+class CartQty(BaseModel):
+    qty: int = Field(ge=1, le=999)
 
 
 @router.post("/api/cart", status_code=201)
@@ -133,7 +163,7 @@ async def cart_add(
     part = (
         await session.execute(
             text("""
-        SELECT id, status::text AS status, published
+        SELECT id, status::text AS status, published, quantity
           FROM parts WHERE sku = :s
     """),
             {"s": payload.sku},
@@ -146,21 +176,54 @@ async def cart_add(
         raise HTTPException(409, "Эту деталь уже забрали")
 
     token = cart_token(request) or secrets.token_urlsafe(24)
+    # Уже в корзине — прибавляем штуки, но не больше, чем есть на складе
     await session.execute(
         text("""
-        INSERT INTO cart_items (cart_token, customer_id, part_id)
-        VALUES (:t, :c, :p)
-        ON CONFLICT (cart_token, part_id) DO NOTHING
+        INSERT INTO cart_items (cart_token, customer_id, part_id, qty)
+        VALUES (:t, :c, :p, least(CAST(:q AS int), CAST(:stock AS int)))
+        ON CONFLICT (cart_token, part_id)
+        DO UPDATE SET qty = least(cart_items.qty + CAST(:q AS int), CAST(:stock AS int))
     """),
-        {"t": token, "c": customer["id"] if customer else None, "p": part.id},
+        {"t": token, "c": customer["id"] if customer else None, "p": part.id,
+         "q": payload.qty, "stock": max(part.quantity, 1)},
     )
     await session.commit()
 
-    count = len(await cart_rows(session, token, customer))
+    count = sum(i["take"] for i in await cart_rows(session, token, customer))
     # Кука ставится на ответ, а не заранее: корзины может и не быть
     response.set_cookie(CART_COOKIE, token, max_age=30 * 86400,
                         httponly=True, samesite="lax", path="/")
     return {"count": count}
+
+
+@router.patch("/api/cart/{part_id}")
+async def cart_set_qty(
+    part_id: int,
+    payload: CartQty,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+    customer: dict | None = Depends(ca.optional_customer),
+):
+    """Кнопки − и + в корзине. Больше остатка не даём: ответ говорит,
+    сколько штук в итоге и сколько вообще есть."""
+    stock = (await session.execute(
+        text("SELECT quantity FROM parts WHERE id = :p AND status = 'in_stock'"),
+        {"p": part_id})).scalar()
+    if not stock:
+        raise HTTPException(409, "Эту деталь уже забрали")
+    qty = min(payload.qty, stock)
+    await session.execute(
+        text("""
+        UPDATE cart_items SET qty = :q
+         WHERE part_id = :p
+           AND (cart_token = coalesce(:t, '')
+                OR (customer_id IS NOT NULL AND customer_id = :c))
+    """),
+        {"q": qty, "p": part_id, "t": cart_token(request),
+         "c": customer["id"] if customer else None},
+    )
+    await session.commit()
+    return {"qty": qty, "stock": stock, "capped": qty < payload.qty}
 
 
 @router.delete("/api/cart/{part_id}", status_code=204)
@@ -202,7 +265,7 @@ async def me(
         # Без имени — телефон или начало email: целиком адрес не влезает в шапку
         "name": (customer or {}).get("name") or (customer or {}).get("phone")
                 or ((customer or {}).get("email") or "").split("@")[0] or None,
-        "cart": len(items),
+        "cart": sum(i["take"] for i in items),
     }
 
 
@@ -214,7 +277,7 @@ async def cart_count(
 ):
     """Счётчик для шапки."""
     items = await cart_rows(session, cart_token(request), customer)
-    return {"count": len(items)}
+    return {"count": sum(i["take"] for i in items)}
 
 
 # ------------------------------------------------------------------
@@ -500,7 +563,13 @@ async def create_order(
     if not payload.agree:
         raise HTTPException(422, "Нужно согласие на обработку персональных данных")
 
-    total = sum(i["price"] for i in items)
+    # Остатка стало меньше, чем в корзине, — не оформляем молча меньшее
+    short = [f"{i['sku']} (есть {i['stock']} шт.)" for i in items if i["short"]]
+    if short:
+        raise HTTPException(409, f"Столько нет на складе: {', '.join(short)}. "
+                                 "Уменьшите количество в корзине.")
+
+    total = sum(i["price"] * i["qty"] for i in items)
     number = f"{date.today().year}-{await next_order_number(session):06d}"
 
     order_id = (
@@ -532,31 +601,34 @@ async def create_order(
     for i in items:
         await session.execute(
             text("""
-            INSERT INTO order_items (order_id, part_id, price)
-            VALUES (:o, :p, :price)
+            INSERT INTO order_items (order_id, part_id, price, qty)
+            VALUES (:o, :p, :price, :q)
         """),
-            {"o": order_id, "p": i["part_id"], "price": i["price"]},
+            {"o": order_id, "p": i["part_id"], "price": i["price"], "q": i["qty"]},
         )
+        # Списываем штуки. Условие на остаток — защита от гонки: если
+        # кто-то секундой раньше забрал последние, обновится ноль строк.
+        # Остаток кончился — деталь уходит с витрины
+        took = (await session.execute(text("""
+            UPDATE parts SET quantity = quantity - :q,
+                   status = CASE WHEN quantity - :q = 0
+                                 THEN 'reserved'::part_status ELSE status END,
+                   updated_at = now()
+             WHERE id = :p AND status = 'in_stock' AND quantity >= :q"""),
+            {"q": i["qty"], "p": i["part_id"]})).rowcount
+        if not took:
+            await session.rollback()
+            raise HTTPException(409, f"{i['sku']}: столько штук уже нет — "
+                                     "обновите корзину.")
 
-    # Деталь занята. Условие на status — защита от гонки: если кто-то
-    # успел оформить её секундой раньше, обновится ноль строк
-    reserved = (
-        await session.execute(
-            text("""
-        UPDATE parts SET status = 'reserved', updated_at = now()
-         WHERE id = ANY(:ids) AND status = 'in_stock'
-    """),
-            {"ids": [i["part_id"] for i in items]},
-        )
-    ).rowcount
-
-    if reserved != len(items):
-        await session.rollback()
-        raise HTTPException(409, "Деталь только что купили. Обновите корзину.")
-
+    # Из корзины — только у этого покупателя: остаток мог остаться, и
+    # у других та же деталь лежит законно
     await session.execute(
-        text("DELETE FROM cart_items WHERE part_id = ANY(:ids)"),
-        {"ids": [i["part_id"] for i in items]},
+        text("""
+        DELETE FROM cart_items
+         WHERE part_id = ANY(:ids)
+           AND (cart_token = coalesce(:t, '') OR customer_id = :c)"""),
+        {"ids": [i["part_id"] for i in items], "t": cart_token(request), "c": customer["id"]},
     )
     # Покупатель вошёл через соцсеть и телефона у него не было — запомним
     # тот, что он указал, чтобы в следующий раз не спрашивать. Только
@@ -602,7 +674,7 @@ async def start_payment(session: AsyncSession, order: dict, method: str,
     # Для чека: что продали и куда прислать чек — почта покупателя или
     # телефон получателя из заказа
     order = {**order, "items": [dict(r._mapping) for r in await session.execute(text("""
-        SELECT p.name, p.sku, oi.price FROM order_items oi JOIN parts p ON p.id = oi.part_id
+        SELECT p.name, p.sku, oi.price, oi.qty FROM order_items oi JOIN parts p ON p.id = oi.part_id
          WHERE oi.order_id = :o ORDER BY oi.id"""), {"o": order["id"]})]}
     contact = (await session.execute(text("""
         SELECT c.email, coalesce(o.contact_phone, c.phone) AS phone
@@ -669,7 +741,8 @@ async def orders_of(session: AsyncSession, customer_id: int, number: str | None 
 
     items = await session.execute(
         text("""
-        SELECT oi.order_id, oi.price, p.sku, p.name, p.status::text AS status,
+        SELECT oi.order_id, oi.price, oi.qty, oi.price * oi.qty AS sum,
+               p.sku, p.name, p.status::text AS status,
                p.condition::text AS condition,
                (SELECT coalesce(ph.thumb, ph.path) FROM part_photos ph
                  WHERE ph.part_id = p.id ORDER BY sort_order LIMIT 1) AS photo,

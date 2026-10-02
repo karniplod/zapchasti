@@ -22,6 +22,7 @@
         {% else %}поступила отдельно{% endif %}</span>{% endif %}
       <span class="price">{% if i.price %}{{ "{:,.0f}".format(i.price).replace(",", " ") }} ₽
         {% else %}по запросу{% endif %}<small>{{ i.node or '' }}</small></span>
+      {% if i.quantity %}<span class="stock">В наличии: {{ i.quantity }} шт</span>{% endif %}
     </div>
   </a>
   <button class="btn btn-ghost btn-sm buy-card" type="button"

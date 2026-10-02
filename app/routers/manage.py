@@ -131,6 +131,7 @@ async def parts_list(
         SELECT count(*) OVER () AS total_rows,
                p.id, p.sku, p.name, p.condition::text AS condition, p.price,
                p.status::text AS status, p.location, p.published, p.oem_number,
+               p.quantity,
                p.condition_note, p.weight_kg, p.category_id, p.branch_id,
                p.origin, p.part_brand, p.oem_verified,
                (SELECT br.city || ', ' || br.name FROM branches br
@@ -177,6 +178,8 @@ async def parts_list(
 
 class PartPatch(BaseModel):
     price: Decimal | None = Field(default=None, ge=0, le=100_000_000)
+    # Сколько штук на складе: четыре одинаковых диска — одна деталь «4 шт»
+    quantity: int | None = Field(default=None, ge=0, le=9999)
     condition: str | None = None
     location: str | None = Field(default=None, max_length=40)
     status: str | None = None
@@ -246,6 +249,14 @@ async def patch_part(
     if payload.location is not None:
         sets.append("location = :loc")
         params["loc"] = payload.location
+    if payload.quantity is not None:
+        sets.append("quantity = :qty")
+        params["qty"] = payload.quantity
+        # Ноль штук «в наличии» не бывает: всё продано — деталь уходит
+        # с витрины, как после заказа последней штуки
+        if payload.quantity == 0 and (payload.status or cur.status) == "in_stock":
+            payload.status = "sold"
+            payload.published = False
     if payload.status:
         if payload.status not in STATUSES:
             raise HTTPException(422, "Неизвестный статус")
@@ -701,7 +712,7 @@ async def orders_list(
 
     items = await session.execute(
         text("""
-        SELECT oi.order_id, oi.price, p.sku, p.name, p.status::text AS status,
+        SELECT oi.order_id, oi.price, oi.qty, p.sku, p.name, p.status::text AS status,
                (SELECT br.city || ', ' || br.name FROM branches br
                  WHERE br.id = p.branch_id) AS branch
           FROM order_items oi
@@ -749,6 +760,12 @@ async def patch_order(
     ).first()
     if not order:
         raise HTTPException(404, "Заказ не найден")
+    if order.status == payload.status:
+        return {"ok": True}
+    # Отмена вернула штуки на склад — их уже могли купить другие.
+    # Оживлять такой заказ нельзя: оформляется новый
+    if order.status == "cancelled":
+        raise HTTPException(409, "Отменённый заказ не восстановить — оформите новый")
 
     await session.execute(
         text("""
@@ -761,28 +778,29 @@ async def patch_order(
         {"st": payload.status, "id": order_id},
     )
 
-    parts = [
-        r.part_id
-        for r in await session.execute(
-            text("SELECT part_id FROM order_items WHERE order_id = :id"), {"id": order_id}
-        )
-    ]
+    lines = (await session.execute(
+        text("SELECT part_id, qty FROM order_items WHERE order_id = :id"), {"id": order_id}
+    )).all()
+    parts = [r.part_id for r in lines]
 
     if payload.status == "cancelled":
-        # Деталь возвращается на витрину — но только та, что лежит
-        # в резерве под этот заказ, а не уже проданная кому-то ещё
-        await session.execute(
-            text("""
-            UPDATE parts SET status = 'in_stock', updated_at = now()
-             WHERE id = ANY(:ids) AND status = 'reserved'
-        """),
-            {"ids": parts},
-        )
+        # Штуки возвращаются на склад, деталь — на витрину. Только если
+        # её не продали и не списали руками: тогда возвращать некуда
+        for r in lines:
+            await session.execute(text("""
+                UPDATE parts SET quantity = quantity + :q,
+                       status = CASE WHEN status = 'reserved'
+                                     THEN 'in_stock'::part_status ELSE status END,
+                       updated_at = now()
+                 WHERE id = :p AND status IN ('reserved', 'in_stock')"""),
+                {"q": r.qty, "p": r.part_id})
     elif payload.status in ("paid", "shipped", "completed"):
+        # Проданной считается деталь, у которой не осталось штук; если
+        # остаток есть, она продолжает продаваться
         await session.execute(
             text("""
             UPDATE parts SET status = 'sold', updated_at = now()
-             WHERE id = ANY(:ids) AND status IN ('reserved', 'in_stock')
+             WHERE id = ANY(:ids) AND status = 'reserved' AND quantity = 0
         """),
             {"ids": parts},
         )

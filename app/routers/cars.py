@@ -276,7 +276,7 @@ async def car_page(code: str, request: Request, session: AsyncSession = Depends(
     # Снятые детали — те же поля, что у плитки на главной
     parts = [dict(r._mapping) for r in await session.execute(
         text("""
-        SELECT p.sku, p.name, p.condition::text AS condition, p.price,
+        SELECT p.sku, p.name, p.condition::text AS condition, p.price, p.quantity,
                parent.name AS node,
                (SELECT coalesce(ph.thumb, ph.path) FROM part_photos ph
                  WHERE ph.part_id = p.id ORDER BY ph.sort_order LIMIT 1) AS photo

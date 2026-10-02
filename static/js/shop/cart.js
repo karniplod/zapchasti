@@ -17,6 +17,24 @@ document.querySelectorAll('.cart-row .drop').forEach(b => b.onclick = () => {
   drop([b.closest('.cart-row').dataset.part]);
 });
 
+// Количество: − и + сохраняются сразу, страница перезагружается — сумма
+// строки, итог и счётчик в шапке считаются на сервере. Больше остатка
+// сервер не даст и скажет, сколько есть
+document.querySelectorAll('.cart-row .qty').forEach(box => {
+  const row = box.closest('.cart-row');
+  qtyStepper(box, async n => {
+    box.querySelectorAll('button,input').forEach(x => x.disabled = true);
+    try {
+      const r = await fetch('/api/cart/' + row.dataset.part, {method: 'PATCH',
+        headers: {'Content-Type': 'application/json'}, body: JSON.stringify({qty: n})});
+      const d = await r.json().catch(() => ({}));
+      if (r.ok){ location.reload(); return; }
+      toast(typeof d.detail === 'string' ? d.detail : 'Не получилось изменить количество');
+    } catch { toast('Нет связи с сервером'); }
+    box.querySelectorAll('button,input').forEach(x => x.disabled = false);
+  });
+});
+
 const dropGone = $('dropGone');
 if (dropGone) dropGone.onclick = () => drop(
   [...document.querySelectorAll('.cart-row[data-gone="1"]')].map(r => r.dataset.part));

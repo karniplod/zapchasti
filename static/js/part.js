@@ -138,15 +138,17 @@ document.querySelectorAll('.copy').forEach(b => b.onclick = async () => {
   catch { toast('Не удалось скопировать — выделите вручную'); }
 });
 
-// Корзина. Деталь штучная, поэтому «добавить» — разовое действие:
-// после него кнопка ведёт в корзину, а не добавляет второй раз
+// Корзина. «Добавить» — разовое действие: после него кнопка ведёт
+// в корзину, а количество меняют там. Штук несколько — сколько взять,
+// выбирают переключателем рядом с кнопкой
+const qty = $('qtyBox') ? qtyStepper($('qtyBox')) : null;
 $('buy').onclick = async () => {
   if ($('buy').dataset.added){ location.href = '/cart'; return; }
   $('buy').disabled = true;
   try {
     const r = await fetch('/api/cart', {method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({sku: $('buy').dataset.sku})});
+      body: JSON.stringify({sku: $('buy').dataset.sku, qty: qty ? qty.get() : 1})});
     const d = await r.json().catch(() => ({}));
     if (r.ok){
       $('buy').dataset.added = '1';

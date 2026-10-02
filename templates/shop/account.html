@@ -57,7 +57,8 @@
               <span class="nm"><a href="/p/{{ i.sku }}">{{ i.name }}</a>
                 <small class="mono">{{ i.sku }}</small></span>
               <span class="cond">{{ i.condition }}</span>
-              <span class="sum">{{ "{:,.0f}".format(i.price).replace(",", " ") }} ₽</span>
+              <span class="sum">{{ "{:,.0f}".format(i.sum).replace(",", " ") }} ₽
+          {%- if i.qty > 1 %}<small>{{ i.qty }} шт × {{ "{:,.0f}".format(i.price).replace(",", " ") }} ₽</small>{% endif %}</span>
             </li>
             {% endfor %}
           </ul>

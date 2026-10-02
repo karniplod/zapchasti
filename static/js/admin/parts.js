@@ -22,6 +22,8 @@ $('q').oninput = () => { clearTimeout(timer);
 const PART_RULES = {
   '.f-price': v => Check.money(v),
   '.f-loc': v => Check.text(v, {max: 40, what: 'Место'}),
+  '.f-qty': v => Check.number(v, {min: 0, max: 9999, optional: false, what: 'Количество'})
+               || (Number.isInteger(+v) ? '' : 'Количество — целое число'),
   '.f-name': v => Check.text(v, {min: 2, max: 200, what: 'Название'}),
   '.f-oem': v => Check.oem(v),
   '.f-weight': v => Check.number(v, {min: 0, max: 5000, what: 'Вес'}),
@@ -59,7 +61,7 @@ async function load(){
         <span class="tag ${r.status==='in_stock'?'ok':''}">${ST[r.status]||r.status}</span>
       </div>
       <div class="meta">
-        <span class="sku">${r.sku}</span> · ${r.node || r.category} ·
+        <span class="sku">${r.sku}</span> · <b>${r.quantity ?? 1} шт</b> · ${r.node || r.category} ·
         ${r.donor_code ? r.brand+' '+r.model : 'поступила отдельно, моделей: '+r.fits}
         ${r.oem_number ? ' · '+r.oem_number : ''}${r.branch ? ' · '+r.branch : ''}
       </div>
@@ -73,6 +75,9 @@ async function load(){
             `<option ${c===r.condition?'selected':''}>${c}</option>`).join('')}</select></div>
         <div><label>Место</label>
           <input type="text" class="f-loc" value="${r.location ?? ''}"></div>
+        <div><label>Количество, шт</label>
+          <input type="number" class="f-qty" min="0" max="9999" step="1" inputmode="numeric"
+                 value="${r.quantity ?? 1}"></div>
         <div><label>Статус</label>
           <select class="f-st">${Object.entries(ST).map(([k,v]) =>
             `<option value="${k}" ${k===r.status?'selected':''}>${v}</option>`).join('')}</select></div>
@@ -109,6 +114,7 @@ async function load(){
         price: el.querySelector('.f-price').value || null,
         condition: el.querySelector('.f-cond').value,
         location: el.querySelector('.f-loc').value || null,
+        quantity: +el.querySelector('.f-qty').value,
         status: el.querySelector('.f-st').value,
       };
       // Полный редактор раскрыт — сохраняем и его поля тем же запросом

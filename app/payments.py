@@ -92,9 +92,9 @@ def _auth() -> tuple[str, str]:
 
 def receipt(order: dict) -> dict | None:
     """Чек по 54-ФЗ: позиция на каждую деталь и контакт, куда ЮKassa
-    пришлёт чек. Деталь штучная — количество всегда 1. Сумма позиций
-    обязана сойтись с суммой платежа до копейки, поэтому берём цены из
-    order_items — те, что попали в заказ."""
+    пришлёт чек. Цена — за штуку, количество — сколько купили. Сумма
+    позиций обязана сойтись с суммой платежа до копейки, поэтому берём
+    цены из order_items — те, что попали в заказ."""
     if not settings.yookassa_receipts:
         return None
     contact = {}
@@ -106,7 +106,7 @@ def receipt(order: dict) -> dict | None:
         "customer": contact,
         "items": [{
             "description": f"{i['name']} ({i['sku']})"[:128],
-            "quantity": 1,
+            "quantity": i.get("qty", 1),
             "amount": {"value": f"{Decimal(i['price']):.2f}", "currency": "RUB"},
             "vat_code": settings.yookassa_vat_code,
             "payment_mode": "full_payment",

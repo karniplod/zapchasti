@@ -42,6 +42,13 @@
   </div>
   {% endif %}
 
+  {% if short %}
+  <div class="notice notice-warn">
+    <b>Части деталей стало меньше, чем в корзине.</b> Пока они лежали у вас,
+    их купили другие. Количество уменьшено до того, что осталось на складе.
+  </div>
+  {% endif %}
+
   {% if no_price %}
   <div class="notice notice-warn">
     По некоторым деталям цена не проставлена — такие не оформить онлайн.
@@ -49,14 +56,13 @@
   </div>
   {% endif %}
 
-  {% set live = items | selectattr('status', 'equalto', 'in_stock') | list %}
   <form class="co" id="orderForm" novalidate>
     <div class="co-main">
 
       {# ── 1. Товары ─────────────────────────────────────────── #}
       <section class="co-card">
         <h2><span class="co-n">1</span>Товары в заказе
-          <small>{{ items | length }} {{ items | length | plural('деталь', 'детали', 'деталей') }}</small></h2>
+          <small>{{ units }} шт</small></h2>
         <table class="co-items">
           <thead>
             <tr><th colspan="2">Деталь</th><th>Состояние</th><th>Кол-во</th>
@@ -75,11 +81,23 @@
               {% if i.status != 'in_stock' %}<span class="gone-note">уже продана</span>{% endif %}
             </td>
             <td class="c-cond"><span class="cond-badge">{{ i.condition }}</span></td>
-            {# Деталь штучная — количества нет, но столбец оставлен: так
-               таблица читается привычно, как в любом магазине #}
-            <td class="c-qty">1 шт</td>
+            {# Сколько штук берут — не больше остатка; при одной штуке на
+               складе менять нечего, пишем просто «1 шт» #}
+            <td class="c-qty">
+              {% if i.status == 'in_stock' and i.stock > 1 %}
+              <div class="qty qty-sm" data-max="{{ i.stock }}">
+                <button type="button" class="qty-btn" data-d="-1" aria-label="Меньше">−</button>
+                <input class="qty-in" type="number" inputmode="numeric" min="1" max="{{ i.stock }}"
+                       value="{{ i.take }}" aria-label="Количество, шт">
+                <button type="button" class="qty-btn" data-d="1" aria-label="Больше">+</button>
+              </div>
+              <span class="stock-left">из {{ i.stock }} в наличии</span>
+              {% else %}{{ i.take or 1 }} шт{% endif %}
+            </td>
             <td class="c-price num">
-              {% if i.price %}{{ rub(i.price) }}{% else %}<span class="ask">по запросу</span>{% endif %}
+              {% if i.price %}<span class="line-sum">{{ rub(i.sum if i.take else i.price) }}</span>
+                {% if i.take > 1 %}<small class="per">{{ rub(i.price) }} / шт</small>{% endif %}
+              {% else %}<span class="ask">по запросу</span>{% endif %}
             </td>
             <td class="c-drop"><button class="drop" type="button" title="Убрать"
                 aria-label="Убрать {{ i.name }} из корзины">
@@ -187,7 +205,7 @@
         </dl>
         {% endif %}
         <dl class="sum-lines">
-          <dt>{{ live | length }} {{ live | length | plural('деталь', 'детали', 'деталей') }}</dt><dd>{{ rub(total) }}</dd>
+          <dt>Товары, {{ units }} шт</dt><dd>{{ rub(total) }}</dd>
           <dt>Доставка</dt><dd id="shipLine">бесплатно</dd>
         </dl>
         <div class="sum">

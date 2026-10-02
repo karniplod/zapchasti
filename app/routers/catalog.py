@@ -71,7 +71,7 @@ async def home(request: Request, session: AsyncSession = Depends(get_session)):
         for r in (
             await session.execute(
                 text("""
-        SELECT p.sku, p.name, p.condition::text AS condition, p.price,
+        SELECT p.sku, p.name, p.condition::text AS condition, p.price, p.quantity,
                c.name AS category,
                (SELECT pc.name FROM part_categories pc
                  WHERE pc.id = c.parent_id) AS node,
@@ -133,6 +133,7 @@ async def part_page(sku: str, request: Request, session: AsyncSession = Depends(
             text("""
         SELECT p.id, p.sku, p.name, p.oem_number, p.condition::text AS condition,
                p.condition_note, p.price, p.status::text AS status, p.weight_kg,
+               p.quantity,
                p.origin, p.part_brand, p.oem_verified,
                c.name AS category,
                parent.name AS node,
@@ -576,7 +577,7 @@ async def catalog_parts(
 
     rows = await session.execute(
         text(f"""
-        SELECT p.id, p.sku, p.name, p.condition::text AS condition, p.price,
+        SELECT p.id, p.sku, p.name, p.condition::text AS condition, p.price, p.quantity,
                p.oem_number, c.name AS category,
                (SELECT pc.name FROM part_categories pc
                  WHERE pc.id = c.parent_id) AS node,

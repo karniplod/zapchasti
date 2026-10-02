@@ -77,6 +77,7 @@ async def create_standalone(
     condition_note: str | None = Form(None, max_length=500),
     price: Decimal | None = Form(None, ge=0, le=100_000_000),
     location: str | None = Form(None, max_length=40),
+    quantity: int = Form(1, ge=1, le=9999),
     files: list[UploadFile] = File(default=[]),
     user=Depends(require_role("manager")),
     session: AsyncSession = Depends(get_session),
@@ -130,16 +131,17 @@ async def create_standalone(
         INSERT INTO parts (sku, donor_id, category_id, name, oem_number, condition,
                            condition_note, price, location, status, published, source,
                            oem_source, oem_verified,
-                           branch_id)
+                           branch_id, quantity)
         VALUES (:sku, :donor, :cat, :name, :oem, CAST(:cond AS part_condition),
                 :note, :price, :loc, CAST(:st AS part_status), :pub, :src,
                 -- Откуда номер и сверен ли он с деталью
                 :oem_src, :oem_ver,
                 -- С машины — её филиал, со стороны — филиал приёмщика
-                COALESCE((SELECT branch_id FROM donors WHERE id = :donor), :branch))
+                COALESCE((SELECT branch_id FROM donors WHERE id = :donor), :branch), :qty)
         RETURNING id
     """),
             {
+                "qty": quantity,
                 "sku": sku,
                 "donor": donor_id,
                 "cat": category_id,

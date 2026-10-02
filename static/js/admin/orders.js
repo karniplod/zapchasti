@@ -59,7 +59,7 @@ async function load(){
           <span class="sku">${i.sku}</span>
           <span class="nm">${i.name}</span>
           <span class="where">${i.branch || ''}</span>
-          <span class="pr">${money(i.price)}</span>
+          <span class="pr">${i.qty > 1 ? `${i.qty} шт × ${money(i.price)} = ` : ''}${money(i.price * i.qty)}</span>
         </li>`).join('')}
       </ul>
 

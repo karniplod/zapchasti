@@ -67,7 +67,7 @@
       {% set NOT_IN_STOCK = {'reserved': 'Забронирована', 'sold': 'Продана',
                              'draft': 'Готовится к продаже', 'written_off': 'Нет в наличии'} %}
       {% if part.status == 'in_stock' %}
-        <span class="stock">В наличии, одна штука</span>
+        <span class="stock">В наличии: {{ part.quantity }} шт</span>
       {% else %}
         <span class="stock out">{{ NOT_IN_STOCK.get(part.status, 'Нет в наличии') }}</span>
       {% endif %}
@@ -84,6 +84,16 @@
     {# Цена «по запросу» в корзину не идёт: заказ на неизвестную сумму
        оформить нельзя, такие детали обсуждают с менеджером #}
     <div class="actions">
+      {# Штук несколько — сколько взять, выбирают здесь же; в корзине
+         количество тоже меняется #}
+      {% if part.status == 'in_stock' and part.price and part.quantity > 1 %}
+      <div class="qty" id="qtyBox" data-max="{{ part.quantity }}">
+        <button type="button" class="qty-btn" data-d="-1" aria-label="Меньше">−</button>
+        <input class="qty-in" id="qty" type="number" inputmode="numeric" min="1"
+               max="{{ part.quantity }}" value="1" aria-label="Количество, шт">
+        <button type="button" class="qty-btn" data-d="1" aria-label="Больше">+</button>
+      </div>
+      {% endif %}
       <button class="btn btn-primary" id="buy" data-sku="{{ part.sku }}"
               {% if part.status != 'in_stock' or not part.price %}disabled{% endif %}>
         {% if part.status != 'in_stock' %}{{ NOT_IN_STOCK.get(part.status, 'Нет в наличии') }}

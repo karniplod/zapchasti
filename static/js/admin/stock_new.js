@@ -193,6 +193,8 @@ function refresh(){
 
 const rules = [
   [$('price'), v => Check.money(v)],
+  [$('qty'), v => Check.number(v, {min: 1, max: 9999, optional: false, what: 'Количество'})
+                  || (Number.isInteger(+v) ? '' : 'Количество — целое число')],
   [$('oem'), v => Check.oem(v)],
   [$('loc'), v => Check.text(v, {max: 40, what: 'Место'})],
   [$('note'), v => Check.text(v, {max: 500, what: 'Дефекты'})],
@@ -215,6 +217,7 @@ $('save').onclick = async () => {
   if ($('oem').value && oemSource) fd.append('oem_source', oemSource);
   fd.append('name',category.name);
   fd.append('condition',condition);
+  fd.append('quantity', $('qty').value || 1);
   fd.append('source', fromDonor() ? 'donor' : $('source').value);
   if (fromDonor()) fd.append('donor_id', $('donor').value);
   else fd.append('generations', fits.map(f=>f.id).join(','));
@@ -237,6 +240,7 @@ function resetForm(){
   category=null; condition=null; files=[]; fits=[];
   $('catBox').hidden=false; $('catPicked').hidden=true; $('catSearch').value='';
   ['price','oem','note'].forEach(id=>$(id).value='');
+  $('qty').value=1;
   clearOemHints();   // подсказки прошлой детали к следующей не относятся
   [...$('cond').children].forEach(x=>x.classList.remove('on'));
   $('thumbs').innerHTML=''; $('photos').value=''; $('shoot').textContent='📷 Снять деталь';

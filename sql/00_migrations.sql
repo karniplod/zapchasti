@@ -525,3 +525,32 @@ CREATE UNIQUE INDEX IF NOT EXISTS payments_external_uniq
 -- не затронуты. Время отправки — чтобы не слать письмо чаще раза в минуту.
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS email_verified_at timestamptz;
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS email_verify_sent_at timestamptz;
+
+
+-- ------------------------------------------------------------
+-- Количество штук у детали
+-- ------------------------------------------------------------
+-- Раньше деталь была штучной: одна строка — одна вещь. Теперь у строки
+-- есть остаток: четыре одинаковых диска с одной машины — одна карточка
+-- «4 шт». quantity — сколько штук свободно на складе: заказ списывает
+-- заказанное, отмена возвращает. Ноль — деталь уходит с витрины
+-- (статус reserved), как раньше уходила единственная штука.
+-- Колонку заводим и заполняем в одном блоке, один раз: занятые и
+-- проданные детали получают остаток 0 — их штука уже у покупателя.
+-- Иначе отмена старого заказа вернула бы на склад «вторую» штуку.
+-- Повторный прогон миграций сюда не заходит: колонка уже есть
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'parts' AND column_name = 'quantity') THEN
+        ALTER TABLE parts ADD COLUMN quantity int NOT NULL DEFAULT 1
+            CONSTRAINT parts_quantity_check CHECK (quantity >= 0);
+        UPDATE parts SET quantity = 0
+         WHERE status IN ('reserved', 'sold', 'written_off');
+    END IF;
+END $$;
+
+-- Сколько штук положили в корзину и сколько купили. Цена в order_items —
+-- за штуку, сумма строки — price * qty
+ALTER TABLE cart_items  ADD COLUMN IF NOT EXISTS qty int NOT NULL DEFAULT 1;
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS qty int NOT NULL DEFAULT 1;

@@ -242,3 +242,27 @@ window.fillRows = function(grid, rows){
   }
   grid.dataset.fillRows = rows;
 };
+
+// Выбор количества «− N +» — на карточке детали и в корзине. Число не
+// выходит за 1…max; onChange получает новое значение (после ввода руками —
+// когда человек ушёл с поля или нажал Enter)
+window.qtyStepper = function(box, onChange){
+  const input = box.querySelector('.qty-in');
+  const max = +box.dataset.max || 999;
+  const clamp = v => Math.max(1, Math.min(max, Math.round(+v) || 1));
+  const sync = () => {
+    box.querySelector('[data-d="-1"]').disabled = +input.value <= 1;
+    box.querySelector('[data-d="1"]').disabled = +input.value >= max;
+  };
+  const set = v => {
+    const n = clamp(v), changed = n !== +input.dataset.last;
+    input.value = n; input.dataset.last = n; sync();
+    if (changed && onChange) onChange(n);
+  };
+  input.dataset.last = input.value;
+  box.querySelectorAll('.qty-btn').forEach(b => b.onclick = () => set(+input.value + +b.dataset.d));
+  input.addEventListener('change', () => set(input.value));
+  input.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); set(input.value); } });
+  sync();
+  return {get: () => clamp(input.value), set};
+};

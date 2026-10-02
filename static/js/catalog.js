@@ -378,6 +378,7 @@ function card(i){
           <span class="fit">${fit}${!state.city && i.city ? ' · '+i.city : ''}</span>
           <span class="price">${i.price ? Number(i.price).toLocaleString('ru')+' ₽'
                                         : 'по запросу'}<small>${i.node || ''}</small></span>
+          ${i.quantity ? `<span class="stock">В наличии: ${i.quantity} шт</span>` : ''}
         </div>
       </a>
       <button class="btn btn-ghost btn-sm buy-card" type="button"

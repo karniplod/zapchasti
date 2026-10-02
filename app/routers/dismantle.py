@@ -290,6 +290,9 @@ async def create_part(
     price: Decimal | None = Form(None, ge=0, le=100_000_000),
     location: str | None = Form(None, max_length=40),
     weight_kg: Decimal | None = Form(None, ge=0, le=5000),
+    # Сколько одинаковых штук: четыре диска с машины — одна деталь «4 шт».
+    # Приложение сотрудника поле не шлёт — тогда одна
+    quantity: int = Form(1, ge=1, le=9999),
     # Ключ, который придумал телефон. Связь в цеху рвётся: запрос дошёл,
     # ответ потерялся — приложение шлёт деталь ещё раз. С тем же ключом
     # сервер отдаёт уже созданную, а не заводит вторую с новым артикулом
@@ -354,17 +357,18 @@ async def create_part(
             INSERT INTO parts (sku, donor_id, category_id, name, oem_number, condition,
                                condition_note, price, location, weight_kg, status, published,
                                oem_source, oem_verified, origin, part_brand,
-                               branch_id, client_key)
+                               branch_id, client_key, quantity)
             VALUES (:sku, :donor, :cat, :name, :oem, CAST(:cond AS part_condition),
                     :note, :price, :loc, :weight, CAST(:status AS part_status), :pub,
                     -- Откуда номер и сверен ли он с деталью — решает код ниже
                     :oem_source, :oem_verified, :origin, :part_brand,
                     -- Деталь появляется там же, где стоит машина. Дальше её
                     -- можно перевезти, и филиал детали разойдётся с машиной
-                    (SELECT branch_id FROM donors WHERE id = :donor), :key)
+                    (SELECT branch_id FROM donors WHERE id = :donor), :key, :qty)
             RETURNING id
         """),
                 {
+                    "qty": quantity,
                     "sku": sku,
                     "donor": donor_id,
                     "cat": category_id,
@@ -453,7 +457,7 @@ async def donor_parts(
 ):
     rows = await session.execute(
         text("""
-        SELECT p.id, p.sku, p.name, p.condition::text, p.price, p.status::text,
+        SELECT p.id, p.sku, p.name, p.condition::text, p.price, p.status::text, p.quantity,
                p.location, c.name AS category,
                (SELECT path FROM part_photos ph
                  WHERE ph.part_id = p.id ORDER BY sort_order LIMIT 1) AS photo

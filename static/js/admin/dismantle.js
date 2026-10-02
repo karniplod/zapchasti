@@ -180,6 +180,8 @@ $('name').addEventListener('input', refresh);
 
 const rules = [
   [$('price'), v => Check.money(v)],
+  [$('qty'), v => Check.number(v, {min: 1, max: 9999, optional: false, what: 'Количество'})
+                  || (Number.isInteger(+v) ? '' : 'Количество — целое число')],
   [$('name'), v => v.trim() ? Check.text(v, {min: 2, max: 200, what: 'Название'}) : ''],
   [$('oem'), v => Check.oem(v)],
   [$('partBrand'), v => Check.text(v, {max: 80, what: 'Бренд'})],
@@ -197,6 +199,7 @@ $('save').onclick = async () => {
   fd.append('category_id', category.id);
   fd.append('name', $('name').value.trim() || category.name);
   fd.append('condition', condition);
+  fd.append('quantity', $('qty').value || 1);
   ['oem','price','loc','weight'].forEach(id => {
     const map = {oem:'oem_number', price:'price', loc:'location', weight:'weight_kg'};
     if ($(id).value) fd.append(map[id], $(id).value);
@@ -233,6 +236,7 @@ function clearForm(){
   // однотипные детали и кладут на ту же полку
   lastLoc = $('loc').value;
   ['name','oem','price','note','weight','partBrand'].forEach(id => $(id).value = '');
+  $('qty').value = 1;
   clearOemHints();   // подсказки прошлой детали к следующей не относятся
   origin = 'original';
   [...$('origin').children].forEach((x, i) => x.classList.toggle('on', i === 0));
@@ -269,7 +273,7 @@ async function loadParts(){
         </div>
         <div class="sub">${p.sku}${p.location ? ' · ' + p.location : ''}</div>
       </div>
-      <div class="pr">${p.price ? Number(p.price).toLocaleString('ru') + ' ₽' : '—'}</div>
+      <div class="pr">${p.quantity > 1 ? p.quantity + ' шт × ' : ''}${p.price ? Number(p.price).toLocaleString('ru') + ' ₽' : '—'}</div>
       <a class="qr-link" href="/parts/${p.id}/label" target="_blank"
          title="Этикетка" aria-label="Этикетка детали">
         <svg viewBox="0 0 20 20" aria-hidden="true" fill="none"
