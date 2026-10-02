@@ -128,6 +128,36 @@
   box-shadow:inset 0 0 0 4px var(--surface);background:var(--accent)}
 .tile input:focus-visible + span{outline:2px solid var(--accent);outline-offset:2px}
 
+/* Доставка службой: город с подсказкой, варианты, пункты выдачи */
+#shipBox{margin-top:14px;display:grid;gap:12px}
+#shipBox[hidden]{display:none}
+#shipBox .hint{margin:0}
+.city-fld{position:relative}
+.suggest{position:absolute;left:0;right:0;top:100%;z-index:20;margin-top:4px;
+  background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r);
+  box-shadow:0 12px 28px rgba(0,0,0,.12);max-height:280px;overflow:auto}
+.suggest[hidden]{display:none}
+.suggest button{display:block;width:100%;text-align:left;padding:10px 14px;border:0;
+  background:none;font:inherit;font-size:var(--t-sm);color:var(--ink);cursor:pointer}
+.suggest button:hover,.suggest button:focus{background:var(--bg);outline:0}
+.d-options:empty{display:none}
+.points{margin-top:8px;max-height:320px;overflow:auto;border:1px solid var(--line);
+  border-radius:var(--r)}
+.pt{display:block;margin:0;cursor:pointer;letter-spacing:0;font-weight:400;color:var(--ink)}
+.pt input{position:absolute;opacity:0;pointer-events:none}
+.pt span{display:block;padding:10px 14px 10px 40px;position:relative;
+  border-bottom:1px solid var(--line)}
+.pt:last-child span{border-bottom:0}
+.pt span::before{content:"";position:absolute;left:14px;top:13px;width:14px;height:14px;
+  border-radius:50%;border:1.5px solid var(--line-2)}
+.pt b{display:block;font-size:var(--t-sm);font-weight:500}
+.pt small{display:block;margin-top:2px;font-size:var(--t-xs);color:var(--muted)}
+.pt:hover span{background:var(--bg)}
+.pt input:checked + span{background:rgba(245,79,12,.06)}
+.pt input:checked + span::before{border-color:var(--accent);background:var(--accent);
+  box-shadow:inset 0 0 0 3px var(--surface)}
+.pt input:focus-visible + span{outline:2px solid var(--accent);outline-offset:-2px}
+
 /* Сводка справа */
 .co-side{position:sticky;top:96px;display:grid;gap:14px}
 @media(max-width:960px){.co-side{position:static}}
@@ -236,6 +266,8 @@
   justify-content:center;border:1.5px solid var(--ink);border-radius:5px}
 .order .items .sum{font-variant-numeric:tabular-nums;font-size:var(--t-sm);
   white-space:nowrap}
+.order-ship{border-top:0;padding-top:0;font-size:var(--t-sm);color:var(--muted)}
+.order-ship b{font-size:var(--t-md)}
 .order .items .sum small{display:block;font-size:var(--t-xs);color:var(--muted);text-align:right}
 
 .order footer{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);

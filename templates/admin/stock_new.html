@@ -65,7 +65,13 @@
   <div class="row mt-14">
     <div><label for="qty">Количество, шт</label>
       <input type="number" id="qty" min="1" max="9999" step="1" value="1" inputmode="numeric"></div>
-    <div></div>
+    <div><label for="size">Размер для доставки</label>
+      <select id="size">
+        <option value="S">Мелкая — датчик, блок, реле</option>
+        <option value="M" selected>Средняя — фара, генератор, зеркало</option>
+        <option value="L">Крупная — бампер, радиатор, крышка</option>
+        <option value="XL">Очень крупная — дверь, капот, двигатель</option>
+      </select></div>
   </div>
 
   <div class="row mt-14">

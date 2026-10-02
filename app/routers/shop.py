@@ -18,6 +18,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import customer_auth as ca
+from .. import delivery as ship_services
 from .. import mailer, payments
 from ..config import settings
 from ..database import get_session
@@ -69,6 +70,7 @@ async def cart_rows(session: AsyncSession, token: str | None, customer: dict | N
         text("""
         SELECT p.id AS part_id, p.sku, p.name, p.price, p.status::text AS status,
                p.condition::text AS condition, p.quantity AS stock,
+               p.size_class, p.weight_kg,
                max(ci.qty) AS qty,
                (SELECT coalesce(ph.thumb, ph.path) FROM part_photos ph
                  WHERE ph.part_id = p.id ORDER BY sort_order LIMIT 1) AS photo,
@@ -133,6 +135,7 @@ async def cart_page(
             # Детали из разных филиалов — предупредить, что соберём в один
             "spread": len(set(here)) > 1,
             "methods": payments.methods(),
+            "carriers": ship_services.enabled(),
             # Деталь могли продать, пока она лежала в корзине
             "gone": [i for i in items if i["status"] != "in_stock"],
             "no_price": [i for i in items if i["price"] is None],
@@ -506,6 +509,13 @@ class OrderIn(BaseModel):
     # Карта или СБП — для онлайн-оплаты
     pay_with: str | None = Field(default=None, max_length=16)
     comment: str | None = Field(default=None, max_length=1000)
+    # Доставка службой: какая и как. Цену не передаём — сервер считает сам
+    delivery_carrier: str | None = Field(default=None, max_length=16)
+    delivery_mode: str | None = Field(default=None, max_length=8)
+    delivery_city: str | None = Field(default=None, max_length=120)
+    delivery_cdek_code: int | None = None
+    delivery_postcode: str | None = Field(default=None, pattern=r"^\d{6}$")
+    delivery_point: str | None = Field(default=None, max_length=64)
     # Согласие на обработку персональных данных (152-ФЗ): без него
     # имя и телефон хранить нельзя
     agree: bool = False
@@ -553,7 +563,11 @@ async def create_order(
         if not branch:
             raise HTTPException(422, "Выберите филиал для самовывоза")
         address = ""
-    elif len(address) < 10:
+    ship = None
+    if payload.delivery_method == "shipping" and payload.delivery_carrier:
+        ship = await shipping_choice(session, request, customer, payload, address)
+        address = ship["address"]
+    elif payload.delivery_method == "shipping" and len(address) < 10:
         raise HTTPException(422, "Адрес доставки: город, улица, дом — не короче 10 символов")
     if payload.payment_method not in PAYMENT_LABELS:
         raise HTTPException(422, "Выберите способ оплаты")
@@ -569,7 +583,7 @@ async def create_order(
         raise HTTPException(409, f"Столько нет на складе: {', '.join(short)}. "
                                  "Уменьшите количество в корзине.")
 
-    total = sum(i["price"] * i["qty"] for i in items)
+    total = sum(i["price"] * i["qty"] for i in items) + (ship["price"] if ship else 0)
     number = f"{date.today().year}-{await next_order_number(session):06d}"
 
     order_id = (
@@ -578,9 +592,13 @@ async def create_order(
         INSERT INTO orders (number, customer_id, status, source, total,
                             delivery_method, delivery_address, comment,
                             contact_name, contact_phone, pickup_branch_id,
-                            payment_method)
+                            payment_method, delivery_carrier, delivery_mode,
+                            delivery_tariff, delivery_price, delivery_days,
+                            delivery_city, delivery_point, delivery_point_address,
+                            delivery_postcode)
         VALUES (:n, :c, 'new', 'site', :total, :dm, :da, :cm,
-                :cn, :cp, :br, :pm)
+                :cn, :cp, :br, :pm, :dc, :dmode, :dt, :dp, :dd,
+                :dcity, :dpt, :dpta, :dpost)
         RETURNING id
     """),
             {
@@ -594,6 +612,11 @@ async def create_order(
                 "cp": phone,
                 "br": branch,
                 "pm": payload.payment_method,
+                "dc": ship and ship["carrier"], "dmode": ship and ship["mode"],
+                "dt": ship and ship["tariff"], "dp": ship and ship["price"],
+                "dd": ship and ship["days"], "dcity": ship and ship["city"],
+                "dpt": ship and ship["point"], "dpta": ship and ship["point_address"],
+                "dpost": ship and ship["postcode"],
             },
         )
     ).scalar_one()
@@ -653,6 +676,57 @@ async def create_order(
     return out
 
 
+async def shipping_choice(session: AsyncSession, request: Request, customer: dict,
+                          payload: "OrderIn", address: str) -> dict:
+    """Выбранная доставка службой — с ценой, посчитанной заново здесь.
+    Пункт выдачи сверяем со списком службы: выдумать его нельзя."""
+    # Роутер доставки сам импортирует shop — поэтому здесь, а не наверху
+    from .delivery import quotes_for_cart
+
+    delivery = ship_services
+    if payload.delivery_carrier not in delivery.enabled():
+        raise HTTPException(422, "Эта служба доставки сейчас недоступна")
+    city = (payload.delivery_city or "").strip()
+    if len(city) < 2:
+        raise HTTPException(422, "Укажите город доставки")
+    mode = payload.delivery_mode
+    point_addr = None
+    if mode == "pvz":
+        if not payload.delivery_point:
+            raise HTTPException(422, "Выберите пункт выдачи")
+        pts = await delivery.points(payload.delivery_carrier,
+                                    {"city": city, "cdek_code": payload.delivery_cdek_code})
+        hit = next((p for p in pts if p["code"] == payload.delivery_point), None)
+        if not hit:
+            raise HTTPException(422, "Пункт выдачи не найден — выберите другой")
+        # Полный адрес пункта уже содержит город — его и храним, с кодом
+        # пункта: по нему менеджер найдёт пункт в кабинете службы
+        point_addr = f"{hit['address']} (пункт {hit['code']})"
+        address = point_addr
+    elif mode == "door" and len(address) < 10:
+        raise HTTPException(422, "Адрес доставки: улица, дом, квартира — не короче 10 символов")
+    elif mode == "post":
+        if not payload.delivery_postcode:
+            raise HTTPException(422, "Укажите индекс для Почты России")
+        if len(address) < 10:
+            raise HTTPException(422, "Адрес для Почты: улица, дом, квартира — не короче 10 символов")
+    elif mode not in ("pvz", "door", "post"):
+        raise HTTPException(422, "Выберите вариант доставки")
+
+    dest = {"city": city, "cdek_code": payload.delivery_cdek_code,
+            "postcode": payload.delivery_postcode,
+            "point": payload.delivery_point if payload.delivery_carrier == "yandex" else None}
+    opts, _ = await quotes_for_cart(session, request, customer, dest)
+    o = next((o for o in opts if o["carrier"] == payload.delivery_carrier and o["mode"] == mode), None)
+    if not o:
+        raise HTTPException(409, "В этот пункт выдачи служба не доставляет — выберите другой"
+                            if mode == "pvz" else
+                            "Служба не посчитала доставку — выберите другой вариант")
+    return {**o, "city": city, "point": payload.delivery_point if mode == "pvz" else None,
+            "point_address": point_addr, "postcode": payload.delivery_postcode,
+            "address": address if mode != "pvz" else point_addr}
+
+
 async def start_payment(session: AsyncSession, order: dict, method: str,
                         request: Request) -> str:
     """Платёж у провайдера и строка в payments → ссылка, куда уйти платить.
@@ -677,11 +751,20 @@ async def start_payment(session: AsyncSession, order: dict, method: str,
         SELECT p.name, p.sku, oi.price, oi.qty FROM order_items oi JOIN parts p ON p.id = oi.part_id
          WHERE oi.order_id = :o ORDER BY oi.id"""), {"o": order["id"]})]}
     contact = (await session.execute(text("""
-        SELECT c.email, coalesce(o.contact_phone, c.phone) AS phone
+        SELECT c.email, coalesce(o.contact_phone, c.phone) AS phone,
+               o.delivery_price, o.delivery_carrier
           FROM orders o LEFT JOIN customers c ON c.id = o.customer_id
          WHERE o.id = :o"""), {"o": order["id"]})).first()
     if contact:
         order.update(email=contact.email, phone=contact.phone)
+        # Доставка входит в сумму заказа — значит, и в чек: иначе сумма
+        # позиций не сойдётся с платежом, и ЮKassa его отклонит
+        if contact.delivery_price:
+            name = {"cdek": "СДЭК", "yandex": "Яндекс Доставка",
+                    "pochta": "Почта России"}.get(contact.delivery_carrier, "")
+            order["items"].append({"name": f"Доставка {name}".strip(), "sku": "",
+                                   "price": contact.delivery_price, "qty": 1,
+                                   "subject": "service"})
     # Строка платежа — до похода к провайдеру: её номер нужен Робокассе
     # как номер счёта. Провайдер не ответил — строку убираем
     pay_id = (await session.execute(text("""
@@ -726,6 +809,8 @@ async def orders_of(session: AsyncSession, customer_id: int, number: str | None 
         SELECT o.id, o.number, o.status::text AS status, o.total, o.created_at,
                o.paid_at, o.delivery_method, o.delivery_address, o.comment,
                o.contact_name, o.contact_phone, o.payment_method,
+               o.delivery_carrier, o.delivery_mode, o.delivery_price, o.delivery_days,
+               o.delivery_city, o.delivery_point_address, o.delivery_postcode,
                (SELECT br.city || ', ' || br.name FROM branches br
                  WHERE br.id = o.pickup_branch_id) AS pickup_branch
           FROM orders o

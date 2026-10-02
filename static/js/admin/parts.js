@@ -123,6 +123,7 @@ async function load(){
         body.name = full.querySelector('.f-name').value;
         body.oem_number = full.querySelector('.f-oem').value;
         body.condition_note = full.querySelector('.f-note').value;
+        body.size_class = full.querySelector('.f-size').value;
         const w = full.querySelector('.f-weight').value;
         body.weight_kg = w === '' ? null : +w;
         const cat = full.querySelector('.f-cat').dataset.id;
@@ -257,6 +258,9 @@ function toggleFull(el, r){
       </div></div>
     <div><label>Каталожный номер</label>
       <input class="f-oem" value="${esc(r.oem_number)}"></div>
+    <div><label>Размер для доставки</label>
+      <select class="f-size">${[['S', 'Мелкая'], ['M', 'Средняя'], ['L', 'Крупная'], ['XL', 'Очень крупная']]
+        .map(([v, t]) => `<option value="${v}" ${v === (r.size_class || 'M') ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
     <div><label>Вес, кг</label>
       <input type="number" class="f-weight" min="0" step="0.1" value="${r.weight_kg ?? ''}"></div>
     <div><label>Филиал</label><select class="f-branch"></select></div>

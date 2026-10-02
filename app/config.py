@@ -95,6 +95,22 @@ class Settings(BaseSettings):
     max_bot_token: str = ""
     max_webhook_secret: str = ""
 
+    # --- доставка службами ---
+    # СДЭК: ключи интеграции из личного кабинета (по договору). CDEK_TEST=true —
+    # учебная среда api.edu.cdek.ru с общими тестовыми ключами: цены и пункты
+    # выдачи настоящие по виду, отправить по ним ничего нельзя
+    cdek_client_id: str = ""
+    cdek_client_secret: str = ""
+    cdek_test: bool = False
+    # Яндекс Доставка (межгород): Bearer-токен из кабинета и id склада
+    # отгрузки (platform_station_id). Тестовая среда работает только по Москве;
+    # её токен — в документации Яндекса («Доступ к API»), склад подставится сам
+    yandex_delivery_token: str = ""
+    yandex_delivery_station_id: str = ""
+    yandex_delivery_test: bool = False
+    # Почта России: публичный тарификатор tariff.pochta.ru — ключ не нужен
+    pochta_enabled: bool = True
+
     # --- онлайн-оплата ---
     # ЮKassa: shopId и секретный ключ из личного кабинета. Уведомления —
     # {base_url}/api/payments/yookassa. Пусто — платят при получении

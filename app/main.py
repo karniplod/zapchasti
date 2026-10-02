@@ -31,6 +31,7 @@ from .routers import (
     dismantle,
     intake,
     manage,
+    delivery,
     oauth,
     pages,
     reference,
@@ -83,6 +84,7 @@ app.include_router(cars.router)
 app.include_router(pages.router)
 app.include_router(shop.router)
 app.include_router(oauth.router)
+app.include_router(delivery.router)
 app.include_router(intake.router)
 app.include_router(dismantle.router)
 app.include_router(reference.router)

@@ -200,6 +200,7 @@ $('save').onclick = async () => {
   fd.append('name', $('name').value.trim() || category.name);
   fd.append('condition', condition);
   fd.append('quantity', $('qty').value || 1);
+  fd.append('size_class', $('size').value);
   ['oem','price','loc','weight'].forEach(id => {
     const map = {oem:'oem_number', price:'price', loc:'location', weight:'weight_kg'};
     if ($(id).value) fd.append(map[id], $(id).value);
@@ -237,6 +238,7 @@ function clearForm(){
   lastLoc = $('loc').value;
   ['name','oem','price','note','weight','partBrand'].forEach(id => $(id).value = '');
   $('qty').value = 1;
+  $('size').value = 'M';
   clearOemHints();   // подсказки прошлой детали к следующей не относятся
   origin = 'original';
   [...$('origin').children].forEach((x, i) => x.classList.toggle('on', i === 0));

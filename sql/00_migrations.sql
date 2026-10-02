@@ -554,3 +554,34 @@ END $$;
 -- за штуку, сумма строки — price * qty
 ALTER TABLE cart_items  ADD COLUMN IF NOT EXISTS qty int NOT NULL DEFAULT 1;
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS qty int NOT NULL DEFAULT 1;
+
+
+-- ------------------------------------------------------------
+-- Доставка службами: СДЭК, Яндекс Доставка, Почта России
+-- ------------------------------------------------------------
+-- Для расчёта службам нужны вес и габариты. Вес у детали есть (weight_kg),
+-- габариты вводить в сантиметрах никто не станет — размер выбирают при
+-- приёме: S мелкая, M средняя, L крупная, XL очень крупная; за каждым —
+-- типовая коробка (app/delivery.py). Пусто — считаем средней
+ALTER TABLE parts ADD COLUMN IF NOT EXISTS size_class text;
+
+-- Откуда отправляем: индекс отделения для Почты, код города СДЭК
+-- (подбирается сам по названию и запоминается)
+ALTER TABLE branches ADD COLUMN IF NOT EXISTS postcode text;
+ALTER TABLE branches ADD COLUMN IF NOT EXISTS cdek_city_code int;
+UPDATE branches SET postcode = CASE city
+        WHEN 'Пермь' THEN '614000' WHEN 'Москва' THEN '101000'
+        WHEN 'Владивосток' THEN '690000' WHEN 'Самара' THEN '443000' END
+ WHERE postcode IS NULL;
+
+-- Что выбрал покупатель: служба, способ (пункт выдачи / до двери /
+-- отделение), стоимость на момент заказа, пункт выдачи
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_carrier text;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_mode text;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_tariff text;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_price numeric(12,2);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_days text;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_city text;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_point text;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_point_address text;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_postcode text;

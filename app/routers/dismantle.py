@@ -293,6 +293,8 @@ async def create_part(
     # Сколько одинаковых штук: четыре диска с машины — одна деталь «4 шт».
     # Приложение сотрудника поле не шлёт — тогда одна
     quantity: int = Form(1, ge=1, le=9999),
+    # Размер для доставки: S / M / L / XL (app/delivery.py)
+    size_class: str | None = Form(None, pattern="^(S|M|L|XL)$"),
     # Ключ, который придумал телефон. Связь в цеху рвётся: запрос дошёл,
     # ответ потерялся — приложение шлёт деталь ещё раз. С тем же ключом
     # сервер отдаёт уже созданную, а не заводит вторую с новым артикулом
@@ -357,18 +359,18 @@ async def create_part(
             INSERT INTO parts (sku, donor_id, category_id, name, oem_number, condition,
                                condition_note, price, location, weight_kg, status, published,
                                oem_source, oem_verified, origin, part_brand,
-                               branch_id, client_key, quantity)
+                               branch_id, client_key, quantity, size_class)
             VALUES (:sku, :donor, :cat, :name, :oem, CAST(:cond AS part_condition),
                     :note, :price, :loc, :weight, CAST(:status AS part_status), :pub,
                     -- Откуда номер и сверен ли он с деталью — решает код ниже
                     :oem_source, :oem_verified, :origin, :part_brand,
                     -- Деталь появляется там же, где стоит машина. Дальше её
                     -- можно перевезти, и филиал детали разойдётся с машиной
-                    (SELECT branch_id FROM donors WHERE id = :donor), :key, :qty)
+                    (SELECT branch_id FROM donors WHERE id = :donor), :key, :qty, :size)
             RETURNING id
         """),
                 {
-                    "qty": quantity,
+                    "qty": quantity, "size": size_class,
                     "sku": sku,
                     "donor": donor_id,
                     "cat": category_id,

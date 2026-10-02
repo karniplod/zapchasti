@@ -105,12 +105,13 @@ def receipt(order: dict) -> dict | None:
     r = {
         "customer": contact,
         "items": [{
-            "description": f"{i['name']} ({i['sku']})"[:128],
+            "description": (f"{i['name']} ({i['sku']})" if i.get("sku") else i["name"])[:128],
             "quantity": i.get("qty", 1),
             "amount": {"value": f"{Decimal(i['price']):.2f}", "currency": "RUB"},
             "vat_code": settings.yookassa_vat_code,
             "payment_mode": "full_payment",
-            "payment_subject": "commodity",
+            # Доставка в чеке — услуга, детали — товар
+            "payment_subject": i.get("subject", "commodity"),
         } for i in order["items"]],
     }
     if settings.yookassa_tax_system_code:

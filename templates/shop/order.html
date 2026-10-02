@@ -36,6 +36,12 @@
       {% endfor %}
     </ul>
 
+    {% if order.delivery_price %}
+    <div class="order-sum order-ship">
+      <span>Доставка</span>
+      <b>{{ "{:,.0f}".format(order.delivery_price).replace(",", " ") }} ₽</b>
+    </div>
+    {% endif %}
     <div class="order-sum">
       <span>Итого</span>
       <b>{{ "{:,.0f}".format(order.total).replace(",", " ") }} ₽</b>
@@ -46,7 +52,11 @@
     <h2>Получение</h2>
     <dl class="facts">
       <dt>Способ</dt>
-      <dd>{% if order.delivery_method == 'shipping' %}Доставка транспортной компанией
+      {% set CN = {'cdek': 'СДЭК', 'yandex': 'Яндекс Доставка', 'pochta': 'Почта России'} %}
+      {% set MN = {'pvz': 'до пункта выдачи', 'door': 'курьером до двери', 'post': 'до отделения'} %}
+      <dd>{% if order.delivery_carrier %}{{ CN.get(order.delivery_carrier) }} — {{ MN.get(order.delivery_mode) }}
+            {%- if order.delivery_days %}, {{ order.delivery_days }}{% endif %}
+          {% elif order.delivery_method == 'shipping' %}Доставка транспортной компанией
           {% else %}Самовывоз{% if order.pickup_branch %} — {{ order.pickup_branch }}{% endif %}{% endif %}</dd>
       {% if order.delivery_address %}<dt>Адрес</dt><dd>{{ order.delivery_address }}</dd>{% endif %}
       {% if order.contact_name %}<dt>Получатель</dt>

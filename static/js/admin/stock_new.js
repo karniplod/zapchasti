@@ -218,6 +218,7 @@ $('save').onclick = async () => {
   fd.append('name',category.name);
   fd.append('condition',condition);
   fd.append('quantity', $('qty').value || 1);
+  fd.append('size_class', $('size').value);
   fd.append('source', fromDonor() ? 'donor' : $('source').value);
   if (fromDonor()) fd.append('donor_id', $('donor').value);
   else fd.append('generations', fits.map(f=>f.id).join(','));
@@ -240,7 +241,7 @@ function resetForm(){
   category=null; condition=null; files=[]; fits=[];
   $('catBox').hidden=false; $('catPicked').hidden=true; $('catSearch').value='';
   ['price','oem','note'].forEach(id=>$(id).value='');
-  $('qty').value=1;
+  $('qty').value=1; $('size').value='M';
   clearOemHints();   // подсказки прошлой детали к следующей не относятся
   [...$('cond').children].forEach(x=>x.classList.remove('on'));
   $('thumbs').innerHTML=''; $('photos').value=''; $('shoot').textContent='📷 Снять деталь';

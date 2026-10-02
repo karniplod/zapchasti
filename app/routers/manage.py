@@ -131,7 +131,7 @@ async def parts_list(
         SELECT count(*) OVER () AS total_rows,
                p.id, p.sku, p.name, p.condition::text AS condition, p.price,
                p.status::text AS status, p.location, p.published, p.oem_number,
-               p.quantity,
+               p.quantity, p.size_class,
                p.condition_note, p.weight_kg, p.category_id, p.branch_id,
                p.origin, p.part_brand, p.oem_verified,
                (SELECT br.city || ', ' || br.name FROM branches br
@@ -180,6 +180,7 @@ class PartPatch(BaseModel):
     price: Decimal | None = Field(default=None, ge=0, le=100_000_000)
     # Сколько штук на складе: четыре одинаковых диска — одна деталь «4 шт»
     quantity: int | None = Field(default=None, ge=0, le=9999)
+    size_class: str | None = Field(default=None, pattern="^(S|M|L|XL)$")
     condition: str | None = None
     location: str | None = Field(default=None, max_length=40)
     status: str | None = None
@@ -249,6 +250,9 @@ async def patch_part(
     if payload.location is not None:
         sets.append("location = :loc")
         params["loc"] = payload.location
+    if payload.size_class is not None:
+        sets.append("size_class = :size")
+        params["size"] = payload.size_class
     if payload.quantity is not None:
         sets.append("quantity = :qty")
         params["qty"] = payload.quantity
@@ -694,7 +698,8 @@ async def orders_list(
                -- заказывать мог один человек, а забирать — другой
                coalesce(o.contact_phone, c.phone) AS phone,
                coalesce(o.contact_name, c.name) AS customer_name,
-               o.payment_method,
+               o.payment_method, o.delivery_carrier, o.delivery_mode, o.delivery_price,
+               o.delivery_postcode,
                (SELECT br.city || ', ' || br.name FROM branches br
                  WHERE br.id = o.pickup_branch_id) AS pickup_branch,
                (SELECT count(*) FROM order_items oi WHERE oi.order_id = o.id) AS items

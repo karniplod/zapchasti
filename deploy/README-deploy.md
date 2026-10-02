@@ -139,6 +139,13 @@ python tools/check_js.py    # в файле поменять B на адрес �
   `{BASE_URL}/pay/robokassa/success`, Fail URL `{BASE_URL}/pay/robokassa/fail` (GET).
   Пока ключей нет, способ виден покупателю (`ROBOKASSA_PREVIEW=true`): заказ
   оформляется, оплатить предлагаем при получении.
+- **Доставка службами** — СДЭК, Яндекс Доставка, Почта России (app/delivery.py).
+  Почта считает по публичному тарификатору без ключа (`POCHTA_ENABLED`).
+  СДЭК: `CDEK_CLIENT_ID`, `CDEK_CLIENT_SECRET` из кабинета по договору; без
+  них `CDEK_TEST=true` считает в учебной среде СДЭК. Яндекс Доставка:
+  `YANDEX_DELIVERY_TOKEN` и `YANDEX_DELIVERY_STATION_ID` — склад отгрузки,
+  заведённый в кабинете Яндекса (его тестовая среда — только Москва).
+  Индекс филиала для Почты — `branches.postcode`.
 - **Тестовые данные** (11 машин, 57 деталей) на бою не нужны. Если их
   залили для показа, убрать:
   `sudo -u razbor venv/bin/python -m app.scripts.seed_test_data --remove --apply`

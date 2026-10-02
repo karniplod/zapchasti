@@ -138,9 +138,16 @@
             <span><b>Самовывоз</b>
               <small>Бесплатно. Забираете в филиале — деталь можно осмотреть до оплаты.</small></span></label>
           <label class="tile"><input type="radio" name="dm" value="shipping"
-                 data-label="Доставка ТК">
+                 data-label="Доставка">
+            {% if carriers %}
+            <span><b>Доставка в ваш город</b>
+              {% set CN = {'cdek': 'СДЭК', 'yandex': 'Яндекс Доставка', 'pochta': 'Почта России'} %}
+              <small>{% for c in carriers %}{{ CN[c] }}{% if not loop.last %}, {% endif %}{% endfor %}
+                — посчитаем стоимость и срок.</small></span>
+            {% else %}
             <span><b>Доставка транспортной компанией</b>
-              <small>В ваш город. Стоимость — по тарифу ТК, оплачивается при получении.</small></span></label>
+              <small>В ваш город. Стоимость — по тарифу ТК, оплачивается при получении.</small></span>
+            {% endif %}</label>
         </div>
 
         <div class="fld" id="pickupBox">
@@ -153,6 +160,35 @@
           {% if spread %}<p class="hint">Детали лежат в разных филиалах — соберём
             заказ в выбранном, перевоз займёт несколько дней.</p>{% endif %}
         </div>
+
+        {% if carriers %}
+        {# Доставка службой: город → варианты с ценой → пункт или адрес.
+           Цену показываем, но при оформлении сервер считает её заново #}
+        <div id="shipBox" hidden data-carriers="{{ carriers | join(',') }}">
+          <div class="co-grid">
+            <div class="fld city-fld">
+              <label for="dCity">Город</label>
+              <input class="field" id="dCity" autocomplete="off" maxlength="120"
+                     placeholder="Начните вводить: Самара">
+              <div class="suggest" id="dCityList" role="listbox" hidden></div>
+            </div>
+            {% if 'pochta' in carriers %}
+            <div class="fld">
+              <label for="dPost">Индекс <small>— для Почты России</small></label>
+              <input class="field" id="dPost" inputmode="numeric" maxlength="6" placeholder="443001">
+            </div>
+            {% endif %}
+          </div>
+          <p class="hint" id="dState">Укажите город — посчитаем стоимость и срок доставки.</p>
+          <div class="co-tiles d-options" id="dOptions" role="radiogroup" aria-label="Вариант доставки"></div>
+          <div class="fld" id="dPointBox" hidden>
+            <label for="dPointQ">Пункт выдачи</label>
+            <input class="field" id="dPointQ" autocomplete="off" placeholder="Поиск по адресу или названию">
+            <div class="points" id="dPoints" role="radiogroup" aria-label="Пункт выдачи"></div>
+            <p class="fld-err" id="dPointErr" hidden></p>
+          </div>
+        </div>
+        {% endif %}
 
         <div class="fld" id="addrBox" hidden>
           <label for="addr">Адрес доставки</label>
@@ -210,7 +246,7 @@
         </dl>
         <div class="sum">
           <span>Итого</span>
-          <b>{{ rub(total) }}</b>
+          <b id="grandTotal" data-goods="{{ total }}">{{ rub(total) }}</b>
         </div>
         {% if customer %}
         <button class="btn btn-primary" id="place" type="submit"
