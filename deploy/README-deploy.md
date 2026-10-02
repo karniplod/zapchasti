@@ -102,7 +102,7 @@ python tools/check_js.py    # в файле поменять B на адрес �
 - **Почта** — `SMTP_HOST`, `SMTP_PORT` (465 — SSL, 587 — STARTTLS), `SMTP_USER`,
   `SMTP_PASSWORD`, `MAIL_FROM` в `/opt/razbor/.env`. С ней регистрация по email
   требует подтверждения письмом (ссылка на сутки); без неё кабинет по email
-  открывается сразу, как раньше. Сейчас — ящик Beget notreply@vpn-x.fun:
+  открывается сразу, как раньше. Сейчас — ящик Beget noreply@avtodonor.fun:
   smtp.beget.com, порт 465 (SSL). Для Яндекса: smtp.yandex.ru, 465, пароль
   приложения из настроек Яндекс ID. `ORDER_NOTIFY_TO` — писем о заказах пока нет.
 - **Геолокация города** — положить базу MaxMind GeoLite2-City в
