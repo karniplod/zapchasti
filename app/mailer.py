@@ -48,18 +48,33 @@ def _build(to: str, subject: str, text: str, html: str | None) -> EmailMessage:
     return msg
 
 
+def _security() -> str:
+    if settings.smtp_security:
+        return settings.smtp_security
+    if settings.smtp_port == 465:
+        return "ssl"
+    if settings.smtp_host in ("127.0.0.1", "localhost", "::1"):
+        return "none"
+    return "starttls"
+
+
 def _send_sync(msg: EmailMessage) -> None:
     ctx = ssl.create_default_context()
-    if settings.smtp_port == 465:
-        with smtplib.SMTP_SSL(settings.smtp_host, 465, context=ctx, timeout=20) as s:
+    mode = _security()
+    if mode == "ssl":
+        with smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, context=ctx,
+                              timeout=20) as s:
             s.login(settings.smtp_user, settings.smtp_password)
             s.send_message(msg)
-    else:
-        # 587 и прочие — обычное соединение с переходом на TLS
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=20) as s:
+        return
+    with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=20) as s:
+        if mode == "starttls":
             s.starttls(context=ctx)
-            s.login(settings.smtp_user, settings.smtp_password)
-            s.send_message(msg)
+        elif settings.smtp_host not in ("127.0.0.1", "localhost", "::1"):
+            # Пароль открытым текстом по сети — только не это
+            raise smtplib.SMTPException("SMTP без TLS разрешён только на localhost")
+        s.login(settings.smtp_user, settings.smtp_password)
+        s.send_message(msg)
 
 
 async def send(to: str, subject: str, text: str, html: str | None = None) -> bool:
