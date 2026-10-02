@@ -398,3 +398,15 @@ ALTER TABLE leads ADD COLUMN IF NOT EXISTS donor_id int
 -- «удар в заднюю часть, передок целый». Отдельное поле, которое
 -- приёмщик пишет, зная, что его увидят на сайте (/cars/{code}).
 ALTER TABLE donors ADD COLUMN IF NOT EXISTS public_note text;
+
+
+-- ------------------------------------------------------------
+-- Повтор отправки детали из приложения
+-- ------------------------------------------------------------
+-- Wifi в цеху рвётся: запрос с деталью дошёл, ответ потерялся, телефон
+-- отправляет её ещё раз. Без ключа это вторая деталь с новым артикулом
+-- и теми же фото. Ключ придумывает телефон, сервер по нему узнаёт уже
+-- созданную. С сайта ключа нет — там NULL, на уникальность не влияет.
+ALTER TABLE parts ADD COLUMN IF NOT EXISTS client_key uuid;
+CREATE UNIQUE INDEX IF NOT EXISTS parts_client_key_uniq
+    ON parts (client_key) WHERE client_key IS NOT NULL;

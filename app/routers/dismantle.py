@@ -21,6 +21,7 @@ import segno
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import require_role
@@ -232,6 +233,44 @@ async def oem_accuracy(
     return await oem_service.accuracy(session)
 
 
+async def part_by_client_key(session: AsyncSession, key: uuid.UUID) -> dict | None:
+    """Деталь, уже созданная по этому ключу, — в том же виде, что ответ
+    create_part. None — такой ещё не было."""
+    row = (
+        await session.execute(
+            text("""
+        SELECT id, sku, status::text AS status, oem_number FROM parts
+         WHERE client_key = :k
+    """),
+            {"k": key},
+        )
+    ).first()
+    if not row:
+        return None
+    photos = [
+        r.path
+        for r in await session.execute(
+            text("SELECT path FROM part_photos WHERE part_id = :p ORDER BY sort_order"),
+            {"p": row.id},
+        )
+    ]
+    applicability = 0
+    if row.oem_number:
+        applicability = (
+            await session.execute(
+                text("SELECT count(*) FROM oem_applicability WHERE oem_number = :oem"),
+                {"oem": row.oem_number},
+            )
+        ).scalar_one()
+    return {
+        "id": row.id,
+        "sku": row.sku,
+        "status": row.status,
+        "photos": photos,
+        "applicability_rows": applicability,
+    }
+
+
 @router.post("/api/parts", status_code=201)
 async def create_part(
     donor_id: int = Form(...),
@@ -248,6 +287,10 @@ async def create_part(
     price: Decimal | None = Form(None),
     location: str | None = Form(None),
     weight_kg: Decimal | None = Form(None),
+    # Ключ, который придумал телефон. Связь в цеху рвётся: запрос дошёл,
+    # ответ потерялся — приложение шлёт деталь ещё раз. С тем же ключом
+    # сервер отдаёт уже созданную, а не заводит вторую с новым артикулом
+    client_key: str | None = Form(None),
     files: list[UploadFile] = File(default=[]),
     session: AsyncSession = Depends(get_session),
     user=Depends(require_role("dismantler")),
@@ -256,6 +299,15 @@ async def create_part(
         raise HTTPException(422, "Состояние должно быть A, B, C или D")
     if origin not in ORIGINS:
         raise HTTPException(422, "Тип детали: оригинал, ОЕМ или аналог")
+
+    key = None
+    if client_key:
+        try:
+            key = uuid.UUID(client_key)
+        except ValueError:
+            raise HTTPException(422, "Неверный ключ детали") from None
+        if done := await part_by_client_key(session, key):
+            return done
 
     # Атомарный счётчик деталей донора: UPDATE ... RETURNING держит блокировку
     # строки, поэтому два разборщика на одной машине не получат один артикул.
@@ -292,47 +344,57 @@ async def create_part(
     # Без фото — черновик. Каталог такие не показывает.
     status = "in_stock" if files else "draft"
 
-    part_id = (
-        await session.execute(
-            text("""
-        INSERT INTO parts (sku, donor_id, category_id, name, oem_number, condition,
-                           condition_note, price, location, weight_kg, status, published,
-                           oem_source, oem_verified, origin, part_brand,
-                           branch_id)
-        VALUES (:sku, :donor, :cat, :name, :oem, CAST(:cond AS part_condition),
-                :note, :price, :loc, :weight, CAST(:status AS part_status), :pub,
-                -- Откуда номер и сверен ли он с деталью — решает код ниже
-                :oem_source, :oem_verified, :origin, :part_brand,
-                -- Деталь появляется там же, где стоит машина. Дальше её
-                -- можно перевезти, и филиал детали разойдётся с машиной
-                (SELECT branch_id FROM donors WHERE id = :donor))
-        RETURNING id
-    """),
-            {
-                "sku": sku,
-                "donor": donor_id,
-                "cat": category_id,
-                "name": name.strip(),
-                "oem": oem,
-                "cond": condition,
-                "note": condition_note,
-                "price": price,
-                "loc": location,
-                "weight": weight_kg,
-                "status": status,
-                "pub": bool(files and price),
-                "oem_source": (oem_source or "manual") if oem else None,
-                # Сверенным считается только номер, набранный руками с детали.
-                # Принятый из подсказки — эхо источника, а не новое
-                # подтверждение: иначе номер из поиска, сохранённый один раз,
-                # вернулся бы «своей историей» и сам себя подтвердил
-                "oem_verified": bool(oem) and not oem_source,
-                "origin": origin,
-                # У оригинала бренд — это марка машины, отдельно не храним
-                "part_brand": (part_brand or "").strip() or None,
-            },
-        )
-    ).scalar_one()
+    try:
+        part_id = (
+            await session.execute(
+                text("""
+            INSERT INTO parts (sku, donor_id, category_id, name, oem_number, condition,
+                               condition_note, price, location, weight_kg, status, published,
+                               oem_source, oem_verified, origin, part_brand,
+                               branch_id, client_key)
+            VALUES (:sku, :donor, :cat, :name, :oem, CAST(:cond AS part_condition),
+                    :note, :price, :loc, :weight, CAST(:status AS part_status), :pub,
+                    -- Откуда номер и сверен ли он с деталью — решает код ниже
+                    :oem_source, :oem_verified, :origin, :part_brand,
+                    -- Деталь появляется там же, где стоит машина. Дальше её
+                    -- можно перевезти, и филиал детали разойдётся с машиной
+                    (SELECT branch_id FROM donors WHERE id = :donor), :key)
+            RETURNING id
+        """),
+                {
+                    "sku": sku,
+                    "donor": donor_id,
+                    "cat": category_id,
+                    "name": name.strip(),
+                    "oem": oem,
+                    "cond": condition,
+                    "note": condition_note,
+                    "price": price,
+                    "loc": location,
+                    "weight": weight_kg,
+                    "status": status,
+                    "pub": bool(files and price),
+                    "oem_source": (oem_source or "manual") if oem else None,
+                    # Сверенным считается только номер, набранный руками с детали.
+                    # Принятый из подсказки — эхо источника, а не новое
+                    # подтверждение: иначе номер из поиска, сохранённый один раз,
+                    # вернулся бы «своей историей» и сам себя подтвердил
+                    "oem_verified": bool(oem) and not oem_source,
+                    "origin": origin,
+                    # У оригинала бренд — это марка машины, отдельно не храним
+                    "part_brand": (part_brand or "").strip() or None,
+                    "key": key,
+                },
+            )
+        ).scalar_one()
+    except IntegrityError:
+        # Тот же ключ пришёл вторым запросом, пока первый ещё сохранялся
+        # (телефон не дождался ответа и повторил). Первый уже закоммитил —
+        # отдаём его деталь; счётчик артикулов откатится вместе с этим
+        await session.rollback()
+        if key and (done := await part_by_client_key(session, key)):
+            return done
+        raise
 
     # Что предлагали источники и что выбрал человек — разметка, по которой
     # считается точность каждого источника
