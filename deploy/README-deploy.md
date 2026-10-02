@@ -126,6 +126,8 @@ python tools/check_js.py    # в файле поменять B на адрес �
     `POST https://platform-api2.max.ru/subscriptions` с
     `{"url": "{BASE_URL}/auth/max/webhook", "update_types": ["bot_started", "message_callback"], "secret": "…"}`.
 - **Онлайн-оплата** — ЮKassa: `YOOKASSA_SHOP_ID`, `YOOKASSA_SECRET_KEY`;
+  если в ЮKassa подключены чеки (54-ФЗ) — `YOOKASSA_RECEIPTS=true` и ставка
+  `YOOKASSA_VAT_CODE` (1 — без НДС);
   в личном кабинете ЮKassa HTTP-уведомления на `{BASE_URL}/api/payments/yookassa`
   (события `payment.succeeded`, `payment.canceled`). Без ключей заказ
   оплачивается при получении. `PAYMENT_DEMO=true` — учебная оплата без банка,

@@ -596,6 +596,17 @@ async def start_payment(session: AsyncSession, order: dict, method: str,
         return open_one
 
     back = f"{settings.base_url}/account/orders/{order['number']}?paid=1"
+    # Для чека: что продали и куда прислать чек — почта покупателя или
+    # телефон получателя из заказа
+    order = {**order, "items": [dict(r._mapping) for r in await session.execute(text("""
+        SELECT p.name, p.sku, oi.price FROM order_items oi JOIN parts p ON p.id = oi.part_id
+         WHERE oi.order_id = :o ORDER BY oi.id"""), {"o": order["id"]})]}
+    contact = (await session.execute(text("""
+        SELECT c.email, coalesce(o.contact_phone, c.phone) AS phone
+          FROM orders o LEFT JOIN customers c ON c.id = o.customer_id
+         WHERE o.id = :o"""), {"o": order["id"]})).first()
+    if contact:
+        order.update(email=contact.email, phone=contact.phone)
     ext_id, url = await payments.create(order, method, back)
     await session.execute(text("""
         INSERT INTO payments (order_id, method, amount, status, external_id,

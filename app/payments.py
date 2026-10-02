@@ -54,8 +54,38 @@ def _auth() -> tuple[str, str]:
     return settings.yookassa_shop_id, settings.yookassa_secret_key
 
 
+def receipt(order: dict) -> dict | None:
+    """Чек по 54-ФЗ: позиция на каждую деталь и контакт, куда ЮKassa
+    пришлёт чек. Деталь штучная — количество всегда 1. Сумма позиций
+    обязана сойтись с суммой платежа до копейки, поэтому берём цены из
+    order_items — те, что попали в заказ."""
+    if not settings.yookassa_receipts:
+        return None
+    contact = {}
+    if order.get("email"):
+        contact["email"] = order["email"]
+    elif order.get("phone"):
+        contact["phone"] = order["phone"].lstrip("+")    # ЮKassa: 79001234567
+    r = {
+        "customer": contact,
+        "items": [{
+            "description": f"{i['name']} ({i['sku']})"[:128],
+            "quantity": 1,
+            "amount": {"value": f"{Decimal(i['price']):.2f}", "currency": "RUB"},
+            "vat_code": settings.yookassa_vat_code,
+            "payment_mode": "full_payment",
+            "payment_subject": "commodity",
+        } for i in order["items"]],
+    }
+    if settings.yookassa_tax_system_code:
+        r["tax_system_code"] = settings.yookassa_tax_system_code
+    return r
+
+
 async def create(order: dict, method: str, return_url: str) -> tuple[str, str]:
-    """Платёж у провайдера → (id платежа, ссылка на страницу оплаты)."""
+    """Платёж у провайдера → (id платежа, ссылка на страницу оплаты).
+    order: id, number, total, а для чека — items (name, sku, price) и
+    email или phone покупателя."""
     if provider() == "demo":
         pid = "demo-" + uuid.uuid4().hex[:16]
         return pid, f"/pay/demo/{pid}"
@@ -68,6 +98,9 @@ async def create(order: dict, method: str, return_url: str) -> tuple[str, str]:
         "description": f"Заказ № {order['number']}"[:128],
         "metadata": {"order_number": order["number"]},
     }
+    rc = receipt(order)
+    if rc:
+        body["receipt"] = rc
     try:
         async with httpx.AsyncClient(timeout=15) as http:
             r = await http.post(
