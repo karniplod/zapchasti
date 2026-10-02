@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Этикетки полок</title>
+<link rel="stylesheet" href="/static/admin.css?v={{ admin_css_version() }}">
+<link rel="stylesheet" href="{{ asset('css/admin/shelf_labels.css') }}">
+</head>
+<body>
+{% include "admin/_nav.html" %}
+
+<div class="toolbar">
+  <form method="get" class="shelf-form">
+    <label for="codes">Полки</label>
+    <input id="codes" name="codes" value="{{ codes }}" autocomplete="off"
+           placeholder="А-1..А-20, Б-1, Б-2">
+    <button class="btn">Показать</button>
+  </form>
+  <span class="grow"></span>
+  {% if labels %}<button id="print" class="btn btn-accent">Печать ({{ labels|length }})</button>{% endif %}
+</div>
+
+{% if error %}
+  <p class="shelf-hint err">{{ error }}</p>
+{% elif not labels %}
+  <p class="shelf-hint">Через запятую или диапазоном: <b>А-1..А-20</b> — двадцать полок
+     подряд. Этикетку клеят на стеллаж; приложение сотрудника сканирует деталь,
+     потом полку — и место записывается без опечаток.</p>
+{% endif %}
+
+{% if labels %}
+<div class="sheet">
+  {% for l in labels %}
+  <div class="shelf-label">
+    <div class="qr">{{ l.qr|safe }}</div>
+    <div class="body">
+      <div class="cap">Полка</div>
+      <div class="code">{{ l.code }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<script>
+  document.getElementById('print')?.addEventListener('click', () => window.print());
+</script>
+</body>
+</html>

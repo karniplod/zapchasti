@@ -28,13 +28,14 @@ from .routers import (
     admin,
     cars,
     catalog,
+    delivery,
     dismantle,
     intake,
     manage,
-    delivery,
     oauth,
     pages,
     reference,
+    shelves,
     shop,
     staff_app,
     stock,
@@ -92,6 +93,7 @@ app.include_router(admin.router)
 app.include_router(manage.router)
 app.include_router(stock.router)
 app.include_router(staff_app.router)
+app.include_router(shelves.router)
 
 
 # ------------------------------------------------------------------

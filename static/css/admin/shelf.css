@@ -1,0 +1,8 @@
+/* Список на полке: /shelf/<код> — куда ведёт QR полки с обычной камеры */
+
+.shelf-title{margin:16px 0 4px}
+.shelf-hint{color:var(--muted);margin:0 0 16px}
+.shelf-table{border-collapse:collapse;width:100%;max-width:900px}
+.shelf-table th,.shelf-table td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left}
+.shelf-table th{color:var(--muted);font-weight:500}
+.shelf-table .mono{font-family:var(--mono)}

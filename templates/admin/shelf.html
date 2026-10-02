@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Полка {{ code }}</title>
+<link rel="stylesheet" href="/static/admin.css?v={{ admin_css_version() }}">
+<link rel="stylesheet" href="{{ asset('css/admin/shelf.css') }}">
+</head>
+<body>
+{% include "admin/_nav.html" %}
+
+<div class="wrap">
+  <h1 class="shelf-title">Полка {{ code }}</h1>
+  <p class="shelf-hint">
+    {% if parts %}Числится деталей: {{ parts|length }}. Проданные и списанные сюда не попадают.
+    {% else %}На этой полке ничего не числится.{% endif %}
+  </p>
+
+  {% if parts %}
+  <table class="shelf-table">
+    <thead><tr><th>Артикул</th><th>Деталь</th><th>Шт</th><th>Статус</th><th>Филиал</th></tr></thead>
+    <tbody>
+    {% for p in parts %}
+      <tr>
+        <td class="mono"><a href="/parts?q={{ p.sku }}">{{ p.sku }}</a></td>
+        <td>{{ p.name }}</td>
+        <td>{{ p.quantity }}</td>
+        <td>{{ {'draft': 'черновик', 'in_stock': 'на складе', 'reserved': 'в резерве'}[p.status] }}</td>
+        <td>{{ p.branch or '' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+</body>
+</html>
