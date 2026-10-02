@@ -7,15 +7,16 @@ let filter = params.get('f') || '';
 // Из разбора приходят по карандашу: /parts?q=D-0004-0001 — сразу
 // показываем одну деталь, а не весь список
 let q = params.get('q') || '', timer;
+const pager = makePager($('pager'), 'parts', () => load());
 
 $('tabs').onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
   filter = b.dataset.f;
   [...$('tabs').children].forEach(x => x.classList.toggle('on', x === b));
-  load();
+  pager.reset(); load();
 };
 $('q').oninput = () => { clearTimeout(timer);
-  timer = setTimeout(() => { q = $('q').value.trim(); load(); }, 300); };
+  timer = setTimeout(() => { q = $('q').value.trim(); pager.reset(); load(); }, 300); };
 
 const ST = {draft:'черновик',in_stock:'в наличии',reserved:'бронь',
             sold:'продана',written_off:'списана'};
@@ -29,7 +30,9 @@ async function load(){
   else if (ISSUES.includes(filter)) p.set('issue', filter);
   else if (filter) p.set('status', filter);
 
-  const rows = await (await fetch('/api/manage/parts?' + p)).json();
+  const res = await fetch('/api/manage/parts?' + p + '&' + pager.query());
+  const rows = await res.json();
+  pager.show(totalOf(res));
   if (!rows.length){ $('list').innerHTML = '<p class="blank">Ничего не найдено</p>'; return; }
 
   $('list').innerHTML = rows.map(r => {

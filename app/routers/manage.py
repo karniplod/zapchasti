@@ -9,7 +9,7 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
@@ -58,12 +58,18 @@ async def donors_list(
     # Карточка машины в приложении: одна строка, даже если машина старше
     # двухсот последних
     id: int | None = None,
+    response: Response = None,
+    # Страница списка в бэкенде: по 20, 50 или 100. Без параметров —
+    # прежние двести последних, на них рассчитано приложение
+    limit: int = Query(200, ge=1, le=500),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_session),
     user=Depends(current_user),
 ):
     rows = await session.execute(
         text("""
-        SELECT d.id, d.code, d.vin, d.year, d.color, d.status::text AS status,
+        SELECT count(*) OVER () AS total_rows,
+               d.id, d.code, d.vin, d.year, d.color, d.status::text AS status,
                d.accepted_at, d.purchase_price, d.mileage_km, d.plate, d.notes,
                d.public_note,
                d.modification_id, d.generation_id, d.branch_id,
@@ -85,11 +91,24 @@ async def donors_list(
           JOIN brands b      ON b.id = m.brand_id
          WHERE (CAST(:st AS text) IS NULL OR d.status::text = CAST(:st AS text))
            AND (CAST(:id AS int) IS NULL OR d.id = CAST(:id AS int))
-         ORDER BY d.id DESC LIMIT 200
+         ORDER BY d.id DESC LIMIT :lim OFFSET :off
     """),
-        {"st": status, "id": id},
+        {"st": status, "id": id, "lim": limit, "off": offset},
     )
-    return [dict(r._mapping) for r in rows]
+    return paged(rows, response)
+
+
+def paged(rows, response: Response) -> list[dict]:
+    """Строки страницы, а общее число — в заголовке X-Total-Count.
+    В заголовке, а не в теле: приложение сотрудника ждёт простой список,
+    и обёртка {rows, total} сломала бы его старые сборки."""
+    out = [dict(r._mapping) for r in rows]
+    total = out[0]["total_rows"] if out else 0
+    for r in out:
+        r.pop("total_rows")
+    if response is not None:
+        response.headers["X-Total-Count"] = str(total)
+    return out
 
 
 @router.get("/api/manage/parts")
@@ -101,12 +120,16 @@ async def parts_list(
     # Со сводки приходят по конкретной проблеме: без цены, скрытые,
     # без номера, с несверенным номером
     issue: str | None = None,
+    response: Response = None,
+    limit: int = Query(300, ge=1, le=500),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_session),
     user=Depends(current_user),
 ):
     rows = await session.execute(
         text("""
-        SELECT p.id, p.sku, p.name, p.condition::text AS condition, p.price,
+        SELECT count(*) OVER () AS total_rows,
+               p.id, p.sku, p.name, p.condition::text AS condition, p.price,
                p.status::text AS status, p.location, p.published, p.oem_number,
                p.condition_note, p.weight_kg, p.category_id, p.branch_id,
                p.origin, p.part_brand, p.oem_verified,
@@ -144,11 +167,12 @@ async def parts_list(
                     WHEN 'unverified' THEN p.status = 'in_stock'
                                        AND p.oem_number IS NOT NULL AND NOT p.oem_verified
                     ELSE true END)
-         ORDER BY p.id DESC LIMIT 300
+         ORDER BY p.id DESC LIMIT :lim OFFSET :off
     """),
-        {"q": q, "st": status, "d": donor_id, "pr": problems, "issue": issue},
+        {"q": q, "st": status, "d": donor_id, "pr": problems, "issue": issue,
+         "lim": limit, "off": offset},
     )
-    return [dict(r._mapping) for r in rows]
+    return paged(rows, response)
 
 
 class PartPatch(BaseModel):

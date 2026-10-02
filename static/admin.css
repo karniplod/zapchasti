@@ -182,6 +182,21 @@ button{font-family:inherit}
 
 .blank{color:var(--dim);font-size:14px;text-align:center;padding:40px 20px}
 
+/* ── Страницы списка: по 20, 50 или 100 ──────────────────── */
+.pager{display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap;
+  margin:16px 0 8px;font-size:13px;color:var(--dim)}
+.pager:empty{display:none}
+.pager .pg-pages{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.pager .pg-size{margin-left:auto;display:flex;gap:4px;align-items:center}
+.pager button{min-width:34px;height:32px;padding:0 9px;border-radius:7px;
+  background:var(--panel);border:1px solid var(--line);color:var(--muted);
+  font:inherit;cursor:pointer}
+.pager button:hover:not(:disabled){border-color:var(--dim);color:var(--ink)}
+.pager button.on{background:var(--amber);border-color:var(--amber);
+  color:#1a1408;font-weight:600}
+.pager button:disabled{opacity:.35;cursor:default}
+.pager .pg-gap{padding:0 2px}
+
 /* ── Всплывающее уведомление ───────────────────────────── */
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:24px;background:var(--panel-2);
   border:1px solid var(--line);border-radius:10px;padding:12px 18px;font-size:14px;opacity:0;

@@ -2,6 +2,7 @@
 
 const $ = id => document.getElementById(id);
 let status = '';
+const pager = makePager($('pager'), 'donors', () => load());
 
 const STATUSES = {accepted:'принята', dismantling:'в разборе',
                   dismantled:'разобрана', scrapped:'утилизирована'};
@@ -10,13 +11,15 @@ $('tabs').onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
   status = b.dataset.s;
   [...$('tabs').children].forEach(x => x.classList.toggle('on', x === b));
-  load();
+  pager.reset(); load();
 };
 
 const money = v => v ? Number(v).toLocaleString('ru') + ' ₽' : '—';
 
 async function load(){
-  const rows = await (await fetch('/api/manage/donors' + (status ? `?status=${status}` : ''))).json();
+  const res = await fetch('/api/manage/donors?' + (status ? `status=${status}&` : '') + pager.query());
+  const rows = await res.json();
+  pager.show(totalOf(res));
   if (!rows.length){ $('list').innerHTML = '<p class="blank">Машин нет</p>'; return; }
   $('list').innerHTML = rows.map(c => {
     const work = c.status === 'accepted' || c.status === 'dismantling';
