@@ -1,6 +1,6 @@
 {% extends "_base.html" %}
-{% block title %}Корзина{% endblock %}
-{% block description %}Детали, отложенные к покупке.{% endblock %}
+{% block title %}Оформление заказа{% endblock %}
+{% block description %}Детали, отложенные к покупке, и оформление заказа.{% endblock %}
 
 {% block head %}
 <link rel="stylesheet" href="{{ asset('css/shop.css') }}">
@@ -8,10 +8,17 @@
 
 {% macro rub(v) %}{{ "{:,.0f}".format(v).replace(",", " ") }} ₽{% endmacro %}
 
+{#
+  Раскладка как у типовых страниц оформления (Битрикс «Модуляр», inraise):
+  слева разделы по шагам — товары таблицей, получатель, получение, оплата,
+  справа узкая сводка с итогом и кнопкой, она едет вместе со страницей.
+  Цвета и кнопки — свои, из core.css.
+#}
 {% block content %}
 <div class="wrap shop">
+  <p class="crumbs"><a href="/">Главная</a> → Корзина</p>
   <div class="cart-head">
-    <h1>Корзина{% if items %} <span class="cnt">{{ items | length }}</span>{% endif %}</h1>
+    <h1>{{ 'Оформление заказа' if items else 'Корзина' }}</h1>
     {% if items %}<a class="act-link" href="/catalog">← Продолжить покупки</a>{% endif %}
   </div>
 
@@ -42,44 +49,54 @@
   </div>
   {% endif %}
 
-  <div class="cart">
-    <div class="cart-list">
-      {% for i in items %}
-      <div class="cart-row {% if i.status != 'in_stock' %}is-gone{% endif %}"
-           data-part="{{ i.part_id }}" data-gone="{{ 1 if i.status != 'in_stock' else 0 }}">
-        <a class="pic" href="/p/{{ i.sku }}">
-          {% if i.photo %}<img src="{{ i.photo }}" alt="" loading="lazy">
-          {% else %}<span class="none">нет фото</span>{% endif %}
-        </a>
-        <div class="info">
-          <a class="nm" href="/p/{{ i.sku }}">{{ i.name }}</a>
-          <span class="sku mono">{{ i.sku }}</span>
-          <span class="sub">состояние {{ i.condition }}{% if i.branch %} · {{ i.branch }}{% endif %}</span>
-          {% if i.status != 'in_stock' %}<span class="gone-note">уже продана</span>{% endif %}
-        </div>
-        <div class="price">
-          {% if i.price %}{{ rub(i.price) }}
-          {% else %}<span class="ask">по запросу</span>{% endif %}
-        </div>
-        <button class="drop" type="button" title="Убрать" aria-label="Убрать из корзины">×</button>
-      </div>
-      {% endfor %}
-    </div>
+  {% set live = items | selectattr('status', 'equalto', 'in_stock') | list %}
+  <form class="co" id="orderForm" novalidate>
+    <div class="co-main">
 
-    <aside class="checkout">
-      <dl class="sum-lines">
-        <dt>Детали</dt><dd>{{ rub(total) }}</dd>
-        <dt>Получение</dt><dd id="shipLine">бесплатно, самовывоз</dd>
-      </dl>
-      <div class="sum">
-        <span>К оплате</span>
-        <b>{{ rub(total) }}</b>
-      </div>
+      {# ── 1. Товары ─────────────────────────────────────────── #}
+      <section class="co-card">
+        <h2><span class="co-n">1</span>Товары в заказе
+          <small>{{ items | length }} {{ items | length | plural('деталь', 'детали', 'деталей') }}</small></h2>
+        <table class="co-items">
+          <thead>
+            <tr><th colspan="2">Деталь</th><th>Состояние</th><th>Кол-во</th>
+                <th class="num">Цена</th><th><span class="sr">Убрать</span></th></tr>
+          </thead>
+          <tbody>
+          {% for i in items %}
+          <tr class="cart-row {% if i.status != 'in_stock' %}is-gone{% endif %}"
+              data-part="{{ i.part_id }}" data-gone="{{ 1 if i.status != 'in_stock' else 0 }}">
+            <td class="c-pic"><a class="pic" href="/p/{{ i.sku }}">
+              {% if i.photo %}<img src="{{ i.photo }}" alt="" loading="lazy">
+              {% else %}<span class="none">нет фото</span>{% endif %}</a></td>
+            <td class="c-nm">
+              <a class="nm" href="/p/{{ i.sku }}">{{ i.name }}</a>
+              <span class="sub"><span class="mono">{{ i.sku }}</span>{% if i.branch %} · {{ i.branch }}{% endif %}</span>
+              {% if i.status != 'in_stock' %}<span class="gone-note">уже продана</span>{% endif %}
+            </td>
+            <td class="c-cond"><span class="cond-badge">{{ i.condition }}</span></td>
+            {# Деталь штучная — количества нет, но столбец оставлен: так
+               таблица читается привычно, как в любом магазине #}
+            <td class="c-qty">1 шт</td>
+            <td class="c-price num">
+              {% if i.price %}{{ rub(i.price) }}{% else %}<span class="ask">по запросу</span>{% endif %}
+            </td>
+            <td class="c-drop"><button class="drop" type="button" title="Убрать"
+                aria-label="Убрать {{ i.name }} из корзины">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12M8 6V4h4v2m-6 0l.7 10h6.6L14 6"
+                fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button></td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </section>
 
       {% if customer %}
-      <form id="orderForm" novalidate data-online="{{ 1 if methods else 0 }}">
-        <fieldset>
-          <legend>Получатель</legend>
+      {# ── 2. Получатель ─────────────────────────────────────── #}
+      <section class="co-card">
+        <h2><span class="co-n">2</span>Получатель</h2>
+        <div class="co-grid">
           <div class="fld">
             <label for="cname">Имя</label>
             <input class="field" id="cname" autocomplete="name" maxlength="80"
@@ -91,83 +108,111 @@
                    placeholder="+7 900 000-00-00" maxlength="18"
                    value="{{ customer.phone or '' }}" required>
           </div>
-        </fieldset>
+        </div>
+      </section>
 
-        <fieldset>
-          <legend>Как получить</legend>
-          <div class="choice" role="radiogroup">
-            <label class="opt"><input type="radio" name="dm" value="pickup" checked>
-              <span><b>Самовывоз</b><small>бесплатно, из филиала</small></span></label>
-            <label class="opt"><input type="radio" name="dm" value="shipping">
-              <span><b>Доставка</b><small>транспортной компанией</small></span></label>
-          </div>
-
-          <div class="fld" id="pickupBox">
-            <label for="branch">Филиал</label>
-            <select class="field" id="branch">
-              {% for b in branches %}
-              <option value="{{ b.id }}" {% if b.id == pickup %}selected{% endif %}>{{ b.label }}</option>
-              {% endfor %}
-            </select>
-            {% if spread %}<p class="hint">Детали лежат в разных филиалах — соберём
-              заказ в выбранном, перевоз займёт несколько дней.</p>{% endif %}
-          </div>
-
-          <div class="fld" id="addrBox" hidden>
-            <label for="addr">Адрес доставки</label>
-            <textarea class="field" id="addr" rows="2" maxlength="500"
-                      placeholder="Город, улица, дом или пункт выдачи ТК"></textarea>
-            <p class="hint">Доставку оплачиваете в транспортной компании по её тарифу.</p>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend>Оплата</legend>
-          <div class="choice" role="radiogroup">
-            {% if methods %}
-            <label class="opt"><input type="radio" name="pm" value="online" checked>
-              <span><b>Онлайн</b><small>картой или СБП</small></span></label>
-            {% endif %}
-            <label class="opt"><input type="radio" name="pm" value="on_receipt"
-                   {% if not methods %}checked{% endif %}>
-              <span><b>При получении</b><small>наличными или картой</small></span></label>
-          </div>
-          {% if methods %}
-          <div class="fld" id="payWithBox">
-            <label for="payWith">Чем платить</label>
-            <select class="field" id="payWith">
-              {% for m in methods %}<option value="{{ m.code }}">{{ m.title }}</option>{% endfor %}
-            </select>
-          </div>
-          {% endif %}
-        </fieldset>
-
-        <div class="fld">
-          <label for="cmt">Комментарий</label>
-          <textarea class="field" id="cmt" rows="2" maxlength="1000"
-                    placeholder="Необязательно"></textarea>
+      {# ── 3. Получение ──────────────────────────────────────── #}
+      <section class="co-card">
+        <h2><span class="co-n">3</span>Получение</h2>
+        <div class="co-tiles" role="radiogroup" aria-label="Как получить">
+          <label class="tile"><input type="radio" name="dm" value="pickup" checked
+                 data-label="Самовывоз">
+            <span><b>Самовывоз</b>
+              <small>Бесплатно. Забираете в филиале — деталь можно осмотреть до оплаты.</small></span></label>
+          <label class="tile"><input type="radio" name="dm" value="shipping"
+                 data-label="Доставка ТК">
+            <span><b>Доставка транспортной компанией</b>
+              <small>В ваш город. Стоимость — по тарифу ТК, оплачивается при получении.</small></span></label>
         </div>
 
-        <label class="agree">
-          <input type="checkbox" id="agree">
-          <span>Согласен на обработку персональных данных для оформления и доставки
-            заказа по <a href="/privacy" target="_blank">политике конфиденциальности</a></span>
-        </label>
-        <p class="fld-err" id="agreeErr" hidden></p>
+        <div class="fld" id="pickupBox">
+          <label for="branch">Филиал</label>
+          <select class="field" id="branch">
+            {% for b in branches %}
+            <option value="{{ b.id }}" {% if b.id == pickup %}selected{% endif %}>{{ b.label }}</option>
+            {% endfor %}
+          </select>
+          {% if spread %}<p class="hint">Детали лежат в разных филиалах — соберём
+            заказ в выбранном, перевоз займёт несколько дней.</p>{% endif %}
+        </div>
 
+        <div class="fld" id="addrBox" hidden>
+          <label for="addr">Адрес доставки</label>
+          <textarea class="field" id="addr" rows="2" maxlength="500"
+                    placeholder="Город, улица, дом или пункт выдачи ТК"></textarea>
+        </div>
+      </section>
+
+      {# ── 4. Оплата ─────────────────────────────────────────── #}
+      <section class="co-card">
+        <h2><span class="co-n">4</span>Оплата</h2>
+        <div class="co-tiles" role="radiogroup" aria-label="Способ оплаты">
+          {% for m in methods %}
+          <label class="tile"><input type="radio" name="pm" value="{{ m.code }}"
+                 data-label="{{ m.title }}" {% if loop.first %}checked{% endif %}>
+            <span><b>{{ m.title }}</b><small>{{ m.hint }}. Онлайн, сразу после оформления.</small></span></label>
+          {% endfor %}
+          <label class="tile"><input type="radio" name="pm" value="on_receipt"
+                 data-label="При получении" {% if not methods %}checked{% endif %}>
+            <span><b>При получении</b><small>Наличными или картой — в филиале или курьеру ТК.</small></span></label>
+        </div>
+      </section>
+
+      {# ── 5. Комментарий ────────────────────────────────────── #}
+      <section class="co-card">
+        <h2><span class="co-n">5</span>Комментарий к заказу</h2>
+        <div class="fld">
+          <label for="cmt" class="sr">Комментарий</label>
+          <textarea class="field" id="cmt" rows="3" maxlength="1000"
+                    placeholder="Необязательно: удобное время, что проверить перед отправкой"></textarea>
+        </div>
+      </section>
+      {% else %}
+      <section class="co-card co-login">
+        <h2><span class="co-n">2</span>Вход</h2>
+        <p>Чтобы оформить заказ, войдите — так покупка попадёт в вашу историю,
+          а деталь закрепится за вами. Войти можно и через соцсети — без пароля.</p>
+        <a class="btn btn-primary" href="/account/login?next=/cart">Войти или создать кабинет</a>
+      </section>
+      {% endif %}
+    </div>
+
+    {# ── Сводка ─────────────────────────────────────────────── #}
+    <aside class="co-side">
+      <div class="co-sum">
+        {% if customer %}
+        <dl class="co-picked">
+          <dt>Получение:</dt><dd id="sumShip">Самовывоз</dd>
+          <dt>Оплата:</dt><dd id="sumPay">{{ methods[0].title if methods else 'При получении' }}</dd>
+        </dl>
+        {% endif %}
+        <dl class="sum-lines">
+          <dt>{{ live | length }} {{ live | length | plural('деталь', 'детали', 'деталей') }}</dt><dd>{{ rub(total) }}</dd>
+          <dt>Доставка</dt><dd id="shipLine">бесплатно</dd>
+        </dl>
+        <div class="sum">
+          <span>Итого</span>
+          <b>{{ rub(total) }}</b>
+        </div>
+        {% if customer %}
         <button class="btn btn-primary" id="place" type="submit"
                 {% if not total %}disabled{% endif %}>Оформить заказ</button>
-        <p class="hint">Деталь закрепится за вами сразу после оформления.</p>
-      </form>
-      {% else %}
-      <div class="notice notice-accent">
-        Чтобы оформить заказ, войдите — так покупка попадёт в вашу историю,
-        а деталь закрепится за вами.
+        {% else %}
+        <a class="btn btn-primary" href="/account/login?next=/cart">Войти и оформить</a>
+        {% endif %}
       </div>
-      <a class="btn btn-primary" href="/account/login?next=/cart">Войти или создать кабинет</a>
+
+      {% if customer %}
+      <label class="agree">
+        <input type="checkbox" id="agree">
+        <span>Согласен на обработку персональных данных для оформления и доставки
+          заказа по <a href="/privacy" target="_blank">политике конфиденциальности</a></span>
+      </label>
+      <p class="fld-err" id="agreeErr" hidden></p>
+      <p class="hint">Деталь закрепится за вами сразу после оформления.</p>
       {% endif %}
     </aside>
-  </div>
+  </form>
   {% endif %}
 </div>
 

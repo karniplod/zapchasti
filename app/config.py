@@ -109,6 +109,17 @@ class Settings(BaseSettings):
     yookassa_vat_code: int = 1
     # Система налогообложения 1–6; нужна, только если их у магазина несколько
     yookassa_tax_system_code: int | None = None
+    # Робокасса (robokassa.com): логин магазина и пароли №1 и №2 из
+    # «Технических настроек». ResultURL — {base_url}/api/payments/robokassa/result
+    # (POST), Success/Fail — {base_url}/pay/robokassa/success и /fail (GET),
+    # алгоритм подписи — MD5. ROBOKASSA_TEST=true — тестовые платежи
+    robokassa_login: str = ""
+    robokassa_password1: str = ""
+    robokassa_password2: str = ""
+    robokassa_test: bool = False
+    # Показывать «Робокассу» покупателю, пока ключей нет: заказ
+    # оформляется, а оплатить предлагаем при получении
+    robokassa_preview: bool = True
     # Учебная оплата без банка: страница с кнопками «оплатить / отказаться».
     # Только для проверки на стенде — на рабочем сайте не включать
     payment_demo: bool = False

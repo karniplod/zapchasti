@@ -31,7 +31,7 @@ NAME_RE = ca.NAME_RE
 # Способы онлайн-оплаты — из app/payments.py: без ключей ЮKassa список
 # пуст, и заказ оплачивается при получении, а менеджер отмечает оплату
 # в бэкенде
-PAYMENT_LABELS = {"online": "онлайн, картой или СБП", "on_receipt": "при получении"}
+PAYMENT_LABELS = {"online": "онлайн", "on_receipt": "при получении"}
 PAYMENT_STATUS = {"pending": "ожидает оплаты", "paid": "оплачен", "failed": "не прошёл"}
 
 ORDER_LABELS = {
@@ -495,7 +495,7 @@ async def create_order(
     if payload.payment_method not in PAYMENT_LABELS:
         raise HTTPException(422, "Выберите способ оплаты")
     online = payload.payment_method == "online"
-    if online and not any(m["code"] == payload.pay_with for m in payments.methods()):
+    if online and not payments.method(payload.pay_with or ""):
         raise HTTPException(422, "Онлайн-оплата сейчас недоступна — выберите оплату при получении")
     if not payload.agree:
         raise HTTPException(422, "Нужно согласие на обработку персональных данных")
@@ -585,7 +585,10 @@ async def start_payment(session: AsyncSession, order: dict, method: str,
                         request: Request) -> str:
     """Платёж у провайдера и строка в payments → ссылка, куда уйти платить.
     Незакрытый платёж тем же способом не плодим — отдаём его ссылку."""
-    kind = payments.provider()
+    m = payments.method(method)
+    if not m:
+        raise payments.PaymentError("Этот способ оплаты сейчас недоступен")
+    kind = m["provider"]
     open_one = (await session.execute(text("""
         SELECT confirmation_url FROM payments
          WHERE order_id = :o AND method = :m AND provider = :pr AND status = 'pending'
@@ -607,13 +610,28 @@ async def start_payment(session: AsyncSession, order: dict, method: str,
          WHERE o.id = :o"""), {"o": order["id"]})).first()
     if contact:
         order.update(email=contact.email, phone=contact.phone)
-    ext_id, url = await payments.create(order, method, back)
+    # Строка платежа — до похода к провайдеру: её номер нужен Робокассе
+    # как номер счёта. Провайдер не ответил — строку убираем
+    pay_id = (await session.execute(text("""
+        INSERT INTO payments (order_id, method, amount, status, provider)
+        VALUES (:o, :m, :a, 'pending', :pr) RETURNING id"""),
+        {"o": order["id"], "m": method, "a": order["total"], "pr": kind})).scalar_one()
+    await session.commit()
+    try:
+        ext_id, url = await payments.create(order, method, back, pay_id)
+    except payments.PaymentError:
+        await session.execute(text("DELETE FROM payments WHERE id = :id"), {"id": pay_id})
+        await session.commit()
+        raise
+    if ext_id == "rk-preview":
+        # Робокасса ещё не подключена — платежа не было, в истории
+        # заказа ему нечего делать
+        await session.execute(text("DELETE FROM payments WHERE id = :id"), {"id": pay_id})
+        await session.commit()
+        return f"/pay/robokassa/preview/{order['number']}"
     await session.execute(text("""
-        INSERT INTO payments (order_id, method, amount, status, external_id,
-                              confirmation_url, provider)
-        VALUES (:o, :m, :a, 'pending', :x, :u, :pr)"""),
-        {"o": order["id"], "m": method, "a": order["total"], "x": ext_id,
-         "u": url, "pr": kind})
+        UPDATE payments SET external_id = :x, confirmation_url = :u WHERE id = :id"""),
+        {"x": ext_id, "u": url, "id": pay_id})
     await session.commit()
     return url
 
@@ -773,8 +791,7 @@ async def order_page(
 
     attempts = [
         {**dict(r._mapping),
-         "method_label": next((m["title"] for m in payments.METHODS
-                               if m["code"] == r.method), r.method),
+         "method_label": payments.title_of(r.method),
          "status_label": PAYMENT_STATUS.get(r.status, r.status)}
         for r in await session.execute(
             text("""
@@ -830,7 +847,7 @@ async def pay(
         raise HTTPException(404, "Заказ не найден")
     if order.status not in ("new", "confirmed"):
         raise HTTPException(409, "Этот заказ уже оплачен или отменён")
-    if not any(m["code"] == payload.method for m in payments.methods()):
+    if not payments.method(payload.method):
         raise HTTPException(
             501,
             "Онлайн-оплата пока не подключена. Менеджер примет оплату "
@@ -847,7 +864,7 @@ async def pay(
 async def yookassa_notify(request: Request, session: AsyncSession = Depends(get_session)):
     """Уведомление ЮKassa. Телу не верим — берём из него только id
     платежа и спрашиваем статус у самой ЮKassa."""
-    if payments.provider() != "yookassa":
+    if not payments.yookassa_ready():
         raise HTTPException(404)
     try:
         ext_id = str((await request.json())["object"]["id"])
@@ -867,7 +884,7 @@ async def yookassa_notify(request: Request, session: AsyncSession = Depends(get_
 
 
 async def demo_payment(session: AsyncSession, ext_id: str, customer: dict):
-    if payments.provider() != "demo":
+    if not settings.payment_demo:
         raise HTTPException(404)
     row = (await session.execute(text("""
         SELECT pm.id, pm.amount, pm.status, pm.method, o.number
@@ -889,8 +906,7 @@ async def demo_page(
     row = await demo_payment(session, ext_id, customer)
     return templates.TemplateResponse("shop/pay_demo.html", {
         "request": request, "user": None, "customer": customer, "p": row,
-        "method": next((m["title"] for m in payments.METHODS if m["code"] == row.method),
-                       row.method),
+        "method": payments.title_of(row.method),
     })
 
 
@@ -908,3 +924,78 @@ async def demo_finish(
     row = await demo_payment(session, ext_id, customer)
     await payments.settle(session, row.id, payload.result)
     return {"redirect_url": f"/account/orders/{row.number}?paid=1"}
+
+
+# ------------------------------------------------------------------
+# Робокасса
+# ------------------------------------------------------------------
+
+
+@router.api_route("/api/payments/robokassa/result", methods=["GET", "POST"])
+async def robokassa_result(request: Request, session: AsyncSession = Depends(get_session)):
+    """ResultURL: Робокасса сообщает об оплате. Подпись — паролем №2;
+    сумма должна совпасть с платежом. Ответ «OK<номер>» — так Робокасса
+    понимает, что уведомление принято, и перестаёт его повторять."""
+    if not payments.robokassa_ready():
+        raise HTTPException(404)
+    data = dict(request.query_params)
+    if request.method == "POST":
+        data.update({k: v for k, v in (await request.form()).items()})
+    out_sum, inv_id = data.get("OutSum", ""), data.get("InvId", "")
+    if not payments.robokassa_result_ok(out_sum, inv_id, data.get("SignatureValue", "")):
+        return Response("bad sign", status_code=400, media_type="text/plain")
+    row = (await session.execute(text("""
+        SELECT id, amount FROM payments
+         WHERE provider = 'robokassa' AND id = :id"""),
+        {"id": int(inv_id) if inv_id.isdigit() else 0})).first()
+    if not row or payments.robokassa_sum(row.amount) != payments.robokassa_sum(out_sum):
+        return Response("unknown invoice", status_code=400, media_type="text/plain")
+    await payments.settle(session, row.id, "paid")
+    return Response(f"OK{inv_id}", media_type="text/plain")
+
+
+async def robokassa_order_number(session: AsyncSession, inv_id: str) -> str | None:
+    if not inv_id.isdigit():
+        return None
+    return (await session.execute(text("""
+        SELECT o.number FROM payments p JOIN orders o ON o.id = p.order_id
+         WHERE p.provider = 'robokassa' AND p.id = :id"""), {"id": int(inv_id)})).scalar()
+
+
+@router.get("/pay/robokassa/success")
+async def robokassa_success(InvId: str = "", session: AsyncSession = Depends(get_session)):
+    """Человек вернулся после оплаты. Статус здесь не меняем — его
+    отмечает ResultURL; страница заказа покажет «проверяем оплату»."""
+    number = await robokassa_order_number(session, InvId)
+    return RedirectResponse(f"/account/orders/{number}?paid=1" if number else "/account",
+                            status_code=303)
+
+
+@router.get("/pay/robokassa/fail")
+async def robokassa_fail(InvId: str = "", session: AsyncSession = Depends(get_session)):
+    """Человек отказался от оплаты или она не прошла."""
+    number = await robokassa_order_number(session, InvId)
+    if number:
+        await payments.settle(session, int(InvId), "failed")
+    return RedirectResponse(f"/account/orders/{number}?paid=1" if number else "/account",
+                            status_code=303)
+
+
+@router.get("/pay/robokassa/preview/{number}", response_class=HTMLResponse)
+async def robokassa_preview(
+    number: str,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+    customer: dict = Depends(ca.current_customer),
+):
+    """Робокасса выбрана, а ключей ещё нет: заказ оформлен и закреплён
+    за покупателем, оплатить — при получении или позже со страницы заказа."""
+    row = (await session.execute(text("""
+        SELECT number, total AS amount FROM orders WHERE number = :n AND customer_id = :c"""),
+        {"n": number, "c": customer["id"]})).first()
+    if not row:
+        raise HTTPException(404, "Заказ не найден")
+    return templates.TemplateResponse("shop/pay_robokassa_preview.html", {
+        "request": request, "user": None, "customer": customer, "p": row,
+    })
+

@@ -1,0 +1,29 @@
+{% extends "_base.html" %}
+{% block title %}Оплата через Робокассу{% endblock %}
+{% block description %}Оплата заказа через Робокассу.{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ asset('css/shop.css') }}">
+{% endblock %}
+
+{% block content %}
+{# Робокасса выбрана, а магазин в ней ещё не подключён (нет ключей в .env).
+   Заказ при этом оформлен и детали закреплены за покупателем #}
+<div class="wrap shop narrow">
+  <h1>Заказ № {{ p.number }} оформлен</h1>
+  <div class="demo-pay">
+    <div class="notice notice-warn"><b>Оплата через Робокассу скоро заработает.</b>
+      Мы подключаем её прямо сейчас. Заказ уже ваш: детали сняты с витрины
+      и закреплены за вами.</div>
+    <div><span class="hint">К оплате</span>
+      <div class="amount">{{ "{:,.0f}".format(p.amount).replace(",", " ") }} ₽</div></div>
+    <p>Оплатить можно при получении — наличными или картой. Или зайдите
+      на страницу заказа позже: как только Робокасса заработает, там
+      появится кнопка оплаты.</p>
+    <div class="row">
+      <a class="btn btn-primary" href="/account/orders/{{ p.number }}">К заказу</a>
+      <a class="btn btn-ghost" href="/catalog">В каталог</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

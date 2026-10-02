@@ -21,21 +21,28 @@ const dropGone = $('dropGone');
 if (dropGone) dropGone.onclick = () => drop(
   [...document.querySelectorAll('.cart-row[data-gone="1"]')].map(r => r.dataset.part));
 
+// Без входа на странице только товары — оформлять нечего
 const form = $('orderForm');
-if (form){
-  const val = name => (form.querySelector(`input[name=${name}]:checked`) || {}).value;
+if (form && $('cname')){
+  const picked = name => form.querySelector(`input[name=${name}]:checked`);
+  const val = name => (picked(name) || {}).value;
 
   // Самовывоз — филиал, доставка — адрес; лишнее прячем, а не отключаем:
-  // поле, которое не нужно заполнять, не должно попадаться на глаза
+  // поле, которое не нужно заполнять, не должно попадаться на глаза.
+  // Сводка справа повторяет выбор — его видно рядом с итогом и кнопкой
   const sync = () => {
     const ship = val('dm') === 'shipping';
     $('pickupBox').hidden = ship;
     $('addrBox').hidden = !ship;
-    $('shipLine').textContent = ship ? 'по тарифу ТК, при получении' : 'бесплатно, самовывоз';
-    if ($('payWithBox')) $('payWithBox').hidden = val('pm') !== 'online';
-    $('place').textContent = val('pm') === 'online' ? 'Оформить и оплатить' : 'Оформить заказ';
+    $('shipLine').textContent = ship ? 'по тарифу ТК' : 'бесплатно';
+    const br = $('branch').selectedOptions[0];
+    $('sumShip').textContent = ship ? 'Доставка ТК' : 'Самовывоз' + (br ? ' — ' + br.text : '');
+    $('sumPay').textContent = picked('pm') ? picked('pm').dataset.label : '';
+    $('place').textContent = val('pm') && val('pm') !== 'on_receipt'
+      ? 'Оформить и оплатить' : 'Оформить заказ';
   };
   form.querySelectorAll('input[type=radio]').forEach(r => r.onchange = sync);
+  $('branch').onchange = sync;
   sync();
 
   phoneMask($('cphone'));
@@ -64,6 +71,7 @@ if (form){
     $('place').disabled = true;
     try {
       const ship = val('dm') === 'shipping';
+      const pm = val('pm');
       const r = await fetch('/api/orders', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
@@ -72,14 +80,14 @@ if (form){
           delivery_method: val('dm'),
           pickup_branch_id: ship ? null : +$('branch').value,
           delivery_address: ship ? $('addr').value.trim() : null,
-          payment_method: val('pm'),
-          pay_with: $('payWith') ? $('payWith').value : null,
+          payment_method: pm === 'on_receipt' ? 'on_receipt' : 'online',
+          pay_with: pm === 'on_receipt' ? null : pm,
           comment: $('cmt').value.trim() || null,
           agree: true,
         })});
       const d = await r.json().catch(() => ({}));
       if (r.ok){
-        // Онлайн — сразу к банку; банк не ответил — на страницу заказа,
+        // Онлайн — сразу к оплате; банк не ответил — на страницу заказа,
         // оплатить можно оттуда
         location.href = d.redirect_url || ('/account/orders/' + d.number
           + (d.payment_error ? '?payerr=1' : ''));

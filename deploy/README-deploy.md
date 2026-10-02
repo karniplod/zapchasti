@@ -132,6 +132,13 @@ python tools/check_js.py    # в файле поменять B на адрес �
   (события `payment.succeeded`, `payment.canceled`). Без ключей заказ
   оплачивается при получении. `PAYMENT_DEMO=true` — учебная оплата без банка,
   только для стенда.
+- **Робокасса** — `ROBOKASSA_LOGIN`, `ROBOKASSA_PASSWORD1`, `ROBOKASSA_PASSWORD2`
+  (технические настройки магазина, алгоритм MD5), `ROBOKASSA_TEST=true` для
+  тестовых платежей. В кабинете Робокассы: Result URL
+  `{BASE_URL}/api/payments/robokassa/result` (POST), Success URL
+  `{BASE_URL}/pay/robokassa/success`, Fail URL `{BASE_URL}/pay/robokassa/fail` (GET).
+  Пока ключей нет, способ виден покупателю (`ROBOKASSA_PREVIEW=true`): заказ
+  оформляется, оплатить предлагаем при получении.
 - **Тестовые данные** (11 машин, 57 деталей) на бою не нужны. Если их
   залили для показа, убрать:
   `sudo -u razbor venv/bin/python -m app.scripts.seed_test_data --remove --apply`
