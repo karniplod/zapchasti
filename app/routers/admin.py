@@ -13,14 +13,10 @@ from ..templating import templates
 router = APIRouter(tags=["admin"])
 
 
-@router.get("/admin", response_class=HTMLResponse)
-async def dashboard(
-    request: Request,
-    user: dict = Depends(current_user),
-    session: AsyncSession = Depends(get_session),
-):
+async def summary_counts(session: AsyncSession) -> dict:
+    """Цифры сводки — и для страницы /admin, и для приложения сотрудника."""
     # Одним запросом — иначе полтора десятка round-trip'ов на открытие
-    s = (
+    row = (
         (
             await session.execute(
                 text("""
@@ -52,6 +48,16 @@ async def dashboard(
         .mappings()
         .first()
     )
+    return dict(row)
+
+
+@router.get("/admin", response_class=HTMLResponse)
+async def dashboard(
+    request: Request,
+    user: dict = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    s = await summary_counts(session)
 
     active = [
         dict(r)
@@ -87,6 +93,16 @@ async def dashboard(
             "empty": s["brands"] == 0 or s["categories"] == 0,
         },
     )
+
+
+@router.get("/api/admin/summary")
+async def summary_api(
+    user: dict = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Сводка для приложения: что требует внимания сегодня. Те же цифры,
+    что на /admin, — чтобы телефон и сайт не расходились."""
+    return await summary_counts(session)
 
 
 # ------------------------------------------------------------------
