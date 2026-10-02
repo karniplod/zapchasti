@@ -74,6 +74,7 @@ async function load(){
           ? `<button class="btn pub">${r.published ? 'Убрать из каталога' : 'Показать в каталоге'}</button>`
           : ''}
         <button class="btn btn-danger del">Удалить</button>
+        <a class="btn" href="/parts/${r.id}/label" target="_blank">Этикетка</a>
         <a class="act-link" href="/p/${r.sku}" target="_blank">Карточка ↗</a>
       </div>
     </div>`;

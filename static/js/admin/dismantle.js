@@ -258,6 +258,16 @@ async function loadParts(){
         <div class="sub">${p.sku}${p.location ? ' · ' + p.location : ''}</div>
       </div>
       <div class="pr">${p.price ? Number(p.price).toLocaleString('ru') + ' ₽' : '—'}</div>
+      <a class="qr-link" href="/parts/${p.id}/label" target="_blank"
+         title="Этикетка" aria-label="Этикетка детали">
+        <svg viewBox="0 0 20 20" aria-hidden="true" fill="none"
+             stroke="currentColor" stroke-width="1.6">
+          <rect x="2.5" y="2.5" width="5.5" height="5.5"/>
+          <rect x="12" y="2.5" width="5.5" height="5.5"/>
+          <rect x="2.5" y="12" width="5.5" height="5.5"/>
+          <path d="M12 12h2.5v2.5H12zM15 15h2.5v2.5H15zM15 12h2.5M12 15v2.5"/>
+        </svg>
+      </a>
       <!-- Правка живёт на странице деталей: там весь редактор целиком,
            тащить его в рабочее место разборщика незачем -->
       <a class="edit-link" href="/parts?q=${encodeURIComponent(p.sku)}"

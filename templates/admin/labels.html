@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<title>Этикетки {{ donor.code }}</title>
+<title>{{ title }}</title>
 <link rel="stylesheet" href="/static/admin.css?v={{ admin_css_version() }}">
 {# Длинные списки (марки, модели, категории) получают поиск;
    без скрипта остаются обычными системными списками #}
@@ -10,14 +10,15 @@
 <script defer src="{{ asset('js/combo.js') }}"></script>
 <link rel="stylesheet" href="{{ asset('css/admin/labels.css') }}">
 </head>
-<body data-donor-id="{{ donor.id }}" data-ids="{{ labels | map(attribute='id') | join(',') }}">
+<body data-ids="{{ labels | map(attribute='id') | join(',') }}">
 {% include "admin/_nav.html" %}
 
 
 <div class="toolbar">
-  <span>Этикетки — <b>{{ donor.code }}</b> {{ donor.brand }} {{ donor.model }}</span>
+  <span>{{ 'Этикетка' if labels|length == 1 and not reprint_url else 'Этикетки' }} —
+    <b>{{ heading }}</b> {{ subheading }}</span>
   <span class="grow"></span>
-  <a href="?only_new=false">Печатать все, включая напечатанные</a>
+  {% if reprint_url %}<a href="{{ reprint_url }}">Печатать все, включая напечатанные</a>{% endif %}
   <button id="print">Печать ({{ labels|length }})</button>
 </div>
 
@@ -32,7 +33,7 @@
       <div class="cat">{{ l.category }}</div>
       <div class="foot">
         <span class="cond">{{ l.condition }}</span>
-        <span class="car">{{ donor.brand }} {{ donor.model }}{% if donor.year %} {{ donor.year }}{% endif %}</span>
+        <span class="car">{{ l.car }}</span>
         {% if l.location %}<span>{{ l.location }}</span>{% endif %}
       </div>
     </div>

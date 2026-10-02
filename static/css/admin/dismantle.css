@@ -33,6 +33,10 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
    читалась как одно действие «править / удалить» */
 .part .edit-link{display:flex;align-items:center;color:var(--dim);padding:6px}
 .part .edit-link:hover{color:var(--ink)}
+/* Этикетка детали — открывается в новой вкладке, разбор не теряется */
+.part .qr-link{display:flex;align-items:center;color:var(--dim);padding:6px}
+.part .qr-link:hover{color:var(--amber)}
+.part .qr-link svg{width:20px;height:20px}
 .part .edit-link svg{width:17px;height:17px;display:block}
 .part .del:hover{color:var(--err)}
 

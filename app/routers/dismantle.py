@@ -525,21 +525,97 @@ async def print_labels(
         {"d": donor_id, "all": not only_new},
     )
 
-    labels = []
-    for r in rows:
-        # Домен из настроек, как в sitemap: этикетка живёт на детали годами,
-        # и QR с заглушкой вместо адреса уже не перепечатать незаметно
-        url = f"{settings.base_url}/p/{r.sku}"
-        labels.append({**dict(r._mapping), "qr": qr_svg(url), "url": url})
+    car = f"{donor['brand']} {donor['model']}" + (f" {donor['year']}" if donor["year"] else "")
+    labels = [label_of(r, car) for r in rows]
 
     return templates.TemplateResponse(
         "admin/labels.html",
         {
             "request": request,
-            "donor": donor,
+            "title": f"Этикетки {donor['code']}",
+            "heading": donor["code"],
+            "subheading": f"{donor['brand']} {donor['model']}",
             "labels": labels,
+            "reprint_url": "?only_new=false",
         },
     )
+
+
+def label_of(r, car: str) -> dict:
+    """Данные одной этикетки. Домен из настроек, как в sitemap: этикетка
+    живёт на детали годами, и QR с заглушкой вместо адреса уже не
+    перепечатать незаметно."""
+    url = f"{settings.base_url}/p/{r.sku}"
+    return {**dict(r._mapping), "qr": qr_svg(url), "url": url, "car": car}
+
+
+@router.get("/parts/{part_id}/label", response_class=HTMLResponse)
+async def print_part_label(
+    part_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+    user=Depends(require_role("dismantler")),
+):
+    """Этикетка одной детали — из списка деталей и со страницы разбора.
+    Работает и для детали без машины (куплена б/у, новая): вместо машины
+    на этикетке первая модель из применимости."""
+    r = (await session.execute(text("""
+        SELECT p.id, p.sku, p.name, p.condition::text AS condition,
+               p.location, c.name AS category,
+               b.name AS d_brand, m.name AS d_model, d.year AS d_year,
+               fit.label AS fit, fit.cnt AS fit_cnt
+          FROM parts p
+          JOIN part_categories c ON c.id = p.category_id
+          LEFT JOIN donors d      ON d.id = p.donor_id
+          LEFT JOIN generations g ON g.id = d.generation_id
+          LEFT JOIN models m      ON m.id = g.model_id
+          LEFT JOIN brands b      ON b.id = m.brand_id
+          LEFT JOIN LATERAL (
+                SELECT min(b2.name || ' ' || m2.name) AS label, count(*) AS cnt
+                  FROM part_applicability pa
+                  JOIN generations g2 ON g2.id = pa.generation_id
+                  JOIN models m2      ON m2.id = g2.model_id
+                  JOIN brands b2      ON b2.id = m2.brand_id
+                 WHERE pa.part_id = p.id) fit ON true
+         WHERE p.id = :id"""), {"id": part_id})).first()
+    if not r:
+        raise HTTPException(404, "Деталь не найдена")
+
+    if r.d_brand:
+        car = f"{r.d_brand} {r.d_model}" + (f" {r.d_year}" if r.d_year else "")
+    elif r.fit:
+        car = r.fit + (f" и ещё {r.fit_cnt - 1}" if r.fit_cnt > 1 else "")
+    else:
+        car = "без машины"
+
+    return templates.TemplateResponse(
+        "admin/labels.html",
+        {
+            "request": request,
+            "title": f"Этикетка {r.sku}",
+            "heading": r.sku,
+            "subheading": r.name,
+            "labels": [label_of(r, car)],
+            "reprint_url": None,
+        },
+    )
+
+
+@router.post("/api/parts/labels/printed", status_code=204)
+async def mark_parts_printed(
+    payload: dict,
+    session: AsyncSession = Depends(get_session),
+    user=Depends(require_role("dismantler")),
+):
+    """Отметка «этикетка напечатана» для любых деталей — и с машины, и
+    принятых отдельно: у тех нет машины, значит, и адреса с её номером."""
+    ids = [int(i) for i in (payload.get("ids") or [])]
+    if not ids:
+        return
+    await session.execute(
+        text("UPDATE parts SET label_printed_at = now() WHERE id = ANY(:ids)"),
+        {"ids": ids})
+    await session.commit()
 
 
 @router.post("/api/donors/{donor_id}/labels/printed", status_code=204)
