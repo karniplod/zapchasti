@@ -5,6 +5,7 @@
     python -m app.scripts.seed_test_data --remove           покажет, что будет удалено
     python -m app.scripts.seed_test_data --remove --apply   уберёт всё, что создал
     python -m app.scripts.seed_test_data --per-brand        по машине на каждую марку
+    python -m app.scripts.seed_test_data --cities           по 50 деталей в новые города
 
 Режим --per-brand — проверка «на ширину»: по одной машине на каждую марку
 справочника, которой ещё нет на складе, и по одной детали к ней. Нужен,
@@ -45,6 +46,12 @@ WMI настоящие, VDS правдоподобные, но выдуманн�
 Фото — SVG с названием машины или детали. В thumb тот же путь: SVG
 масштабируется сам, а пустой thumb подобрал бы rebuild_photos
 и попытался открыть вектор как растр.
+
+Режим --cities — наполнение филиалов, открытых позже первых четырёх:
+Владивосток (Сибирская 7) и Самара (Южная 5). На каждый — десять машин
+по пять деталей, итого 50 деталей на город. Модели под город: во
+Владивостоке японцы с правым рулём, в Самаре LADA и ходовые иномарки.
+Машины без VIN, как и в --per-brand; убираются тем же --remove.
 
 Всё создаётся тем же путём, что и в приложении: код машины из
 donor_code_seq, артикул детали из счётчика машины (у ручной — из
@@ -445,6 +452,143 @@ async def create_per_brand(s, apply: bool) -> None:
     await s.commit()
 
 
+# Новые города: десять машин на филиал, с каждой по пять деталей.
+# Детали идут по кругу из CITY_PARTS со сдвигом на номер машины —
+# так в узлах каталога есть из чего выбирать, а не пятьдесят фар
+CITY_BRANCHES = {
+    ("Владивосток", "Сибирская 7"): [
+        ("Toyota", "Camry"), ("Toyota", "Corolla"), ("Toyota", "Land Cruiser Prado"),
+        ("Toyota", "RAV4"), ("Nissan", "X-Trail"), ("Honda", "CR-V"), ("Honda", "Fit"),
+        ("Mazda", "CX-5"), ("Subaru", "Forester"), ("Mitsubishi", "Outlander"),
+    ],
+    ("Самара", "Южная 5"): [
+        ("ВАЗ (LADA)", "Vesta"), ("ВАЗ (LADA)", "Granta"), ("ВАЗ (LADA)", "Largus"),
+        ("ВАЗ (LADA)", "XRAY"), ("ВАЗ (LADA)", "Priora"), ("ВАЗ (LADA)", "Kalina"),
+        ("Kia", "Rio"), ("Hyundai", "Solaris"), ("Renault", "Duster"),
+        ("Volkswagen", "Polo"),
+    ],
+}
+CITY_PARTS = [
+    ("Фара левая", "B", "Стекло прозрачное, крепления целы", 5500, 3.1),
+    ("Бампер передний", "C", "Потёртости по нижней кромке, без трещин", 7000, 6.2),
+    ("Генератор", "A", "Проверен на стенде", 6500, 5.4),
+    ("Стартер", "B", "Крутит уверенно, бендикс исправен", 4200, 4.0),
+    ("Зеркало правое", "B", "Обогрев и привод работают", 3300, 1.3),
+    ("Радиатор охлаждения", "B", "Соты ровные, не паян", 4800, 4.0),
+    ("Дверь передняя левая", "C", "Скол краски на кромке, без ржавчины", 9000, 18.0),
+    ("Капот", "B", "Ровный, родная краска", 8500, 14.0),
+    ("Фонарь задний правый", "A", "Без трещин и запотевания", 3600, 1.1),
+    ("Блок управления двигателем", "A", "Снят с исправного мотора", 11000, 0.9),
+    ("Компрессор кондиционера", "B", "Муфта включается, без утечек", 12500, 6.5),
+    ("Рулевая рейка", "B", "Без люфта, пыльники целы", 14000, 9.0),
+    ("Крыло переднее левое", "C", "Небольшая вмятина у арки", 4000, 3.5),
+    ("Турбина", "B", "Люфт в норме, масла нет", 21000, 7.0),
+    ("Подушка безопасности водителя", "A", "Не срабатывала", 6000, 1.6),
+]
+CITY_SQL = """
+SELECT b.name AS brand, m.name AS model, g.id AS gen_id, g.year_from, g.year_to,
+       mo.id AS mod_id, c.id AS compl_id
+  FROM brands b
+  JOIN models m         ON m.brand_id = b.id
+  JOIN generations g    ON g.model_id = m.id
+  JOIN modifications mo ON mo.generation_id = g.id
+  JOIN complectations c ON c.modification_id = mo.id
+ WHERE b.name = :b AND m.name = :m
+ -- Свежее поколение, но не новинка этого года: машина на разборе
+ -- обычно отъездила хотя бы несколько лет
+ ORDER BY g.year_from > extract(year FROM now()) - 4, g.year_from DESC,
+          mo.id, c.sort_order
+ LIMIT 1
+"""
+
+
+async def create_cities(s, apply: bool) -> None:
+    cats = {}
+    for name, *_ in CITY_PARTS:
+        cid = (await s.execute(text("SELECT id FROM part_categories WHERE name = :n"),
+                               {"n": name})).scalar()
+        if cid is None:
+            raise SystemExit("Нет категории «" + name + "» — поправьте CITY_PARTS")
+        cats[name] = cid
+
+    now = date.today().year
+    for (city, branch_name), models in CITY_BRANCHES.items():
+        branch = (await s.execute(text(
+            "SELECT id FROM branches WHERE city = :c AND name = :n"),
+            {"c": city, "n": branch_name})).scalar()
+        if branch is None:
+            raise SystemExit(f"Нет филиала {city}, {branch_name} — сначала миграции")
+        have = (await s.execute(text("""
+            SELECT count(*) FROM parts p JOIN donors d ON d.id = p.donor_id
+             WHERE p.branch_id = :b AND d.notes LIKE '%' || :m"""),
+            {"b": branch, "m": MARK})).scalar()
+        if have:
+            print(f"  {city}: тестовых деталей уже {have} — пропускаю")
+            continue
+        print(f"  {city}, {branch_name}: машин {len(models)}, "
+              f"деталей {len(models) * 5}")
+        if not apply:
+            continue
+
+        for n, (brand, model) in enumerate(models):
+            r = (await s.execute(text(CITY_SQL), {"b": brand, "m": model})).first()
+            if r is None:
+                raise SystemExit(f"В справочнике нет {brand} {model} с комплектацией")
+            year = max(r.year_from, min(r.year_to or now - 3, now - 3 - n % 5))
+            donor = (await s.execute(text("""
+                INSERT INTO donors (code, generation_id, modification_id, complectation_id,
+                                    year, color, mileage_km, plate, purchase_price,
+                                    notes, public_note, vin_source, status, branch_id)
+                VALUES ('D-' || lpad(nextval('donor_code_seq')::text, 4, '0'),
+                        :gen, :mod, :compl, :year, :color, :mileage, :plate, :price,
+                        :notes, :public_note, 'no_vin', 'dismantling', :branch)
+                RETURNING id, code"""), {
+                "gen": r.gen_id, "mod": r.mod_id, "compl": r.compl_id, "year": year,
+                "color": BULK_COLORS[n % len(BULK_COLORS)],
+                "mileage": 70_000 + (n * 13_700) % 160_000,
+                # Регион по городу: 25 — Приморье, 63 — Самарская область
+                "plate": "Т{:03d}ТТ{}".format(n + 1, 25 if city == "Владивосток" else 63),
+                "price": 90_000 + (n * 35_000) % 400_000,
+                "notes": f"Тестовая машина филиала {city}. {MARK}",
+                "public_note": f"Тестовая запись: машина на разборе в городе {city}.",
+                "branch": branch,
+            })).first()
+            path = write_svg(settings.media_root / "donors" / str(donor.id), "test.svg",
+                             svg(brand.replace("ВАЗ (LADA)", "LADA") + " " + model,
+                                 f"{year} · {donor.code} · {city}", "car"))
+            await s.execute(text("""
+                INSERT INTO donor_photos (donor_id, path, thumb, width, height, sort_order)
+                VALUES (:d, :p, :p, 1200, 900, 0)"""), {"d": donor.id, "p": path})
+
+            for k in range(5):
+                part_name, cond, note, price, weight = CITY_PARTS[(n * 5 + k) % len(CITY_PARTS)]
+                sku = (await s.execute(text("""
+                    UPDATE donors SET part_counter = part_counter + 1 WHERE id = :d
+                    RETURNING code || '-' || lpad(part_counter::text, 4, '0')"""),
+                    {"d": donor.id})).scalar()
+                part_id = (await s.execute(text("""
+                    INSERT INTO parts (sku, donor_id, category_id, name, condition,
+                                       condition_note, price, status, location, weight_kg,
+                                       published, source, branch_id, origin)
+                    VALUES (:sku, :d, :cat, :name, CAST(:cond AS part_condition), :note,
+                            :price, 'in_stock', :loc, :weight, true, 'donor', :branch,
+                            'original')
+                    RETURNING id"""), {
+                    "sku": sku, "d": donor.id, "cat": cats[part_name], "name": part_name,
+                    "cond": cond, "note": note,
+                    # Цены разные у одной детали на разных машинах — так
+                    # фильтр по цене и сортировка есть на чём проверить
+                    "price": price + (n * 700) % 4000,
+                    "loc": "{}-{:02d}".format("В" if city == "Владивосток" else "С",
+                                              n * 5 + k + 1),
+                    "weight": weight, "branch": branch,
+                })).scalar()
+                await add_photo(s, part_id, part_name,
+                                f"{brand.replace('ВАЗ (LADA)', 'LADA')} {model} · {sku}")
+            print(f"      {donor.code}  {brand} {model} {year}")
+        await s.commit()
+
+
 def wrap(line: str, width: int) -> list[str]:
     """Перенос по словам: длинное название в одну строку не влезет."""
     out, cur = [], ""
@@ -735,6 +879,8 @@ async def main() -> None:
     ap.add_argument("--remove", action="store_true", help="убрать созданное")
     ap.add_argument("--per-brand", action="store_true",
                     help="по машине на каждую марку справочника, которой ещё нет")
+    ap.add_argument("--cities", action="store_true",
+                    help="по 50 деталей во Владивосток и Самару")
     a = ap.parse_args()
 
     agen = get_session()
@@ -743,6 +889,9 @@ async def main() -> None:
         if a.remove:
             print("Удаление тестовых данных" + ("" if a.apply else " (проверка, --apply чтобы удалить)"))
             await remove(s, a.apply)
+        elif a.cities:
+            print("Новые города" + ("" if a.apply else " (проверка, --apply чтобы создать)"))
+            await create_cities(s, a.apply)
         elif a.per_brand:
             print("По машине на марку"
                   + ("" if a.apply else " (проверка, --apply чтобы создать)"))

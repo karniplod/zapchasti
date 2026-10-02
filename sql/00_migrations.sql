@@ -439,3 +439,14 @@ CREATE TABLE IF NOT EXISTS catalog_browses (
 );
 CREATE INDEX IF NOT EXISTS catalog_browses_created_idx
     ON catalog_browses (created_at DESC);
+
+
+-- ------------------------------------------------------------
+-- Новые города: Владивосток и Самара, по одному филиалу
+-- ------------------------------------------------------------
+-- Город в каталоге и шапке берётся из филиалов, так что отдельно
+-- заводить его нигде не нужно.
+INSERT INTO branches (city, name, sort_order) VALUES
+    ('Владивосток', 'Сибирская 7', 5),
+    ('Самара',      'Южная 5',     6)
+ON CONFLICT (city, name) DO NOTHING;
