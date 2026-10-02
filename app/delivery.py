@@ -15,6 +15,7 @@
 укладка в коробку, но служба всё равно перемерит при приёме.
 """
 
+import asyncio
 import logging
 import time
 from decimal import Decimal
@@ -48,6 +49,8 @@ YANDEX_TEST = "https://b2b.taxi.tst.yandex.net"
 YANDEX_TEST_STATION = "fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924"
 
 CARRIERS = {"cdek": "СДЭК", "yandex": "Яндекс Доставка", "pochta": "Почта России"}
+# Почта не принимает посылку тяжелее 20 кг — её тарификатор отвечает ошибкой
+POCHTA_MAX_G = 20000
 MODES = {"pvz": "до пункта выдачи", "door": "курьером до двери", "post": "до отделения"}
 
 
@@ -308,7 +311,7 @@ async def _ya_quotes(http, dest: dict, pkg: dict, value_rub: Decimal) -> list[di
 async def _pochta_quotes(http, origin: dict, dest: dict, pkg: dict) -> list[dict]:
     """Посылка онлайн нестандартная (4030) — подходит и для длинных
     деталей; индекс получателя обязателен."""
-    if not dest.get("postcode") or not origin.get("postcode"):
+    if not dest.get("postcode") or not origin.get("postcode") or pkg["weight_g"] > POCHTA_MAX_G:
         return []
     r = await http.get("https://tariff.pochta.ru/v2/calculate/tariff/delivery", params={
         "json": "", "object": 4030, "from": origin["postcode"], "to": dest["postcode"],
@@ -337,6 +340,19 @@ def _days(a, b) -> str:
     return f"{a} дн." if a == b else f"{a}–{b} дн."
 
 
+def pochta_issue(items: list[dict], postcode: str | None, offered: bool) -> str | None:
+    """Почему Почты нет среди вариантов — чтобы показать плитку с причиной,
+    а не прятать вариант молча. None — либо Почта посчитала, либо ей
+    просто нужен индекс (это фронт показывает сам)."""
+    if not pochta_on() or offered:
+        return None
+    if package(items)["weight_g"] > POCHTA_MAX_G:
+        return "Почта принимает посылки до 20 кг — этот заказ тяжелее"
+    if postcode:
+        return "Почта не посчитала доставку по этому индексу — проверьте его"
+    return None
+
+
 def title(o: dict) -> str:
     return f"{CARRIERS.get(o['carrier'], o['carrier'])} — {MODES.get(o['mode'], o['mode'])}"
 
@@ -347,18 +363,25 @@ async def quotes(origin: dict, dest: dict, items: list[dict], value_rub: Decimal
     dest: city, cdek_code, postcode, point (пункт Яндекса, если выбран)."""
     pkg = package(items)
     out: list[dict] = []
+
+    async def one(name, call):
+        try:
+            return await call()
+        except (httpx.HTTPError, KeyError, ValueError, IndexError) as e:
+            log.warning("%s: расчёт не удался: %s", name, e)
+            return []
+
+    # Службы спрашиваем разом, а не по очереди: покупатель ждёт самую
+    # медленную, а не сумму всех
     async with httpx.AsyncClient(timeout=10) as http:
-        for name, call in (
-            ("cdek", lambda: _cdek_quotes(http, origin, dest, pkg)),
-            ("yandex", lambda: _ya_quotes(http, dest, pkg, value_rub)),
-            ("pochta", lambda: _pochta_quotes(http, origin, dest, pkg)),
-        ):
-            if name not in enabled():
-                continue
-            try:
-                out += await call()
-            except (httpx.HTTPError, KeyError, ValueError, IndexError) as e:
-                log.warning("%s: расчёт не удался: %s", name, e)
+        calls = {
+            "cdek": lambda: _cdek_quotes(http, origin, dest, pkg),
+            "yandex": lambda: _ya_quotes(http, dest, pkg, value_rub),
+            "pochta": lambda: _pochta_quotes(http, origin, dest, pkg),
+        }
+        on = [n for n in calls if n in enabled()]
+        for got in await asyncio.gather(*(one(n, calls[n]) for n in on)):
+            out += got
     for o in out:
         o["title"] = title(o)
     return sorted(out, key=lambda o: o["price"])

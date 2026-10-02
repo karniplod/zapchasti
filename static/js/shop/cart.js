@@ -238,12 +238,11 @@ if (form && $('cname')){
     const keep = val('dopt');
     D.city = city; D.options = d.options || [];
     if (!D.options.some(o => `${o.carrier}:${o.mode}` === keep)) D.point = null;
-    $('dState').textContent = D.options.length
-      ? `Отправим из филиала: ${d.from}.`
-        + (d.need_postcode ? ' Почта России посчитает, когда будет индекс.' : '')
-        + ' Выберите вариант:'
-      : 'Служба не посчитала доставку в этот город. Проверьте название'
-        + (d.need_postcode ? ' или укажите адрес с индексом' : '') + ' — или выберите самовывоз.';
+    D.needPost = !!d.need_postcode;
+    D.postIssue = d.pochta_issue || '';
+    $('dState').textContent = D.options.length || D.needPost || D.postIssue
+      ? (d.from ? `Отправим из филиала: ${d.from}. ` : '') + 'Выберите вариант:'
+      : 'Служба не посчитала доставку в этот город. Проверьте название — или выберите самовывоз.';
     drawOptions(keep); sync();
   }
 
@@ -254,10 +253,33 @@ if (form && $('cname')){
       return `<label class="tile"><input type="radio" name="dopt" value="${k}" ${k === cur ? 'checked' : ''}>
         <span><b>${esc(o.title)}</b>
         <small>${o.from && !D.point ? 'от ' : ''}${rub(o.price)}${o.days ? ' · ' + esc(o.days) : ''}</small></span></label>`;
-    }).join('');
-    $('dOptions').querySelectorAll('input').forEach(i => i.onchange = () => {
+    }).join('')
+    // Почта России считает только по индексу. Пока его нет — плитка видна,
+    // но неактивна: человек сразу знает, что такой вариант есть и что для
+    // него нужно. Нажатие ведёт к полю индекса
+    + (D.needPost && !D.options.some(o => o.carrier === 'pochta')
+      ? `<button type="button" class="tile is-off" id="pochtaOff">
+          <span><b>Почта России — до отделения</b><small>Введите индекс — посчитаем стоимость</small></span></button>`
+      // Почта есть, но этот заказ не возьмёт (тяжелее 20 кг) или не
+      // посчитала по индексу — показываем причину, а не прячем вариант
+      : D.postIssue
+        ? `<div class="tile is-off is-na"><span><b>Почта России — до отделения</b>
+            <small>${esc(D.postIssue)}</small></span></div>`
+        : '');
+    $('dOptions').querySelectorAll('input:not([disabled])').forEach(i => i.onchange = () => {
       D.point = null; loadPoints(); sync();
     });
+    const off = $('pochtaOff');
+    if (off) off.onclick = () => {
+      // Индекс — в блоке адреса, а он спрятан, пока выбран пункт выдачи:
+      // снимаем выбор, чтобы поле стало видно
+      form.querySelectorAll('input[name=dopt]').forEach(i => { i.checked = false; });
+      D.point = null; sync();
+      $('dPost').scrollIntoView({block: 'center', behavior: 'smooth'});
+      $('dPost').focus({preventScroll: true});
+      fieldError($('dPost'), '');
+      $('postHint').textContent = 'Введите индекс — Почта России посчитает стоимость';
+    };
   }
 
   // Пункты выдачи — списком с поиском. Карте нужен свой ключ

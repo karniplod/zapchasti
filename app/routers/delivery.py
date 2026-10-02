@@ -58,8 +58,12 @@ async def quotes_for_cart(session: AsyncSession, request: Request, customer: dic
     if not origin:
         return [], None
     value = sum((i["price"] or Decimal(0)) * i["take"] for i in items)
-    opts = await delivery.quotes(origin, dest, [{**i, "qty": i["take"]} for i in items], value)
+    parcel = [{**i, "qty": i["take"]} for i in items]
+    opts = await delivery.quotes(origin, dest, parcel, value)
     await remember_cdek_code(session, origin)
+    # Почему нет Почты — для плитки с причиной (см. delivery.pochta_issue)
+    origin["pochta_issue"] = delivery.pochta_issue(
+        parcel, dest.get("postcode"), any(o["carrier"] == "pochta" for o in opts))
     return opts, origin
 
 
@@ -79,8 +83,11 @@ async def delivery_quotes(
     return {
         "from": origin["city"] if origin else None,
         "carriers": delivery.enabled(),
-        # Почта считает только по индексу — без него её вариантов нет
-        "need_postcode": "pochta" in delivery.enabled() and not payload.postcode,
+        # Почта считает только по индексу — без него её вариантов нет.
+        # Не подходит по весу или индексу — причина вместо молчания
+        "pochta_issue": origin and origin.get("pochta_issue"),
+        "need_postcode": "pochta" in delivery.enabled() and not payload.postcode
+                         and not (origin and origin.get("pochta_issue")),
         "options": [{**o, "price": str(o["price"])} for o in opts],
     }
 
