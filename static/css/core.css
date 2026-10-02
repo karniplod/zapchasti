@@ -206,6 +206,11 @@ p.hint{margin:4px 0 0}
   font-family:var(--body);font-size:var(--t-md);outline:none;
   transition:border-color .13s,box-shadow .13s}
 .field::placeholder{color:var(--dim)}
+/* Ошибка у поля — из static/js/validate.js: рамка и подпись под полем */
+.field.is-bad,.field.is-bad:focus{border-color:var(--err);
+  box-shadow:0 0 0 3px rgba(210,52,31,.12)}
+.fld-err{margin:6px 0 0;color:var(--err);font-size:var(--t-sm);line-height:1.35}
+.fld-err[hidden]{display:none}
 .field:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(245,79,12,.12)}
 .field-code{font-family:var(--mono);letter-spacing:.12em;text-transform:uppercase;
   font-size:var(--t-lg)}

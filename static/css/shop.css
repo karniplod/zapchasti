@@ -83,6 +83,49 @@
   border:1px solid var(--line);border-radius:var(--r);padding:20px}
 .auth .hint{margin:6px 0 0}
 .err{margin:0;color:var(--err);font-size:var(--t-sm)}
+.auth .fld label{display:block;margin-bottom:6px}
+
+/* Глаз в поле пароля */
+.pw{position:relative}
+.pw .field{padding-right:46px}
+.pw-eye{position:absolute;right:4px;top:50%;transform:translateY(-50%);
+  width:38px;height:38px;border:0;background:none;color:var(--dim);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;border-radius:6px}
+.pw-eye:hover,.pw-eye[aria-pressed="true"]{color:var(--accent)}
+.pw-eye svg{width:20px;height:20px}
+
+/* Быстрый вход: под формой, той же ширины */
+.auth-box{max-width:420px}
+.quick{margin-top:18px}
+.quick-or{display:flex;align-items:center;gap:12px;margin:0 0 12px;
+  color:var(--muted);font-size:var(--t-sm)}
+.quick-or::before,.quick-or::after{content:"";flex:1;height:1px;background:var(--line)}
+.quick-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.quick-btn{display:flex;align-items:center;justify-content:center;gap:10px;
+  height:44px;border-radius:8px;border:1px solid var(--line-2);background:var(--surface);
+  color:var(--ink);font-weight:600;font-size:var(--t-sm);text-decoration:none}
+.quick-btn:hover{border-color:var(--ink)}
+.qb-ico{display:inline-flex;align-items:center;justify-content:center;
+  min-width:24px;height:24px;padding:0 4px;border-radius:6px;font-size:12px;
+  font-weight:800;color:#fff}
+.qb-google .qb-ico{background:#4285F4}
+.qb-vk .qb-ico{background:#0077FF}
+.qb-max .qb-ico{background:linear-gradient(135deg,#3A7BFF,#9B4DFF)}
+.tg-slot{display:flex;align-items:center;justify-content:center;min-height:44px}
+
+/* Ожидание входа через MAX */
+.max-wait{display:grid;grid-template-columns:200px 1fr;gap:24px;align-items:center;
+  max-width:640px;background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--r);padding:22px}
+.max-wait .qr svg{width:200px;height:200px;display:block}
+.max-wait ol{margin:0 0 16px;padding-left:20px;line-height:1.6}
+.max-state{font-size:var(--t-sm);color:var(--muted);margin:12px 0 0}
+.max-state.ok{color:var(--ok,#1f9d55)}
+.max-state.bad{color:var(--err)}
+@media (max-width:600px){
+  .max-wait{grid-template-columns:1fr}
+  .max-wait .qr{display:none}
+}
 
 /* ── Заказы ────────────────────────────────────────────── */
 .orders{display:grid;gap:14px}

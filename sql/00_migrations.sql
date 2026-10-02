@@ -450,3 +450,68 @@ INSERT INTO branches (city, name, sort_order) VALUES
     ('Владивосток', 'Сибирская 7', 5),
     ('Самара',      'Южная 5',     6)
 ON CONFLICT (city, name) DO NOTHING;
+
+
+-- ------------------------------------------------------------
+-- Вход покупателя: телефон или email, быстрый вход через соцсети
+-- ------------------------------------------------------------
+-- Кабинет теперь заводится и по email, и через Google, VK, MAX,
+-- Telegram — у такого покупателя телефона может не быть. Телефон
+-- спрашивается при оформлении заказа, если его ещё нет.
+ALTER TABLE customers ALTER COLUMN phone DROP NOT NULL;
+
+-- Email — второй логин, значит, уникален без учёта регистра. Индекс
+-- ставим, только если дублей нет: иначе миграция упала бы целиком
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM customers WHERE email IS NOT NULL
+                    GROUP BY lower(email) HAVING count(*) > 1) THEN
+        CREATE UNIQUE INDEX IF NOT EXISTS customers_email_uniq
+            ON customers (lower(email)) WHERE email IS NOT NULL;
+    END IF;
+END $$;
+
+-- Учётка у провайдера → покупатель. Один человек может войти и через
+-- Google, и через Telegram — это две строки на одного покупателя
+CREATE TABLE IF NOT EXISTS customer_identities (
+    provider    text   NOT NULL,          -- google / vk / max / telegram
+    subject     text   NOT NULL,          -- id пользователя у провайдера
+    customer_id bigint NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    display     text,                     -- имя или ник — показать в кабинете
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (provider, subject)
+);
+CREATE INDEX IF NOT EXISTS customer_identities_customer_idx
+    ON customer_identities (customer_id);
+
+-- Вход через MAX: у мессенджера нет OAuth, вход идёт через бота.
+-- Сайт выдаёт одноразовый код, человек открывает бота по ссылке
+-- с этим кодом, бот присылает вебхук — строка получает пользователя,
+-- а страница ожидания забирает вход. Код живёт пять минут
+CREATE TABLE IF NOT EXISTS max_logins (
+    token        text PRIMARY KEY,
+    max_user_id  bigint,
+    max_name     text,
+    created_at   timestamptz NOT NULL DEFAULT now(),
+    confirmed_at timestamptz,
+    used_at      timestamptz
+);
+
+
+-- ------------------------------------------------------------
+-- Оформление заказа: получатель, пункт выдачи, способ оплаты
+-- ------------------------------------------------------------
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS contact_name  text;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS contact_phone text;
+-- Самовывоз — из какого филиала; доставка — адрес в delivery_address
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS pickup_branch_id int
+    REFERENCES branches(id) ON DELETE SET NULL;
+-- online — картой или СБП на сайте, on_receipt — при получении
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method text;
+
+-- Ссылка на страницу банка: вернулся человек со страницы заказа —
+-- продолжает ту же оплату, а не заводит вторую
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS confirmation_url text;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS provider text;
+CREATE UNIQUE INDEX IF NOT EXISTS payments_external_uniq
+    ON payments (provider, external_id) WHERE external_id IS NOT NULL;

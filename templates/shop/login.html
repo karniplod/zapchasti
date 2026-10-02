@@ -12,6 +12,8 @@
   <p class="lead">История покупок, отложенные детали и то, что вы искали —
     всё в одном месте.</p>
 
+  {% if error %}<div class="notice notice-warn" role="alert">{{ error }}</div>{% endif %}
+
   {# Вход и регистрация одной формой: разница в двух полях, а отдельная
      страница заставляла бы человека гадать, зарегистрирован он уже или нет #}
   <div class="tabs" id="tabs">
@@ -19,28 +21,77 @@
     <button data-mode="register">Регистрация</button>
   </div>
 
-  <form class="auth" id="authForm" data-next="{{ next }}">
-    <div>
-      <label for="phone">Телефон</label>
-      <input class="field" id="phone" type="tel" inputmode="tel"
-             autocomplete="tel" placeholder="+7 900 000-00-00" required>
-    </div>
+  <div class="auth-box">
+    <form class="auth" id="authForm" data-next="{{ next }}" novalidate>
+      <div class="fld">
+        <label for="login">Телефон или email</label>
+        <input class="field" id="login" name="login" autocomplete="username"
+               placeholder="+7 900 000-00-00 или mail@example.ru" required
+               maxlength="200" aria-describedby="loginErr">
+        <p class="fld-err" id="loginErr" hidden></p>
+      </div>
 
-    <div class="only-register" hidden>
-      <label for="name">Как к вам обращаться</label>
-      <input class="field" id="name" autocomplete="name" placeholder="Необязательно">
-    </div>
+      <div class="fld only-register" hidden>
+        <label for="name">Как к вам обращаться</label>
+        <input class="field" id="name" name="name" autocomplete="name"
+               placeholder="Необязательно" maxlength="80" aria-describedby="nameErr">
+        <p class="fld-err" id="nameErr" hidden></p>
+      </div>
 
-    <div>
-      <label for="password">Пароль</label>
-      <input class="field" id="password" type="password" minlength="6"
-             autocomplete="current-password" required>
-      <p class="hint only-register" hidden>Не короче шести символов.</p>
-    </div>
+      <div class="fld">
+        <label for="password">Пароль</label>
+        <div class="pw">
+          <input class="field" id="password" name="password" type="password"
+                 minlength="6" maxlength="200" autocomplete="current-password"
+                 required aria-describedby="passwordErr">
+          <button type="button" class="pw-eye" id="pwEye" aria-label="Показать пароль"
+                  aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"
+              fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3"
+              fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+          </button>
+        </div>
+        <p class="fld-err" id="passwordErr" hidden></p>
+        <p class="hint only-register" hidden>Не короче шести символов, буквы и цифры.</p>
+      </div>
 
-    <button class="btn btn-primary" id="go" type="submit">Войти</button>
-    <p class="err" id="err" hidden></p>
-  </form>
+      <div class="fld only-register" hidden>
+        <label for="password2">Пароль ещё раз</label>
+        <input class="field" id="password2" type="password" maxlength="200"
+               autocomplete="new-password" aria-describedby="password2Err">
+        <p class="fld-err" id="password2Err" hidden></p>
+      </div>
+
+      <button class="btn btn-primary" id="go" type="submit">Войти</button>
+      <p class="err" id="err" role="alert" hidden></p>
+    </form>
+
+    {% if providers %}
+    {# Быстрый вход: кнопка есть, только если у способа заданы ключи #}
+    <div class="quick">
+      <p class="quick-or"><span>или быстрый вход</span></p>
+      <div class="quick-list">
+        {% for p in providers %}
+          {% if p.code == 'telegram' %}
+          {# Виджет Telegram рисует свою кнопку и сам спрашивает подтверждение #}
+          <div class="tg-slot">
+            <script async src="https://telegram.org/js/telegram-widget.js?22"
+                    data-telegram-login="{{ telegram_bot }}" data-size="large"
+                    data-radius="8" data-request-access="write"
+                    data-auth-url="/auth/telegram/callback?next={{ next | urlencode }}"></script>
+          </div>
+          {% else %}
+          <a class="quick-btn qb-{{ p.code }}"
+             href="/auth/{{ p.code }}/start?next={{ next | urlencode }}">
+            <span class="qb-ico" aria-hidden="true">{{ {'google': 'G', 'vk': 'VK', 'max': 'M'}[p.code] }}</span>
+            {{ p.label }}
+          </a>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
 
   <p class="hint">Не хотите заводить кабинет —
     <a href="/contacts">оставьте заявку</a>, перезвоним и подберём деталь.</p>
@@ -48,5 +99,6 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ asset('js/validate.js') }}"></script>
 <script src="{{ asset('js/shop/login.js') }}"></script>
 {% endblock %}

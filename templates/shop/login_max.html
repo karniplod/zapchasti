@@ -1,0 +1,35 @@
+{% extends "_base.html" %}
+{% block title %}Вход через MAX{% endblock %}
+{% block description %}Вход в кабинет покупателя через мессенджер MAX.{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ asset('css/shop.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="wrap shop narrow">
+  <h1>Вход через MAX</h1>
+
+  <div class="max-wait" id="maxWait" data-next="{{ next }}"
+       data-token="{{ token }}">
+    {# QR — для входа с компьютера: навёл телефон, и бот уже открыт #}
+    <div class="qr" aria-hidden="true">{{ qr | safe }}</div>
+    <div>
+      <ol>
+        <li>Откройте бота — по кнопке или наведите камеру телефона на код.</li>
+        <li>Нажмите «Начать», затем «Войти на сайт» в сообщении бота.</li>
+        <li>Вернитесь сюда — страница откроет кабинет сама.</li>
+      </ol>
+      <a class="btn btn-primary" href="{{ link }}" target="_blank" rel="noopener">Открыть MAX</a>
+      <p class="max-state" id="maxState" role="status">Ждём подтверждения в MAX…
+        Код действует {{ minutes }} минут.</p>
+    </div>
+  </div>
+
+  <p class="hint"><a href="/account/login?next={{ next | urlencode }}">Другие способы входа</a></p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ asset('js/shop/login_max.js') }}"></script>
+{% endblock %}

@@ -73,6 +73,31 @@ class Settings(BaseSettings):
     currency: str = "₽"
     reserve_hours: int = 48  # сколько держим деталь под заказ
 
+    # --- быстрый вход покупателя ---
+    # Пустое значение — кнопки этого входа на сайте нет. Адрес возврата
+    # у всех один вид: {base_url}/auth/<провайдер>/callback
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    # VK ID (id.vk.com): OAuth 2.1 с PKCE, секрет не нужен — только ID приложения
+    vk_client_id: str = ""
+    # Telegram Login Widget: бот из @BotFather, домен сайта задаётся там же /setdomain
+    telegram_bot_name: str = ""
+    telegram_bot_token: str = ""
+    # MAX: OAuth нет, вход через бота. Вебхук бота — {base_url}/auth/max/webhook,
+    # секрет — тот же, что передан при подписке (заголовок X-Max-Bot-Api-Secret)
+    max_bot_name: str = ""
+    max_bot_token: str = ""
+    max_webhook_secret: str = ""
+
+    # --- онлайн-оплата ---
+    # ЮKassa: shopId и секретный ключ из личного кабинета. Уведомления —
+    # {base_url}/api/payments/yookassa. Пусто — платят при получении
+    yookassa_shop_id: str = ""
+    yookassa_secret_key: str = ""
+    # Учебная оплата без банка: страница с кнопками «оплатить / отказаться».
+    # Только для проверки на стенде — на рабочем сайте не включать
+    payment_demo: bool = False
+
     @field_validator("base_url")
     @classmethod
     def strip_slash(cls, v: str) -> str:

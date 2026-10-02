@@ -6,6 +6,7 @@
 пропадает. Иначе двое купят один и тот же бампер.
 """
 
+import re
 import secrets
 from datetime import date
 
@@ -16,12 +17,16 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import customer_auth as ca
+from ..config import settings
 from ..database import get_session
 from ..templating import templates
 
 router = APIRouter(tags=["shop"])
 
 CART_COOKIE = "razbor_cart"
+
+# Имя человека: буквы любого алфавита, пробел, дефис, апостроф, точка
+NAME_RE = re.compile(r"^[^\W\d_][\w .'’-]{0,79}$")
 
 # Способы оплаты. Пусто — значит онлайн-оплата не подключена: заказ
 # оформляется, но платит человек при получении, а менеджер отмечает
@@ -181,7 +186,8 @@ async def me(
     items = await cart_rows(session, cart_token(request), customer)
     return {
         "authorized": bool(customer),
-        "name": (customer or {}).get("name") or (customer or {}).get("phone"),
+        "name": (customer or {}).get("name") or (customer or {}).get("phone")
+                or (customer or {}).get("email"),
         "cart": len(items),
     }
 
@@ -204,18 +210,21 @@ async def cart_count(
 
 @router.get("/account/login", response_class=HTMLResponse)
 async def login_form(request: Request, next: str = "/account", error: str | None = None):
+    from .oauth import enabled, safe_next   # oauth импортирует shop — здесь, а не наверху
+
     return templates.TemplateResponse(
         "shop/login.html",
         {"request": request, "user": None, "customer": None,
-         "next": next, "error": error},
+         "next": safe_next(next), "error": error, "providers": enabled(),
+         "telegram_bot": settings.telegram_bot_name},
     )
 
 
 class Credentials(BaseModel):
-    phone: str = Field(max_length=40)
+    # Телефон или email — одно поле: человек вводит то, что помнит
+    login: str = Field(min_length=3, max_length=200)
     password: str = Field(min_length=6, max_length=200)
     name: str | None = Field(default=None, max_length=120)
-    email: str | None = Field(default=None, max_length=200)
 
 
 async def adopt_cart(session: AsyncSession, token: str | None, customer_id: int) -> None:
@@ -243,12 +252,24 @@ async def register(
     response: Response,
     session: AsyncSession = Depends(get_session),
 ):
-    phone = ca.normalize_phone(payload.phone)
-    if not phone:
-        raise HTTPException(422, "Проверьте номер телефона")
+    who = ca.parse_login(payload.login)
+    if not who:
+        raise HTTPException(422, "Укажите телефон в формате +7 900 000-00-00 или email")
+    if payload.name and not NAME_RE.match(payload.name.strip()):
+        raise HTTPException(422, "В имени — только буквы, пробел и дефис")
+    # Пароль из одних цифр подбирается за минуты
+    if not (any(c.isalpha() for c in payload.password)
+            and any(c.isdigit() for c in payload.password)):
+        raise HTTPException(422, "В пароле нужны и буквы, и цифры")
+    kind, value = who
 
-    customer = await ca.register(session, phone, payload.password,
-                                 payload.name, payload.email)
+    customer = await ca.register(
+        session,
+        value if kind == "phone" else None,
+        payload.password,
+        payload.name,
+        value if kind == "email" else None,
+    )
     await adopt_cart(session, cart_token(request), customer["id"])
     ca.issue(response, customer["id"])
     return {"ok": True}
@@ -261,13 +282,13 @@ async def login(
     response: Response,
     session: AsyncSession = Depends(get_session),
 ):
-    phone = ca.normalize_phone(payload.phone)
-    if not phone:
-        raise HTTPException(422, "Проверьте номер телефона")
+    who = ca.parse_login(payload.login)
+    if not who:
+        raise HTTPException(422, "Укажите телефон в формате +7 900 000-00-00 или email")
 
-    customer = await ca.authenticate(session, phone, payload.password)
+    customer = await ca.authenticate(session, *who, payload.password)
     if not customer:
-        raise HTTPException(401, "Неверный телефон или пароль")
+        raise HTTPException(401, "Неверный логин или пароль")
 
     await adopt_cart(session, cart_token(request), customer["id"])
     ca.issue(response, customer["id"])
