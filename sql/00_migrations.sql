@@ -585,3 +585,67 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_city text;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_point text;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_point_address text;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_postcode text;
+
+
+-- ------------------------------------------------------------
+-- Доставка посылками по филиалам
+-- ------------------------------------------------------------
+-- Детали заказа из разных филиалов едут отдельными посылками: каждая —
+-- из своего города, своей ценой, со своим номером для отслеживания.
+-- Служба и пункт выдачи у всех посылок заказа одни — их выбирает
+-- покупатель один раз.
+
+-- Склад Яндекс Доставки, заведённый в кабинете Яндекса для филиала:
+-- без него Яндекс из этого филиала не возит
+ALTER TABLE branches ADD COLUMN IF NOT EXISTS yandex_station_id text;
+
+CREATE TABLE IF NOT EXISTS order_shipments (
+    id            bigserial PRIMARY KEY,
+    order_id      bigint NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    branch_id     int REFERENCES branches(id) ON DELETE SET NULL,
+    carrier       text,                 -- cdek / yandex / pochta
+    mode          text,                 -- pvz / door / post
+    tariff        text,
+    price         numeric(12,2),
+    days_min      int,
+    days_max      int,
+    weight_g      int,
+    point         text,                 -- код пункта выдачи
+    address       text,                 -- пункт или адрес получателя
+    track_number  text,
+    -- assembling — собирается, sent — отправлена, delivered — доставлена,
+    -- cancelled — заказ отменён
+    status        text NOT NULL DEFAULT 'assembling',
+    sent_at       timestamptz,
+    delivered_at  timestamptz,
+    created_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS order_shipments_order_idx ON order_shipments (order_id);
+CREATE INDEX IF NOT EXISTS order_shipments_branch_idx ON order_shipments (branch_id, status);
+
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS shipment_id bigint
+    REFERENCES order_shipments(id) ON DELETE SET NULL;
+
+-- Заказы с доставкой службой, оформленные до посылок, — одной посылкой
+-- из филиала первой детали: так страницы заказа показывают их одинаково
+DO $$
+DECLARE o record; sid bigint;
+BEGIN
+    FOR o IN SELECT * FROM orders
+              WHERE delivery_carrier IS NOT NULL
+                AND NOT EXISTS (SELECT 1 FROM order_shipments s WHERE s.order_id = orders.id)
+    LOOP
+        INSERT INTO order_shipments (order_id, branch_id, carrier, mode, tariff, price,
+                                     point, address, status)
+        VALUES (o.id,
+                (SELECT p.branch_id FROM order_items oi JOIN parts p ON p.id = oi.part_id
+                  WHERE oi.order_id = o.id ORDER BY oi.id LIMIT 1),
+                o.delivery_carrier, o.delivery_mode, o.delivery_tariff, o.delivery_price,
+                o.delivery_point, coalesce(o.delivery_point_address, o.delivery_address),
+                CASE WHEN o.status = 'cancelled' THEN 'cancelled'
+                     WHEN o.status = 'completed' THEN 'delivered'
+                     WHEN o.status = 'shipped' THEN 'sent' ELSE 'assembling' END)
+        RETURNING id INTO sid;
+        UPDATE order_items SET shipment_id = sid WHERE order_id = o.id;
+    END LOOP;
+END $$;

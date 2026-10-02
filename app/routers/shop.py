@@ -642,13 +642,28 @@ async def create_order(
         )
     ).scalar_one()
 
+    # Посылки — по одной из каждого филиала, с ценой и сроком своей
+    # посылки; деталь знает, в какой посылке едет
+    shipment_of: dict[int, int] = {}
+    for x in (ship["parcels"] if ship else []):
+        sid = (await session.execute(text("""
+            INSERT INTO order_shipments (order_id, branch_id, carrier, mode, tariff, price,
+                                         days_min, days_max, weight_g, point, address)
+            VALUES (:o, :b, :c, :m, :t, :p, :d1, :d2, :w, :pt, :a)
+            RETURNING id"""),
+            {"o": order_id, "b": x["branch_id"], "c": ship["carrier"], "m": ship["mode"],
+             "t": x["tariff"], "p": x["price"], "d1": x["days_min"], "d2": x["days_max"],
+             "w": x["weight_g"], "pt": ship["point"], "a": address or None})).scalar_one()
+        shipment_of.update({pid: sid for pid in x["part_ids"]})
+
     for i in items:
         await session.execute(
             text("""
-            INSERT INTO order_items (order_id, part_id, price, qty)
-            VALUES (:o, :p, :price, :q)
+            INSERT INTO order_items (order_id, part_id, price, qty, shipment_id)
+            VALUES (:o, :p, :price, :q, :s)
         """),
-            {"o": order_id, "p": i["part_id"], "price": i["price"], "q": i["qty"]},
+            {"o": order_id, "p": i["part_id"], "price": i["price"], "q": i["qty"],
+             "s": shipment_of.get(i["part_id"])},
         )
         # Списываем штуки. Условие на остаток — защита от гонки: если
         # кто-то секундой раньше забрал последние, обновится ноль строк.
@@ -737,10 +752,14 @@ async def shipping_choice(session: AsyncSession, request: Request, customer: dic
     dest = {"city": city, "cdek_code": payload.delivery_cdek_code,
             "postcode": payload.delivery_postcode,
             "point": payload.delivery_point if payload.delivery_carrier == "yandex" else None}
-    opts, _ = await quotes_for_cart(session, request, customer, dest)
-    o = next((o for o in opts if o["carrier"] == payload.delivery_carrier and o["mode"] == mode), None)
+    got, _ = await quotes_for_cart(session, request, customer, dest)
+    o = next((o for o in got["options"]
+              if o["carrier"] == payload.delivery_carrier and o["mode"] == mode), None)
     if not o:
-        raise HTTPException(409, "В этот пункт выдачи служба не доставляет — выберите другой"
+        # Служба не берёт одну из посылок — говорим, какую
+        why = got["issues"].get(payload.delivery_carrier)
+        raise HTTPException(409, why + " — выберите другой вариант" if why else
+                            "В этот пункт выдачи служба не доставляет — выберите другой"
                             if mode == "pvz" else
                             "Служба не посчитала доставку — выберите другой вариант")
     return {**o, "city": city, "point": payload.delivery_point if mode == "pvz" else None,
@@ -779,13 +798,16 @@ async def start_payment(session: AsyncSession, order: dict, method: str,
     if contact:
         order.update(email=contact.email, phone=contact.phone)
         # Доставка входит в сумму заказа — значит, и в чек: иначе сумма
-        # позиций не сойдётся с платежом, и ЮKassa его отклонит
-        if contact.delivery_price:
-            name = {"cdek": "СДЭК", "yandex": "Яндекс Доставка",
-                    "pochta": "Почта России"}.get(contact.delivery_carrier, "")
-            order["items"].append({"name": f"Доставка {name}".strip(), "sku": "",
-                                   "price": contact.delivery_price, "qty": 1,
-                                   "subject": "service"})
+        # позиций не сойдётся с платежом, и ЮKassa его отклонит. Строка
+        # на каждую посылку: «Доставка СДЭК из Перми»
+        parcels = [s for s in await shipments_of(session, [order["id"]]) if s["price"]]
+        if not parcels and contact.delivery_price:
+            parcels = [{"carrier": contact.delivery_carrier, "price": contact.delivery_price}]
+        for s in parcels:
+            name = ship_services.CARRIERS.get(s["carrier"], "")
+            frm = s.get("from_city", "") if len(parcels) > 1 else ""
+            order["items"].append({"name": " ".join(x for x in ("Доставка", name, frm) if x),
+                                   "sku": "", "price": s["price"], "qty": 1, "subject": "service"})
     # Строка платежа — до похода к провайдеру: её номер нужен Робокассе
     # как номер счёта. Провайдер не ответил — строку убираем
     pay_id = (await session.execute(text("""
@@ -820,6 +842,31 @@ async def next_order_number(session: AsyncSession) -> int:
 # Личный кабинет
 # ------------------------------------------------------------------
 
+SHIPMENT_LABELS = {"assembling": "собирается", "sent": "отправлена",
+                   "delivered": "доставлена", "cancelled": "отменена"}
+
+
+async def shipments_of(session: AsyncSession, order_ids: list[int]) -> list[dict]:
+    """Посылки заказов — откуда, чем, за сколько, где сейчас."""
+    rows = await session.execute(text("""
+        SELECT s.id, s.order_id, s.branch_id, b.city, b.name AS branch_name,
+               s.carrier, s.mode, s.tariff, s.price, s.days_min, s.days_max, s.weight_g,
+               s.track_number, s.status, s.sent_at, s.delivered_at
+          FROM order_shipments s LEFT JOIN branches b ON b.id = s.branch_id
+         WHERE s.order_id = ANY(:ids) ORDER BY s.id"""), {"ids": order_ids})
+    out = [{**dict(r._mapping), "track_url": ship_services.track_url(r.carrier, r.track_number),
+            "days": ship_services._span(r.days_min, r.days_max)["days"]} for r in rows]
+    by_order: dict[int, list] = {}
+    for s in out:
+        by_order.setdefault(s["order_id"], []).append(s)
+    for group in by_order.values():
+        labels = ship_services.parcel_labels(
+            [{"city": s["city"], "name": s["branch_name"]} for s in group])
+        for s, label in zip(group, labels):
+            s["from_city"] = label
+    return out
+
+
 
 async def orders_of(session: AsyncSession, customer_id: int, number: str | None = None):
     """Заказы с составом. Цена берётся из order_items, а не из parts:
@@ -847,7 +894,7 @@ async def orders_of(session: AsyncSession, customer_id: int, number: str | None 
 
     items = await session.execute(
         text("""
-        SELECT oi.order_id, oi.price, oi.qty, oi.price * oi.qty AS sum,
+        SELECT oi.order_id, oi.price, oi.qty, oi.price * oi.qty AS sum, oi.shipment_id,
                p.sku, p.name, p.status::text AS status,
                p.condition::text AS condition,
                (SELECT coalesce(ph.thumb, ph.path) FROM part_photos ph
@@ -865,10 +912,17 @@ async def orders_of(session: AsyncSession, customer_id: int, number: str | None 
     by_order: dict[int, list] = {}
     for r in items:
         by_order.setdefault(r.order_id, []).append(dict(r._mapping))
+    ships: dict[int, list] = {}
+    for r in await shipments_of(session, [o["id"] for o in orders]):
+        r["label"] = SHIPMENT_LABELS.get(r["status"], r["status"])
+        ships.setdefault(r["order_id"], []).append(r)
     for o in orders:
         # Не items: в шаблоне order.items достался бы метод словаря,
         # Jinja сначала пробует атрибут и только потом ключ
         o["lines"] = by_order.get(o["id"], [])
+        o["shipments"] = ships.get(o["id"], [])
+        for sh in o["shipments"]:
+            sh["lines"] = [i for i in o["lines"] if i["shipment_id"] == sh["id"]]
         o["label"] = ORDER_LABELS.get(o["status"], o["status"])
     return orders
 

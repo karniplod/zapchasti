@@ -166,6 +166,17 @@ button.tile{width:100%;padding:0;border:0;background:none;font:inherit;text-alig
   background:none;font:inherit;font-size:var(--t-sm);color:var(--ink);cursor:pointer}
 .suggest button:hover,.suggest button:focus{background:var(--bg);outline:0}
 .d-options:empty{display:none}
+/* Посылки из разных филиалов: что откуда едет и сколько стоит каждая */
+.parcels{padding:12px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg);
+  font-size:var(--t-sm)}
+.parcels[hidden],.parcel-break[hidden]{display:none}
+.parcels b{display:block;margin-bottom:6px}
+.parcels ul,.parcel-break ul{margin:0;padding:0;list-style:none;display:grid;gap:4px}
+.parcels li,.parcel-break li{display:flex;justify-content:space-between;gap:12px;color:var(--muted)}
+.parcels li span:first-child,.parcel-break li span:first-child{color:var(--ink)}
+.parcel-break{font-size:var(--t-sm)}
+.parcel-break summary{cursor:pointer;color:var(--accent);font-size:var(--t-xs)}
+.parcel-break ul{margin-top:8px;padding:10px 14px;border:1px solid var(--line);border-radius:var(--r)}
 .points{margin-top:8px;max-height:320px;overflow:auto;border:1px solid var(--line);
   border-radius:var(--r)}
 /* position:relative — радиокнопка живёт внутри своей строки. Без этого
@@ -309,6 +320,14 @@ button.tile{width:100%;padding:0;border:0;background:none;font:inherit;text-alig
   justify-content:center;border:1.5px solid var(--ink);border-radius:5px}
 .order .items .sum{font-variant-numeric:tabular-nums;font-size:var(--t-sm);
   white-space:nowrap}
+/* Заказ посылками: у каждой посылки шапка — откуда, статус, номер */
+.parcel + .parcel{margin-top:18px;padding-top:14px;border-top:1px dashed var(--line-2)}
+.parcel-h{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.parcel-h b{font-size:var(--t-sm)}
+.parcel-meta{margin:4px 0 0;font-size:var(--t-xs);color:var(--muted)}
+.st-ship-sent{background:var(--accent-bg);color:var(--accent-dk);border-color:transparent}
+.st-ship-delivered{background:#E6F4ED;color:var(--ok);border-color:#BFE3D2}
+.st-ship-cancelled{background:#FBECEC;color:var(--err);border-color:#F0CFCF}
 .order-ship{border-top:0;padding-top:0;font-size:var(--t-sm);color:var(--muted)}
 .order-ship b{font-size:var(--t-md)}
 .order .items .sum small{display:block;font-size:var(--t-xs);color:var(--muted);text-align:right}

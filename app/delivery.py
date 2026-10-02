@@ -10,9 +10,10 @@
 Каждая служба включается своими настройками (app/config.py). Не ответила
 служба — её варианты просто не показываются, остальные работают.
 
-Посылка: вес — сумма весов деталей (weight_kg, а если пусто — типовой вес
-по размеру), габариты — самая крупная деталь заказа. Это грубее, чем
-укладка в коробку, но служба всё равно перемерит при приёме.
+Посылка — детали заказа из одного филиала: из каждого города заказ едет
+своей посылкой. Вес — сумма весов деталей (weight_kg, а если пусто —
+типовой вес по размеру), габариты — самая крупная деталь посылки. Это
+грубее, чем укладка в коробку, но служба всё равно перемерит при приёме.
 """
 
 import asyncio
@@ -65,9 +66,9 @@ def cdek_on() -> bool:
 
 def yandex_on() -> bool:
     # Токен нужен всегда, и для тестовой среды тоже: тестовый токен из
-    # документации Яндекса кладётся в .env, а не в код
-    return bool(settings.yandex_delivery_token) and (
-        bool(settings.yandex_delivery_station_id) or settings.yandex_delivery_test)
+    # документации Яндекса кладётся в .env, а не в код. Склад отгрузки —
+    # у каждого филиала свой (branches.yandex_station_id)
+    return bool(settings.yandex_delivery_token)
 
 
 def pochta_on() -> bool:
@@ -192,7 +193,7 @@ async def _cdek_quotes(http, origin: dict, dest: dict, pkg: dict) -> list[dict]:
             continue
         out.append({"carrier": "cdek", "mode": mode, "tariff": str(code),
                     "price": Decimal(str(t["delivery_sum"])),
-                    "days": _days(t.get("period_min"), t.get("period_max"))})
+                    **_span(t.get("period_min"), t.get("period_max"))})
     return out
 
 
@@ -218,15 +219,19 @@ async def _cdek_points(http, dest: dict) -> list[dict]:
 # ------------------------------------------------------------------
 
 
-def _ya():
+def _ya_station(origin: dict) -> str | None:
+    """Склад, с которого Яндекс забирает посылки филиала. В тестовой
+    среде у филиалов складов нет — все везут с тестового (он в Москве)."""
+    if origin.get("yandex_station_id"):
+        return origin["yandex_station_id"]
     if settings.yandex_delivery_test:
-        return (YANDEX_TEST, settings.yandex_delivery_token,
-                settings.yandex_delivery_station_id or YANDEX_TEST_STATION)
-    return YANDEX_PROD, settings.yandex_delivery_token, settings.yandex_delivery_station_id
+        return settings.yandex_delivery_station_id or YANDEX_TEST_STATION
+    return None
 
 
 async def _ya_post(http, path: str, body: dict) -> dict:
-    base, tok, _ = _ya()
+    base = YANDEX_TEST if settings.yandex_delivery_test else YANDEX_PROD
+    tok = settings.yandex_delivery_token
     r = await http.post(base + path, json=body,
                         headers={"Authorization": f"Bearer {tok}", "Accept-Language": "ru"})
     r.raise_for_status()
@@ -265,8 +270,8 @@ async def _ya_points(http, dest: dict) -> list[dict]:
     return _put(key, out, 1800)
 
 
-async def _ya_quote(http, pkg: dict, value_rub: Decimal, point: str) -> dict | None:
-    _, _, station = _ya()
+async def _ya_quote(http, station: str, pkg: dict, value_rub: Decimal,
+                    point: str) -> dict | None:
     L, W, H = pkg["dims"]
     d = await _ya_post(http, "/api/b2b/platform/pricing-calculator", {
         "source": {"platform_station_id": station},
@@ -279,22 +284,26 @@ async def _ya_quote(http, pkg: dict, value_rub: Decimal, point: str) -> dict | N
     price = Decimal(d["pricing_total"].split()[0])
     days = d.get("delivery_days")
     return {"carrier": "yandex", "mode": "pvz", "tariff": "self_pickup", "price": price,
-            "days": _days(days, days), "point": point}
+            **_span(days, days), "point": point}
 
 
-async def _ya_quotes(http, dest: dict, pkg: dict, value_rub: Decimal) -> list[dict]:
+async def _ya_quotes(http, origin: dict, dest: dict, pkg: dict,
+                     value_rub: Decimal) -> list[dict]:
     """Цена у Яндекса зависит от пункта; для списка вариантов берём
     первый пункт города, при выборе пункта цена пересчитывается."""
+    station = _ya_station(origin)
+    if not station:
+        return []
     if dest.get("point"):
         try:
-            return [await _ya_quote(http, pkg, value_rub, dest["point"])]
+            return [await _ya_quote(http, station, pkg, value_rub, dest["point"])]
         except httpx.HTTPStatusError:
             return []             # в этот пункт Яндекс не возит
     # Не во все пункты есть доставка — пробуем несколько первых, пока
     # какой-нибудь не ответит ценой
     for p in (await _ya_points(http, dest))[:5]:
         try:
-            q = await _ya_quote(http, pkg, value_rub, p["code"])
+            q = await _ya_quote(http, station, pkg, value_rub, p["code"])
         except httpx.HTTPStatusError:
             continue
         q["point"] = None
@@ -323,7 +332,7 @@ async def _pochta_quotes(http, origin: dict, dest: dict, pkg: dict) -> list[dict
     dl = d.get("delivery") or {}
     return [{"carrier": "pochta", "mode": "post", "tariff": "4030",
              "price": (Decimal(d["paynds"]) / 100).quantize(Decimal("1")),
-             "days": _days(dl.get("min"), dl.get("max"))}]
+             **_span(dl.get("min"), dl.get("max"))}]
 
 
 # ------------------------------------------------------------------
@@ -340,29 +349,97 @@ def _days(a, b) -> str:
     return f"{a} дн." if a == b else f"{a}–{b} дн."
 
 
-def pochta_issue(items: list[dict], postcode: str | None, offered: bool) -> str | None:
-    """Почему Почты нет среди вариантов — чтобы показать плитку с причиной,
-    а не прятать вариант молча. None — либо Почта посчитала, либо ей
-    просто нужен индекс (это фронт показывает сам)."""
-    if not pochta_on() or offered:
-        return None
-    if package(items)["weight_g"] > POCHTA_MAX_G:
-        return "Почта принимает посылки до 20 кг — этот заказ тяжелее"
-    if postcode:
-        return "Почта не посчитала доставку по этому индексу — проверьте его"
-    return None
+def _span(a, b) -> dict:
+    """Срок и строкой, и числами: из чисел складывается срок заказа
+    из нескольких посылок."""
+    a, b = (a or 0), (b or 0)
+    if a or b:
+        a = max(a, 1)
+        b = max(b, a)
+    return {"days": _days(a, b), "days_min": a or None, "days_max": b or None}
+
+
+# Склонять город для «из …» проще правилом и парой исключений, чем
+# словарём: филиалов единицы
+_FROM_CITY = {"Ярославль": "Ярославля", "Кемерово": "Кемерово"}
+
+
+def city_from(city: str | None) -> str:
+    """«из Перми», «из Москвы», «из Владивостока» — подпись посылки."""
+    c = (city or "").strip()
+    if not c:
+        return "со склада"
+    if c in _FROM_CITY:
+        return f"из {_FROM_CITY[c]}"
+    if " " in c or "-" in c:
+        return f"из г. {c}"
+    last = c[-1]
+    if last in "ья":
+        c = c[:-1] + "и"
+    elif last == "а":
+        c = c[:-1] + ("и" if c[-2:-1] in "кгхжшщч" else "ы")
+    elif last in "бвгджзклмнпрстфхцчшщ":
+        c += "а"
+    return f"из {c}"
+
+
+# Где покупатель сам посмотрит, где посылка. У Яндекса страницы по
+# номеру нет — ссылку на отслеживание он присылает получателю сам
+TRACKING = {"cdek": "https://www.cdek.ru/ru/tracking/?order_id={}",
+            "pochta": "https://www.pochta.ru/tracking?barcode={}"}
+
+
+def track_url(carrier: str | None, number: str | None) -> str | None:
+    tpl = TRACKING.get(carrier or "")
+    return tpl.format(number) if tpl and number else None
+
+
+def parcel_labels(origins: list[dict]) -> list[str]:
+    """Подписи посылок заказа: «из Перми». Два филиала в одном городе —
+    это две посылки с разных складов; их различаем по названию филиала:
+    «из Москвы, Ушакова 1»."""
+    cities = [o.get("city") for o in origins]
+    return [city_from(o.get("city")) + (f", {o['name']}" if cities.count(o.get("city")) > 1
+                                        and o.get("name") else "")
+            for o in origins]
 
 
 def title(o: dict) -> str:
     return f"{CARRIERS.get(o['carrier'], o['carrier'])} — {MODES.get(o['mode'], o['mode'])}"
 
 
-async def quotes(origin: dict, dest: dict, items: list[dict], value_rub: Decimal) -> list[dict]:
-    """Все варианты доставки по включённым службам, дешёвые сверху.
-    origin: city, postcode, cdek_city_code филиала отправки.
-    dest: city, cdek_code, postcode, point (пункт Яндекса, если выбран)."""
+def _issue(carrier: str, origin: dict, dest: dict, pkg: dict) -> str | None:
+    """Почему служба не повезёт посылку — чтобы показать плитку с
+    причиной, а не прятать вариант молча. None — причины назвать нечего:
+    Почте просто нужен индекс, СДЭКу — город из подсказки."""
+    frm = origin.get("label") or city_from(origin.get("city"))
+    if carrier == "pochta":
+        if pkg["weight_g"] > POCHTA_MAX_G:
+            return f"Почта принимает посылки до 20 кг — посылка {frm} тяжелее"
+        if not origin.get("postcode"):
+            return f"Почта не возит {frm}: у филиала не указан индекс"
+        if dest.get("postcode"):
+            return "Почта не посчитала доставку по этому индексу — проверьте его"
+        return None
+    if carrier == "yandex":
+        if not _ya_station(origin):
+            return f"Яндекс не возит {frm}"
+        # Тестовая среда везёт всё со своего склада, а не из филиала
+        if not origin.get("yandex_station_id"):
+            frm = "отсюда"
+        if dest.get("point"):
+            return f"Яндекс не возит {frm} в этот пункт — выберите другой"
+        return f"Яндекс не возит {frm} в этот город"
+    if carrier == "cdek" and dest.get("cdek_code"):
+        return f"СДЭК не посчитал доставку {frm}"
+    return None
+
+
+async def _parcel_quotes(http, origin: dict, dest: dict, items: list[dict],
+                         value_rub: Decimal) -> dict:
+    """Варианты для одной посылки — по всем включённым службам разом:
+    покупатель ждёт самую медленную, а не сумму всех."""
     pkg = package(items)
-    out: list[dict] = []
 
     async def one(name, call):
         try:
@@ -371,20 +448,80 @@ async def quotes(origin: dict, dest: dict, items: list[dict], value_rub: Decimal
             log.warning("%s: расчёт не удался: %s", name, e)
             return []
 
-    # Службы спрашиваем разом, а не по очереди: покупатель ждёт самую
-    # медленную, а не сумму всех
+    calls = {
+        "cdek": lambda: _cdek_quotes(http, origin, dest, pkg),
+        "yandex": lambda: _ya_quotes(http, origin, dest, pkg, value_rub),
+        "pochta": lambda: _pochta_quotes(http, origin, dest, pkg),
+    }
+    on = [n for n in calls if n in enabled()]
+    options, issues = [], {}
+    for name, got in zip(on, await asyncio.gather(*(one(n, calls[n]) for n in on))):
+        options += got
+        if not got:
+            issues[name] = _issue(name, origin, dest, pkg)
+    return {"pkg": pkg, "options": options, "issues": issues}
+
+
+async def quotes(parcels: list[dict], dest: dict) -> dict:
+    """Варианты доставки заказа, который едет посылками — по одной из
+    каждого филиала.
+
+    parcels: [{origin: {id, city, postcode, cdek_city_code,
+    yandex_station_id}, items: [...], value: Decimal}].
+    dest: city, cdek_code, postcode, point (пункт Яндекса, если выбран).
+
+    Служба и способ у заказа одни: вариант есть, только если служба
+    везёт им каждую посылку. Цена — сумма посылок, срок — от самой
+    быстрой до самой долгой. → {options: [...], issues: {служба: причина}}.
+    """
+    # Все пары «посылка × служба» — тоже разом
     async with httpx.AsyncClient(timeout=10) as http:
-        calls = {
-            "cdek": lambda: _cdek_quotes(http, origin, dest, pkg),
-            "yandex": lambda: _ya_quotes(http, dest, pkg, value_rub),
-            "pochta": lambda: _pochta_quotes(http, origin, dest, pkg),
-        }
-        on = [n for n in calls if n in enabled()]
-        for got in await asyncio.gather(*(one(n, calls[n]) for n in on)):
-            out += got
-    for o in out:
-        o["title"] = title(o)
-    return sorted(out, key=lambda o: o["price"])
+        got = await asyncio.gather(*(_parcel_quotes(http, p["origin"], dest, p["items"], p["value"])
+                                     for p in parcels))
+
+    keys: list[tuple] = []
+    for g in got:
+        for o in g["options"]:
+            if (o["carrier"], o["mode"]) not in keys:
+                keys.append((o["carrier"], o["mode"]))
+
+    options = []
+    for carrier, mode in keys:
+        per = [next((o for o in g["options"] if (o["carrier"], o["mode"]) == (carrier, mode)), None)
+               for g in got]
+        if None in per:
+            continue
+        lo = [o["days_min"] for o in per if o.get("days_min")]
+        hi = [o["days_max"] for o in per if o.get("days_max")]
+        opt = {"carrier": carrier, "mode": mode,
+               "tariff": ",".join(dict.fromkeys(o["tariff"] for o in per)),
+               "price": sum((o["price"] for o in per), Decimal(0)),
+               **_span(min(lo) if lo else 0, max(hi) if hi else 0),
+               "from": any(o.get("from") for o in per),
+               "point": per[0].get("point"),
+               "parcels": [{"branch_id": p["origin"].get("id"), "city": p["origin"].get("city"),
+                            "from_city": p["origin"].get("label") or city_from(p["origin"].get("city")),
+                            "part_ids": [i["part_id"] for i in p["items"]],
+                            "weight_g": g["pkg"]["weight_g"], "tariff": o["tariff"],
+                            "price": o["price"], "days": o["days"],
+                            "days_min": o.get("days_min"), "days_max": o.get("days_max")}
+                           for p, g, o in zip(parcels, got, per)]}
+        opt["title"] = title(opt)
+        options.append(opt)
+
+    # Причина — по первой посылке, которую служба не берёт. Берёт все,
+    # но разными способами (одну — до пункта, другую — только до двери) —
+    # одним способом всё равно не отправить
+    issues = {}
+    for carrier in enabled():
+        if any(o["carrier"] == carrier for o in options):
+            continue
+        why = next((g["issues"][carrier] for g in got if g["issues"].get(carrier)), None)
+        if not why and all(any(o["carrier"] == carrier for o in g["options"]) for g in got):
+            why = f"{CARRIERS[carrier]}: посылки не отправить одним способом"
+        if why:
+            issues[carrier] = why
+    return {"options": sorted(options, key=lambda o: o["price"]), "issues": issues}
 
 
 async def points(carrier: str, dest: dict) -> list[dict]:

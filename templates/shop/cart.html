@@ -185,7 +185,10 @@
 
           {% if carriers %}
           <p class="hint" id="dState">Укажите город — посчитаем стоимость и срок доставки.</p>
+          {# Детали лежат в разных филиалах — заказ едет посылкой из каждого #}
+          <div class="parcels" id="dParcels" hidden></div>
           <div class="co-tiles d-options" id="dOptions" role="radiogroup" aria-label="Вариант доставки"></div>
+          <div class="parcel-break" id="dBreak" hidden></div>
           <div class="fld" id="dPointBox" hidden>
             <label for="dPointQ">Пункт выдачи</label>
             {# Выбранный пункт — карточкой; список прячется, пока не нажали

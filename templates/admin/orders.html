@@ -24,7 +24,11 @@
     <button data-s="paid">Оплаченные</button>
     <button data-s="completed">Выданные</button>
   </div>
-  <div id="list"><p class="blank">Загружаю…</p></div>
+  {# Филиал собирает свои посылки — ему нужны только заказы, где они есть #}
+  {% if user.branch_id %}
+  <label class="mine-only"><input type="checkbox" id="mine"> Только заказы с посылками моего филиала</label>
+  {% endif %}
+  <div id="list" data-branch="{{ user.branch_id or '' }}"><p class="blank">Загружаю…</p></div>
 </div>
 
 <div class="toast" id="toast"></div>

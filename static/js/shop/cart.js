@@ -58,6 +58,14 @@ if (form && $('cname')){
   const rub = n => Math.round(+n).toLocaleString('ru') + ' ₽';
   const esc = s => String(s ?? '').replace(/[&<>"]/g,
     c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  // 1 посылка, 2 посылки, 5 посылок
+  const plural = (n, one, few, many) => {
+    const a = n % 10, b = n % 100;
+    return `${n} ${a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many}`;
+  };
+  const parcels = n => plural(n, 'посылка', 'посылки', 'посылок');
+  const kg = g => (Math.round(g / 100) / 10).toLocaleString('ru') + ' кг';
+  const CARRIER = {cdek: 'СДЭК', yandex: 'Яндекс Доставка', pochta: 'Почта России'};
 
   // ── Доставка ─────────────────────────────────────────────────
   // Страна и город → варианты служб с ценой → пункт выдачи или адрес
@@ -66,7 +74,8 @@ if (form && $('cname')){
   const shipBox = $('shipBox');
   const hasCarriers = !!$('dOptions');
   const hints = shipBox && shipBox.dataset.hints === '1';
-  const D = {city: '', cdek_code: null, options: [], point: null, points: [], street_fias: ''};
+  const D = {city: '', cdek_code: null, options: [], point: null, points: [], street_fias: '',
+             parcels: [], issues: {}};
   const opt = () => D.options.find(o => `${o.carrier}:${o.mode}` === val('dopt')) || null;
   const postcode = () => $('dPost').value.length === 6 ? $('dPost').value : null;
 
@@ -84,8 +93,11 @@ if (form && $('cname')){
     $('sumPointL').hidden = $('sumPoint').hidden = !pt;
     if (pt) $('sumPoint').textContent = pt.address;
     const br = $('branch').selectedOptions[0];
+    // Посылок несколько — это видно и в сводке: придут не одним днём
+    const many = o && o.parcels && o.parcels.length > 1 ? `, ${parcels(o.parcels.length)}` : '';
     $('sumShip').textContent = !ship ? 'Самовывоз' + (br ? ' — ' + br.text : '')
-      : o ? o.title : hasCarriers ? 'Доставка — выберите вариант' : 'Доставка ТК';
+      : o ? o.title + many : hasCarriers ? 'Доставка — выберите вариант' : 'Доставка ТК';
+    if (hasCarriers) drawBreak(ship ? o : null);
     $('shipLine').textContent = !ship ? 'бесплатно'
       : o ? (o.from && !D.point ? 'от ' : '') + rub(o.price) : hasCarriers ? '—' : 'по тарифу ТК';
     const goods = +$('grandTotal').dataset.goods;
@@ -200,7 +212,8 @@ if (form && $('cname')){
     // Другая страна — прежний адрес к ней не относится
     ['dCity', 'aStreet', 'aHouse', 'aBlock', 'aFlat', 'dPost'].forEach(id => { $(id).value = ''; });
     D.cdek_code = null; D.street_fias = ''; D.options = []; D.point = null;
-    if (hasCarriers){ $('dOptions').innerHTML = ''; $('dState').textContent = 'Укажите город — посчитаем стоимость и срок доставки.'; }
+    D.parcels = []; D.issues = {};
+    if (hasCarriers){ $('dOptions').innerHTML = ''; $('dParcels').hidden = true; $('dState').textContent = 'Укажите город — посчитаем стоимость и срок доставки.'; }
     sync();
   };
   document.addEventListener('click', e => {
@@ -227,9 +240,11 @@ if (form && $('cname')){
       // Пересчёт по выбранному пункту Яндекса: цена у него своя
       const y = (d.options || []).find(o => o.carrier === 'yandex');
       const o = D.options.find(o => o.carrier === 'yandex');
-      if (o && y){ o.price = y.price; o.days = y.days; o.from = false; $('dPointErr').hidden = true; }
+      if (o && y){ Object.assign(o, y, {from: false}); $('dPointErr').hidden = true; }
       else {
-        $('dPointErr').textContent = 'В этот пункт Яндекс не доставляет — выберите другой';
+        // Посылок несколько — сервер скажет, какую из них Яндекс не берёт
+        $('dPointErr').textContent = (d.issues && d.issues.yandex)
+          || 'В этот пункт Яндекс не доставляет — выберите другой';
         $('dPointErr').hidden = false; D.point = null;
         drawPoints(); showPicked();
       }
@@ -239,20 +254,50 @@ if (form && $('cname')){
     D.city = city; D.options = d.options || [];
     if (!D.options.some(o => `${o.carrier}:${o.mode}` === keep)) D.point = null;
     D.needPost = !!d.need_postcode;
-    D.postIssue = d.pochta_issue || '';
-    $('dState').textContent = D.options.length || D.needPost || D.postIssue
-      ? (d.from ? `Отправим из филиала: ${d.from}. ` : '') + 'Выберите вариант:'
+    D.issues = d.issues || {};
+    D.parcels = d.parcels || [];
+    const any = D.options.length || D.needPost || Object.keys(D.issues).length;
+    const one = D.parcels.length === 1 ? D.parcels[0] : null;
+    $('dState').textContent = any
+      ? (one ? `Отправим ${one.from_city}. ` : '') + 'Выберите вариант:'
       : 'Служба не посчитала доставку в этот город. Проверьте название — или выберите самовывоз.';
+    drawParcels();
     drawOptions(keep); sync();
+  }
+
+  // Детали из разных филиалов — заказ придёт несколькими посылками.
+  // Говорим об этом до выбора, а не после: цена — сумма посылок
+  function drawParcels(){
+    const box = $('dParcels');
+    box.hidden = D.parcels.length < 2;
+    if (box.hidden) return;
+    box.innerHTML = `<b>Заказ придёт ${D.parcels.length === 2 ? 'двумя' : D.parcels.length === 3 ? 'тремя' : D.parcels.length}
+        посылками — детали лежат в разных филиалах</b>
+      <ul>${D.parcels.map(p => `<li><span>${esc(p.from_city[0].toUpperCase() + p.from_city.slice(1))}</span>
+        <span>${plural(p.qty, 'деталь', 'детали', 'деталей')}, ${kg(p.weight_g)}</span></li>`).join('')}</ul>`;
+  }
+
+  // Из чего сложилась цена выбранного варианта — по посылкам
+  function drawBreak(o){
+    const box = $('dBreak');
+    box.hidden = !(o && o.parcels && o.parcels.length > 1);
+    if (box.hidden) return;
+    const wasOpen = box.querySelector('details') && box.querySelector('details').open;
+    box.innerHTML = `<details${wasOpen ? ' open' : ''}><summary>Подробнее: цена и срок каждой посылки</summary>
+      <ul>${o.parcels.map(x => `<li><span>${esc(CARRIER[o.carrier] || '')} ${esc(x.from_city)}</span>
+        <span>${o.from && !D.point ? 'от ' : ''}${rub(x.price)}${x.days ? ' · ' + esc(x.days) : ''}</span></li>`).join('')}</ul>
+      </details>`;
   }
 
   function drawOptions(keep){
     const cur = keep || val('dopt');
     $('dOptions').innerHTML = D.options.map(o => {
       const k = `${o.carrier}:${o.mode}`;
+      const n = (o.parcels || []).length;
       return `<label class="tile"><input type="radio" name="dopt" value="${k}" ${k === cur ? 'checked' : ''}>
         <span><b>${esc(o.title)}</b>
-        <small>${o.from && !D.point ? 'от ' : ''}${rub(o.price)}${o.days ? ' · ' + esc(o.days) : ''}</small></span></label>`;
+        <small>${o.from && !D.point ? 'от ' : ''}${rub(o.price)}${n > 1 ? ' за ' + parcels(n) : ''}${o.days ? ' · ' + esc(o.days) : ''}
+          ${n > 1 ? '<br>посылки придут в разные дни' : ''}</small></span></label>`;
     }).join('')
     // Почта России считает только по индексу. Пока его нет — плитка видна,
     // но неактивна: человек сразу знает, что такой вариант есть и что для
@@ -260,12 +305,12 @@ if (form && $('cname')){
     + (D.needPost && !D.options.some(o => o.carrier === 'pochta')
       ? `<button type="button" class="tile is-off" id="pochtaOff">
           <span><b>Почта России — до отделения</b><small>Введите индекс — посчитаем стоимость</small></span></button>`
-      // Почта есть, но этот заказ не возьмёт (тяжелее 20 кг) или не
-      // посчитала по индексу — показываем причину, а не прячем вариант
-      : D.postIssue
-        ? `<div class="tile is-off is-na"><span><b>Почта России — до отделения</b>
-            <small>${esc(D.postIssue)}</small></span></div>`
-        : '');
+      : '')
+    // Служба есть, но заказ целиком не возьмёт (посылка тяжелее 20 кг,
+    // из этого филиала не возит) — показываем причину, а не прячем вариант
+    + Object.entries(D.issues).map(([c, why]) =>
+        `<div class="tile is-off is-na"><span><b>${esc(c === 'pochta' ? 'Почта России — до отделения' : CARRIER[c] || c)}</b>
+          <small>${esc(why)}</small></span></div>`).join('');
     $('dOptions').querySelectorAll('input:not([disabled])').forEach(i => i.onchange = () => {
       D.point = null; loadPoints(); sync();
     });

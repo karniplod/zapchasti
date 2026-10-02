@@ -4,6 +4,7 @@
 место, публикация. Без этого экрана любая опечатка остаётся навсегда.
 """
 
+import re
 import shutil
 from datetime import date
 from decimal import Decimal
@@ -15,6 +16,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .. import delivery as ship_services
 from ..auth import current_user, require_role
 from ..config import settings
 from ..database import get_session
@@ -23,6 +25,7 @@ from ..services.images import save_images
 from ..templating import templates
 from ..vin_decoder import normalize
 from .dismantle import ORIGINS
+from .shop import shipments_of
 
 router = APIRouter(tags=["manage"])
 
@@ -687,9 +690,14 @@ async def orders_page(request: Request, user=Depends(current_user)):
 @router.get("/api/manage/orders")
 async def orders_list(
     status: str | None = None,
+    mine: bool = False,
     session: AsyncSession = Depends(get_session),
     user=Depends(current_user),
 ):
+    """mine — заказы, где есть работа у филиала сотрудника: посылка из
+    его филиала или самовывоз из него."""
+    if mine and not user.get("branch_id"):
+        raise HTTPException(422, "У вашей учётной записи не указан филиал")
     rows = await session.execute(
         text("""
         SELECT o.id, o.number, o.status::text AS status, o.total, o.created_at,
@@ -706,10 +714,14 @@ async def orders_list(
           FROM orders o
           LEFT JOIN customers c ON c.id = o.customer_id
          WHERE (CAST(:st AS text) IS NULL OR o.status::text = CAST(:st AS text))
+           AND (CAST(:br AS int) IS NULL
+                OR o.pickup_branch_id = CAST(:br AS int)
+                OR EXISTS (SELECT 1 FROM order_shipments s
+                            WHERE s.order_id = o.id AND s.branch_id = CAST(:br AS int)))
          ORDER BY o.created_at DESC
          LIMIT 200
     """),
-        {"st": status},
+        {"st": status, "br": user["branch_id"] if mine else None},
     )
     orders = [dict(r._mapping) for r in rows]
     if not orders:
@@ -717,7 +729,8 @@ async def orders_list(
 
     items = await session.execute(
         text("""
-        SELECT oi.order_id, oi.price, oi.qty, p.sku, p.name, p.status::text AS status,
+        SELECT oi.order_id, oi.price, oi.qty, oi.shipment_id,
+               p.sku, p.name, p.status::text AS status,
                (SELECT br.city || ', ' || br.name FROM branches br
                  WHERE br.id = p.branch_id) AS branch
           FROM order_items oi
@@ -730,9 +743,14 @@ async def orders_list(
     by_order: dict[int, list] = {}
     for r in items:
         by_order.setdefault(r.order_id, []).append(dict(r._mapping))
+    ships: dict[int, list] = {}
+    for r in await shipments_of(session, [o["id"] for o in orders]):
+        ships.setdefault(r["order_id"], []).append(r)
     for o in orders:
         o["items"] = by_order.get(o["id"], [])
+        o["shipments"] = ships.get(o["id"], [])
     return orders
+
 
 
 class OrderPatch(BaseModel):
@@ -772,6 +790,14 @@ async def patch_order(
     if order.status == "cancelled":
         raise HTTPException(409, "Отменённый заказ не восстановить — оформите новый")
 
+    await set_order_status(session, order_id, payload.status)
+    await session.commit()
+    return {"ok": True}
+
+
+async def set_order_status(session: AsyncSession, order_id: int, status: str) -> None:
+    """Новый статус и всё, что из него следует для деталей и посылок.
+    Без commit — его делает вызывающий."""
     await session.execute(
         text("""
         UPDATE orders
@@ -780,7 +806,7 @@ async def patch_order(
                               THEN coalesce(paid_at, now()) ELSE paid_at END
          WHERE id = :id
     """),
-        {"st": payload.status, "id": order_id},
+        {"st": status, "id": order_id},
     )
 
     lines = (await session.execute(
@@ -788,7 +814,11 @@ async def patch_order(
     )).all()
     parts = [r.part_id for r in lines]
 
-    if payload.status == "cancelled":
+    if status == "cancelled":
+        # Посылки заказа больше не собирают и не везут
+        await session.execute(text("""
+            UPDATE order_shipments SET status = 'cancelled'
+             WHERE order_id = :id AND status <> 'delivered'"""), {"id": order_id})
         # Штуки возвращаются на склад, деталь — на витрину. Только если
         # её не продали и не списали руками: тогда возвращать некуда
         for r in lines:
@@ -799,7 +829,7 @@ async def patch_order(
                        updated_at = now()
                  WHERE id = :p AND status IN ('reserved', 'in_stock')"""),
                 {"q": r.qty, "p": r.part_id})
-    elif payload.status in ("paid", "shipped", "completed"):
+    elif status in ("paid", "shipped", "completed"):
         # Проданной считается деталь, у которой не осталось штук; если
         # остаток есть, она продолжает продаваться
         await session.execute(
@@ -810,8 +840,79 @@ async def patch_order(
             {"ids": parts},
         )
 
+
+# ------------------------------------------------------------------
+# Посылки заказа
+# ------------------------------------------------------------------
+# Каждый филиал собирает и отправляет свою посылку сам: вписывает номер
+# отслеживания и отмечает, что отправил. Ушли все посылки — заказ
+# «отправлен», доставлены все — «выдан».
+
+SHIPMENT_FLOW = {"assembling", "sent", "delivered"}
+TRACK_RE = r"^[A-Za-z0-9-]{4,40}$"
+
+
+class ShipmentPatch(BaseModel):
+    status: str | None = None
+    track_number: str | None = Field(default=None, max_length=40)
+
+
+@router.patch("/api/manage/shipments/{shipment_id}")
+async def patch_shipment(
+    shipment_id: int,
+    payload: ShipmentPatch,
+    session: AsyncSession = Depends(get_session),
+    user=Depends(require_role("manager")),
+):
+    row = (await session.execute(text("""
+        SELECT s.id, s.order_id, s.status, o.status::text AS order_status
+          FROM order_shipments s JOIN orders o ON o.id = s.order_id
+         WHERE s.id = :id"""), {"id": shipment_id})).first()
+    if not row:
+        raise HTTPException(404, "Посылка не найдена")
+    if row.order_status == "cancelled" or row.status == "cancelled":
+        raise HTTPException(409, "Заказ отменён — посылку не отправляют")
+    if payload.status is not None and payload.status not in SHIPMENT_FLOW:
+        raise HTTPException(422, "Неизвестный статус посылки")
+    track = None
+    if payload.track_number is not None:
+        track = payload.track_number.strip().replace(" ", "")
+        if track and not re.match(TRACK_RE, track):
+            raise HTTPException(422, "Номер отслеживания: латиница, цифры и дефис, 4–40 знаков")
+    if payload.status == "sent" and not (track or (await session.execute(text(
+            "SELECT track_number FROM order_shipments WHERE id = :id"),
+            {"id": shipment_id})).scalar()):
+        raise HTTPException(422, "Впишите номер отслеживания — без него покупатель "
+                                 "не найдёт посылку")
+
+    await session.execute(text("""
+        UPDATE order_shipments
+           SET track_number = CASE WHEN CAST(:t AS text) IS NULL THEN track_number
+                                   ELSE nullif(CAST(:t AS text), '') END,
+               status = coalesce(CAST(:st AS text), status),
+               sent_at = CASE WHEN coalesce(CAST(:st AS text), status) IN ('sent', 'delivered')
+                              THEN coalesce(sent_at, now()) ELSE NULL END,
+               delivered_at = CASE WHEN coalesce(CAST(:st AS text), status) = 'delivered'
+                                   THEN coalesce(delivered_at, now()) ELSE NULL END
+         WHERE id = :id"""),
+        {"t": track, "st": payload.status, "id": shipment_id})
+
+    # Заказ следует за посылками — только вперёд: вернуть посылку в
+    # «собирается» не откатывает заказ, это решает менеджер
+    left = (await session.execute(text("""
+        SELECT count(*) FILTER (WHERE status = 'assembling') AS assembling,
+               count(*) FILTER (WHERE status = 'sent') AS sent
+          FROM order_shipments WHERE order_id = :o AND status <> 'cancelled'"""),
+        {"o": row.order_id})).first()
+    nxt = None
+    if not left.assembling and not left.sent and row.order_status != "completed":
+        nxt = "completed"
+    elif not left.assembling and row.order_status in ("new", "confirmed", "paid"):
+        nxt = "shipped"
+    if nxt:
+        await set_order_status(session, row.order_id, nxt)
     await session.commit()
-    return {"ok": True}
+    return {"ok": True, "order_status": nxt or row.order_status}
 
 
 # ------------------------------------------------------------------

@@ -1,6 +1,7 @@
 """Доставка службами для корзины: подсказка города, варианты с ценой,
-пункты выдачи. Вся логика служб — в app/delivery.py; здесь — откуда
-везём (филиал) и что везём (корзина покупателя)."""
+пункты выдачи. Вся логика служб — в app/delivery.py; здесь — что везём
+(корзина покупателя) и откуда: посылка из каждого филиала, где лежат
+детали."""
 
 import time
 from decimal import Decimal
@@ -18,26 +19,49 @@ from .shop import cart_rows, cart_token
 router = APIRouter(tags=["delivery"])
 
 
-async def origin_of(session: AsyncSession, items: list[dict]) -> dict | None:
-    """Откуда отправляем: филиал, где лежит больше всего деталей заказа —
-    туда же по умолчанию предлагается самовывоз."""
-    here = [i["branch_id"] for i in items if i.get("branch_id") and i.get("take")]
-    if not here:
-        return None
-    bid = max(set(here), key=here.count)
-    row = (await session.execute(text("""
-        SELECT id, city, postcode, cdek_city_code FROM branches WHERE id = :b"""),
-        {"b": bid})).first()
-    return dict(row._mapping) if row else None
+async def parcels_of(session: AsyncSession, items: list[dict]) -> list[dict]:
+    """Посылки заказа: детали, сложенные по филиалам, где они лежат.
+    Филиал берём каждый раз заново из parts — деталь могли перевезти,
+    пока она лежала в корзине. Деталь без филиала едет с самой большой
+    посылкой. Первой идёт самая большая."""
+    items = [i for i in items if i.get("take")]
+    groups: dict[int, list] = {}
+    for i in items:
+        if i.get("branch_id"):
+            groups.setdefault(i["branch_id"], []).append(i)
+    if not groups:
+        return []
+    order = sorted(groups, key=lambda b: -sum(i["take"] for i in groups[b]))
+    groups[order[0]] += [i for i in items if not i.get("branch_id")]
+    rows = await session.execute(text("""
+        SELECT id, city, name, postcode, cdek_city_code, yandex_station_id
+          FROM branches WHERE id = ANY(:ids)"""), {"ids": order})
+    origins = {r.id: dict(r._mapping) for r in rows}
+    out = []
+    for bid in order:
+        if bid not in origins:
+            continue
+        lines = [{**i, "qty": i["take"]} for i in groups[bid]]
+        out.append({
+            "origin": origins[bid], "items": lines,
+            "value": sum((i["price"] or Decimal(0)) * i["take"] for i in lines),
+        })
+    for p, label in zip(out, delivery.parcel_labels([p["origin"] for p in out])):
+        p["origin"]["label"] = label
+    return out
 
 
-async def remember_cdek_code(session: AsyncSession, origin: dict) -> None:
+async def remember_cdek_codes(session: AsyncSession, parcels: list[dict]) -> None:
     """Код города СДЭК для филиала узнаём один раз и запоминаем."""
-    if origin.get("cdek_city_code"):
-        await session.execute(text("""
-            UPDATE branches SET cdek_city_code = :c
-             WHERE id = :b AND cdek_city_code IS DISTINCT FROM :c"""),
-            {"c": origin["cdek_city_code"], "b": origin["id"]})
+    changed = False
+    for p in parcels:
+        origin = p["origin"]
+        if origin.get("cdek_city_code"):
+            changed |= bool((await session.execute(text("""
+                UPDATE branches SET cdek_city_code = :c
+                 WHERE id = :b AND cdek_city_code IS DISTINCT FROM :c"""),
+                {"c": origin["cdek_city_code"], "b": origin["id"]})).rowcount)
+    if changed:
         await session.commit()
 
 
@@ -50,21 +74,31 @@ class Dest(BaseModel):
 
 
 async def quotes_for_cart(session: AsyncSession, request: Request, customer: dict | None,
-                          dest: dict) -> tuple[list[dict], dict | None]:
-    items = [i for i in await cart_rows(session, cart_token(request), customer) if i["take"]]
-    if not items:
-        return [], None
-    origin = await origin_of(session, items)
-    if not origin:
-        return [], None
-    value = sum((i["price"] or Decimal(0)) * i["take"] for i in items)
-    parcel = [{**i, "qty": i["take"]} for i in items]
-    opts = await delivery.quotes(origin, dest, parcel, value)
-    await remember_cdek_code(session, origin)
-    # Почему нет Почты — для плитки с причиной (см. delivery.pochta_issue)
-    origin["pochta_issue"] = delivery.pochta_issue(
-        parcel, dest.get("postcode"), any(o["carrier"] == "pochta" for o in opts))
-    return opts, origin
+                          dest: dict) -> tuple[dict, list[dict]]:
+    """→ ({options, issues}, посылки). Варианты — на весь заказ сразу:
+    служба и способ у всех посылок одни (см. delivery.quotes)."""
+    items = await cart_rows(session, cart_token(request), customer)
+    parcels = await parcels_of(session, items)
+    if not parcels:
+        return {"options": [], "issues": {}}, []
+    got = await delivery.quotes(parcels, dest)
+    await remember_cdek_codes(session, parcels)
+    return got, parcels
+
+
+def parcel_summary(parcels: list[dict]) -> list[dict]:
+    """Что едет и откуда — для блока «придёт N посылками» в корзине."""
+    return [{
+        "branch_id": p["origin"]["id"], "city": p["origin"]["city"],
+        "from_city": p["origin"]["label"],
+        "count": len(p["items"]), "qty": sum(i["take"] for i in p["items"]),
+        "weight_g": delivery.package(p["items"])["weight_g"],
+    } for p in parcels]
+
+
+def _money(o: dict) -> dict:
+    return {**o, "price": str(o["price"]),
+            "parcels": [{**x, "price": str(x["price"])} for x in o.get("parcels", [])]}
 
 
 @router.get("/api/delivery/cities")
@@ -79,16 +113,18 @@ async def delivery_quotes(
     session: AsyncSession = Depends(get_session),
     customer: dict | None = Depends(ca.optional_customer),
 ):
-    opts, origin = await quotes_for_cart(session, request, customer, payload.model_dump())
+    got, parcels = await quotes_for_cart(session, request, customer, payload.model_dump())
+    issues = got["issues"]
     return {
-        "from": origin["city"] if origin else None,
+        "parcels": parcel_summary(parcels),
         "carriers": delivery.enabled(),
-        # Почта считает только по индексу — без него её вариантов нет.
-        # Не подходит по весу или индексу — причина вместо молчания
-        "pochta_issue": origin and origin.get("pochta_issue"),
+        # Служба не берёт какую-то посылку — плитка с причиной вместо
+        # молчания: «Почта: посылка из Москвы тяжелее 20 кг»
+        "issues": issues,
+        # Почта считает только по индексу — без него её вариантов нет
         "need_postcode": "pochta" in delivery.enabled() and not payload.postcode
-                         and not (origin and origin.get("pochta_issue")),
-        "options": [{**o, "price": str(o["price"])} for o in opts],
+                         and not issues.get("pochta") and bool(parcels),
+        "options": [_money(o) for o in got["options"]],
     }
 
 

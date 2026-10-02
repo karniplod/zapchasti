@@ -6,6 +6,31 @@
 <link rel="stylesheet" href="{{ asset('css/shop.css') }}">
 {% endblock %}
 
+{% set CN = {'cdek': 'СДЭК', 'yandex': 'Яндекс Доставка', 'pochta': 'Почта России'} %}
+{% set MN = {'pvz': 'до пункта выдачи', 'door': 'курьером до двери', 'post': 'до отделения'} %}
+{% macro rub(v) %}{{ "{:,.0f}".format(v).replace(",", " ") }} ₽{% endmacro %}
+
+{% macro line(i) %}
+      <li>
+        <a class="pic" href="/p/{{ i.sku }}">
+          {% if i.photo %}<img src="{{ i.photo }}" alt="" loading="lazy">
+          {% else %}<span class="none"></span>{% endif %}
+        </a>
+        <span class="nm"><a href="/p/{{ i.sku }}">{{ i.name }}</a>
+          <small class="mono">{{ i.sku }}</small>
+          {% if i.branch %}<small>{{ i.branch }}</small>{% endif %}</span>
+        <span class="cond">{{ i.condition }}</span>
+        <span class="sum">{{ rub(i.sum) }}
+          {%- if i.qty > 1 %}<small>{{ i.qty }} шт × {{ rub(i.price) }}</small>{% endif %}</span>
+      </li>
+{% endmacro %}
+
+{# Номер для отслеживания — ссылкой на страницу службы, если она есть #}
+{% macro track(sh) %}
+  {%- if sh.track_url %}<a href="{{ sh.track_url }}" target="_blank" rel="noopener" class="mono">{{ sh.track_number }}</a>
+  {%- else %}<span class="mono">{{ sh.track_number }}</span>{% endif %}
+{%- endmacro %}
+
 {% block content %}
 <div class="wrap shop narrow">
   <p class="crumbs"><a href="/account">Кабинет</a> → заказ № {{ order.number }}</p>
@@ -19,26 +44,29 @@
   </div>
 
   <article class="order">
-    <ul class="items">
-      {% for i in order.lines %}
-      <li>
-        <a class="pic" href="/p/{{ i.sku }}">
-          {% if i.photo %}<img src="{{ i.photo }}" alt="" loading="lazy">
-          {% else %}<span class="none"></span>{% endif %}
-        </a>
-        <span class="nm"><a href="/p/{{ i.sku }}">{{ i.name }}</a>
-          <small class="mono">{{ i.sku }}</small>
-          {% if i.branch %}<small>{{ i.branch }}</small>{% endif %}</span>
-        <span class="cond">{{ i.condition }}</span>
-        <span class="sum">{{ "{:,.0f}".format(i.sum).replace(",", " ") }} ₽
-          {%- if i.qty > 1 %}<small>{{ i.qty }} шт × {{ "{:,.0f}".format(i.price).replace(",", " ") }} ₽</small>{% endif %}</span>
-      </li>
-      {% endfor %}
-    </ul>
+    {% if order.shipments | length > 1 %}
+    {# Детали из разных филиалов едут отдельными посылками — у каждой
+       свой срок, статус и номер для отслеживания #}
+    {% for sh in order.shipments %}
+    <div class="parcel">
+      <div class="parcel-h">
+        <b>Посылка {{ loop.index }} {{ sh.from_city }}</b>
+        <span class="st st-ship-{{ sh.status }}">{{ sh.label }}</span>
+      </div>
+      <p class="parcel-meta">{{ CN.get(sh.carrier, '') }}
+        {%- if sh.days %}, {{ sh.days }}{% endif %}
+        {%- if sh.price %} · доставка {{ rub(sh.price) }}{% endif %}
+        {%- if sh.track_number %} · номер для отслеживания {{ track(sh) }}{% endif %}</p>
+      <ul class="items">{% for i in sh.lines %}{{ line(i) }}{% endfor %}</ul>
+    </div>
+    {% endfor %}
+    {% else %}
+    <ul class="items">{% for i in order.lines %}{{ line(i) }}{% endfor %}</ul>
+    {% endif %}
 
     {% if order.delivery_price %}
     <div class="order-sum order-ship">
-      <span>Доставка</span>
+      <span>Доставка{% if order.shipments | length > 1 %}, {{ order.shipments | length }} посылки{% endif %}</span>
       <b>{{ "{:,.0f}".format(order.delivery_price).replace(",", " ") }} ₽</b>
     </div>
     {% endif %}
@@ -52,13 +80,16 @@
     <h2>Получение</h2>
     <dl class="facts">
       <dt>Способ</dt>
-      {% set CN = {'cdek': 'СДЭК', 'yandex': 'Яндекс Доставка', 'pochta': 'Почта России'} %}
-      {% set MN = {'pvz': 'до пункта выдачи', 'door': 'курьером до двери', 'post': 'до отделения'} %}
       <dd>{% if order.delivery_carrier %}{{ CN.get(order.delivery_carrier) }} — {{ MN.get(order.delivery_mode) }}
             {%- if order.delivery_days %}, {{ order.delivery_days }}{% endif %}
           {% elif order.delivery_method == 'shipping' %}Доставка транспортной компанией
           {% else %}Самовывоз{% if order.pickup_branch %} — {{ order.pickup_branch }}{% endif %}{% endif %}</dd>
       {% if order.delivery_address %}<dt>Адрес</dt><dd>{{ order.delivery_address }}</dd>{% endif %}
+      {% if order.shipments | length == 1 %}{% set sh = order.shipments[0] %}
+      <dt>Посылка</dt>
+      <dd><span class="st st-ship-{{ sh.status }}">{{ sh.label }}</span>
+        {%- if sh.track_number %} · номер для отслеживания {{ track(sh) }}{% endif %}</dd>
+      {% endif %}
       {% if order.contact_name %}<dt>Получатель</dt>
       <dd>{{ order.contact_name }}{% if order.contact_phone %}, {{ order.contact_phone | phone }}{% endif %}</dd>{% endif %}
       {% if payment_label %}<dt>Оплата</dt><dd>{{ payment_label }}</dd>{% endif %}

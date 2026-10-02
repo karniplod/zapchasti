@@ -102,9 +102,10 @@ class Settings(BaseSettings):
     cdek_client_id: str = ""
     cdek_client_secret: str = ""
     cdek_test: bool = False
-    # Яндекс Доставка (межгород): Bearer-токен из кабинета и id склада
-    # отгрузки (platform_station_id). Тестовая среда работает только по Москве;
-    # её токен — в документации Яндекса («Доступ к API»), склад подставится сам
+    # Яндекс Доставка (межгород): Bearer-токен из кабинета. Склад отгрузки
+    # (platform_station_id) — у каждого филиала свой, branches.yandex_station_id.
+    # Тестовая среда работает только по Москве; её токен — в документации
+    # Яндекса («Доступ к API»), склад — station_id ниже или тестовый сам
     yandex_delivery_token: str = ""
     yandex_delivery_station_id: str = ""
     yandex_delivery_test: bool = False

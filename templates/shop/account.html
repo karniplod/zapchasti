@@ -66,6 +66,10 @@
           <footer>
             {% if o.delivery_method == 'shipping' %}
               Доставка{% if o.delivery_address %}: {{ o.delivery_address }}{% endif %}
+              {%- if o.shipments | length > 1 %}
+              · {{ o.shipments | length }} посылки, в пути или доставлено
+                {{ o.shipments | selectattr('status', 'in', ['sent', 'delivered']) | list | length }}
+                из {{ o.shipments | length }}{% endif %}
             {% else %}Самовывоз{% endif %}
             {% if o.paid_at %} · оплачен {{ o.paid_at.strftime('%d.%m.%Y') }}{% endif %}
             <a class="more" href="/account/orders/{{ o.number }}">Подробнее</a>
