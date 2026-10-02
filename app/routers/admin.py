@@ -1,6 +1,6 @@
 """Сводка бэкенда — точка входа после логина."""
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -153,3 +153,171 @@ async def reports_page(
             "totals": totals,
         },
     )
+
+
+# ------------------------------------------------------------------
+# Журналы запросов: VIN, поиск по названию, подбор через каталог
+# ------------------------------------------------------------------
+# Сводка «что не нашли» отвечает на вопрос «что купить», но не показывает
+# сами запросы. Здесь — каждый запрос целиком: какой VIN, нашлось ли,
+# кто искал. Все три журнала отдаются страницами, с периодом и фильтром
+# «нашлось / не нашлось».
+
+RESOLUTIONS = {
+    "exact": "машина определена",
+    "brand_year": "только марка и год",
+    "unknown": "VIN не распознан",
+}
+
+CUSTOMER_LABEL = "coalesce(cu.name, cu.phone, cu.email)"
+
+
+def _period(alias: str) -> str:
+    """За сколько дней; 0 — за всё время."""
+    return f"(:days = 0 OR {alias}.created_at > now() - make_interval(days => :days))"
+
+
+def _found(alias: str, found: str | None) -> str:
+    return {"yes": f"{alias}.results_count > 0",
+            "no": f"{alias}.results_count = 0"}.get(found or "", "true")
+
+
+def _page(rows) -> tuple[int, list[dict]]:
+    """Общее число строк приходит в каждой строке (count(*) OVER) —
+    забираем его и убираем из самих строк."""
+    out = [dict(r._mapping) for r in rows]
+    total = out[0]["total_rows"] if out else 0
+    for r in out:
+        r.pop("total_rows")
+    return total, out
+
+
+@router.get("/api/reports/vin")
+async def report_vin(
+    days: int = Query(30, ge=0, le=3650),
+    found: str | None = None,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    user: dict = Depends(require_role("manager")),
+    session: AsyncSession = Depends(get_session),
+):
+    """Каждый VIN, который вводили, — полностью, а не сводкой по заводу."""
+    p = {"days": days, "lim": limit, "off": offset}
+    summary = (await session.execute(text(f"""
+        SELECT count(*)                                    AS total,
+               count(*) FILTER (WHERE q.results_count > 0) AS found,
+               count(*) FILTER (WHERE q.results_count = 0) AS not_found,
+               count(DISTINCT q.vin)                       AS unique_vins
+          FROM vin_queries q WHERE {_period('q')}"""), p)).mappings().first()
+    total, rows = _page(await session.execute(text(f"""
+        SELECT count(*) OVER () AS total_rows,
+               q.created_at, q.vin, q.wmi, w.manufacturer, q.resolution,
+               b.name || ' ' || m.name || ' ' || g.name AS car,
+               q.results_count, {CUSTOMER_LABEL} AS customer,
+               -- Сколько раз этот VIN вводили за всё время: повтор — это
+               -- человек, который ждёт деталь, а не случайный прохожий
+               (SELECT count(*) FROM vin_queries q2 WHERE q2.vin = q.vin) AS times
+          FROM vin_queries q
+          LEFT JOIN wmi w         ON w.code = q.wmi
+          LEFT JOIN generations g ON g.id = q.generation_id
+          LEFT JOIN models m      ON m.id = g.model_id
+          LEFT JOIN brands b      ON b.id = m.brand_id
+          LEFT JOIN customers cu  ON cu.id = q.customer_id
+         WHERE {_period('q')} AND {_found('q', found)}
+         ORDER BY q.created_at DESC LIMIT :lim OFFSET :off"""), p))
+    for r in rows:
+        r["resolution_label"] = RESOLUTIONS.get(r["resolution"], r["resolution"])
+    return {"summary": dict(summary), "total": total, "rows": rows}
+
+
+@router.get("/api/reports/searches")
+async def report_searches(
+    days: int = Query(30, ge=0, le=3650),
+    found: str | None = None,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    user: dict = Depends(require_role("manager")),
+    session: AsyncSession = Depends(get_session),
+):
+    """Поиск по названию и номеру: что вводили и сколько нашлось. Сверху —
+    частые запросы: десять «рулевая рейка» без результата важнее одной."""
+    where = f"{_period('s')} AND {_found('s', found)}"
+    p = {"days": days, "lim": limit, "off": offset}
+    summary = (await session.execute(text(f"""
+        SELECT count(*)                                    AS total,
+               count(*) FILTER (WHERE s.results_count > 0) AS found,
+               count(*) FILTER (WHERE s.results_count = 0) AS not_found,
+               count(DISTINCT lower(s.query))              AS unique_queries
+          FROM search_queries s WHERE {_period('s')}"""), p)).mappings().first()
+    top = await session.execute(text(f"""
+        SELECT min(s.query) AS query, count(*) AS times,
+               count(*) FILTER (WHERE s.results_count = 0) AS empty,
+               max(s.results_count) AS best
+          FROM search_queries s WHERE {where}
+         GROUP BY lower(s.query)
+         ORDER BY count(*) DESC, max(s.created_at) DESC LIMIT 15"""), p)
+    total, rows = _page(await session.execute(text(f"""
+        SELECT count(*) OVER () AS total_rows,
+               s.created_at, s.query, s.results_count, s.city,
+               {CUSTOMER_LABEL} AS customer
+          FROM search_queries s
+          LEFT JOIN customers cu ON cu.id = s.customer_id
+         WHERE {where}
+         ORDER BY s.created_at DESC LIMIT :lim OFFSET :off"""), p))
+    return {"summary": dict(summary), "top": [dict(r._mapping) for r in top],
+            "total": total, "rows": rows}
+
+
+@router.get("/api/reports/browses")
+async def report_browses(
+    days: int = Query(30, ge=0, le=3650),
+    found: str | None = None,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    user: dict = Depends(require_role("manager")),
+    session: AsyncSession = Depends(get_session),
+):
+    """Подбор через каталог: узел, состояние, цена, машина, город."""
+    where = f"{_period('cb')} AND {_found('cb', found)}"
+    p = {"days": days, "lim": limit, "off": offset}
+    summary = (await session.execute(text(f"""
+        SELECT count(*)                                     AS total,
+               count(*) FILTER (WHERE cb.results_count > 0) AS found,
+               count(*) FILTER (WHERE cb.results_count = 0) AS not_found,
+               count(*) FILTER (WHERE cb.category_id IS NOT NULL) AS with_node
+          FROM catalog_browses cb WHERE {_period('cb')}"""), p)).mappings().first()
+    # Какие узлы открывают чаще и как часто там пусто
+    top = await session.execute(text(f"""
+        SELECT coalesce(par.name || ' / ', '') || c.name AS node,
+               count(*) AS times,
+               count(*) FILTER (WHERE cb.results_count = 0) AS empty
+          FROM catalog_browses cb
+          JOIN part_categories c        ON c.id = cb.category_id
+          LEFT JOIN part_categories par ON par.id = c.parent_id
+         WHERE {where}
+         GROUP BY par.name, c.name
+         ORDER BY count(*) DESC LIMIT 15"""), p)
+    conds = await session.execute(text(f"""
+        SELECT x.cond AS condition, count(*) AS times
+          FROM catalog_browses cb, unnest(cb.conditions) AS x(cond)
+         WHERE {where}
+         GROUP BY x.cond ORDER BY x.cond"""), p)
+    total, rows = _page(await session.execute(text(f"""
+        SELECT count(*) OVER () AS total_rows,
+               cb.created_at, cb.conditions, cb.price_min, cb.price_max,
+               cb.city, cb.results_count,
+               c.name AS category, par.name AS node,
+               b.name || ' ' || m.name || ' ' || g.name AS car,
+               {CUSTOMER_LABEL} AS customer
+          FROM catalog_browses cb
+          LEFT JOIN part_categories c   ON c.id = cb.category_id
+          LEFT JOIN part_categories par ON par.id = c.parent_id
+          LEFT JOIN generations g       ON g.id = cb.generation_id
+          LEFT JOIN models m            ON m.id = g.model_id
+          LEFT JOIN brands b            ON b.id = m.brand_id
+          LEFT JOIN customers cu        ON cu.id = cb.customer_id
+         WHERE {where}
+         ORDER BY cb.created_at DESC LIMIT :lim OFFSET :off"""), p))
+    return {"summary": dict(summary), "top": [dict(r._mapping) for r in top],
+            "conditions": [dict(r._mapping) for r in conds],
+            "total": total, "rows": rows}

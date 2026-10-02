@@ -13,7 +13,47 @@
 
 <div class="wrap">
 
-<section class="rep">
+<div class="tabs" id="repTabs" role="tablist">
+  <button class="on" data-t="vin" role="tab">VIN</button>
+  <button data-t="searches" role="tab">Поиск по названию</button>
+  <button data-t="browses" role="tab">Каталог</button>
+  <span class="sep"></span>
+  <button data-t="demand" role="tab">Спрос на закупку</button>
+  <button data-t="accuracy" role="tab">Номера деталей</button>
+</div>
+
+{# Три журнала запросов рисует скрипт: они листаются страницами и
+   фильтруются, а две сводки ниже считаются один раз при открытии #}
+<section class="rep" id="journal">
+  <div class="rep-head">
+    <div>
+      <h3 id="jTitle">Запросы по VIN</h3>
+      <p class="why" id="jWhy"></p>
+    </div>
+    <div class="rep-filters">
+      <label>Период
+        <select id="jDays">
+          <option value="1">сутки</option>
+          <option value="7">7 дней</option>
+          <option value="30" selected>30 дней</option>
+          <option value="180">полгода</option>
+          <option value="0">всё время</option>
+        </select></label>
+      <label>Результат
+        <select id="jFound">
+          <option value="">все</option>
+          <option value="yes">нашлось</option>
+          <option value="no">не нашлось</option>
+        </select></label>
+    </div>
+  </div>
+  <div class="stats" id="jStats"></div>
+  <div id="jTop"></div>
+  <div class="tbl-wrap"><table id="jTable"></table></div>
+  <div class="pager" id="pager"></div>
+</section>
+
+<section class="rep" data-panel="demand" hidden>
   <h3>Что искали и не нашли</h3>
   <p class="why">Покупатель ввёл VIN, а деталей к этой машине у нас не оказалось.
      Сверху те, по которым приходили чаще — это и есть список машин,
@@ -41,7 +81,7 @@
   {% endif %}
 </section>
 
-<section class="rep">
+<section class="rep" data-panel="accuracy" hidden>
   <h3>Точность подсказки каталожного номера</h3>
   <p class="why">Сколько раз каждый источник предлагал номер и сколько раз
      оказался прав — считается по тому, что в итоге выбрал человек.
@@ -75,4 +115,7 @@
 </section>
 
 </div>
+
+<script src="{{ asset('js/admin/pager.js') }}"></script>
+<script src="{{ asset('js/admin/reports.js') }}"></script>
 </body></html>

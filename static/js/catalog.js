@@ -248,7 +248,7 @@ function rememberSearch(keepalive = false){
   lastLogged = q;
   fetch('/api/catalog/searches', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({query: q, results_count: lastTotal}),
+    body: JSON.stringify({query: q, results_count: lastTotal, city: state.city}),
     // keepalive — когда уходим со страницы по клику на деталь:
     // обычный fetch браузер оборвёт вместе с выгрузкой страницы
     keepalive,
@@ -296,6 +296,7 @@ async function loadParts(){
   if (run !== partsRun) return;   // пока ждали, фильтры успели поменяться
 
   lastTotal = d.total;
+  rememberBrowse(d.total);
   $('count').textContent = d.total
     ? `${d.total} ${plural(d.total,'деталь','детали','деталей')}` : '';
 
@@ -320,6 +321,35 @@ async function loadParts(){
 
   $('grid').innerHTML = d.items.map(card).join('');
   renderPager(d);
+}
+
+// ── Подбор через каталог — в отчёт ───────────────────────────────
+// Пишем, когда выбор устоялся: полторы секунды без изменений. Иначе
+// человек, перещёлкавший пять состояний, дал бы пять записей вместо
+// одной. Листание страниц и сортировка — не новый подбор.
+let browseTimer, lastBrowse = '';
+function rememberBrowse(total){
+  clearTimeout(browseTimer);
+  if (state.q || state.donor) return;   // поиск по слову пишется отдельно
+  const b = {
+    category_id: state.category_id, generation_id: state.generation_id,
+    conditions: state.condition,
+    price_min: state.price_min ? +state.price_min : null,
+    price_max: state.price_max ? +state.price_max : null,
+    city: state.city, results_count: total,
+  };
+  // Одна машина без узла и фильтров — это подбор по VIN или марке,
+  // он уже в своём журнале
+  if (!b.category_id && !b.conditions.length
+      && b.price_min === null && b.price_max === null) return;
+  const key = JSON.stringify({...b, results_count: 0});
+  if (key === lastBrowse) return;
+  browseTimer = setTimeout(() => {
+    lastBrowse = key;
+    fetch('/api/catalog/browses', {method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(b), keepalive: true}).catch(() => {});
+  }, 1500);
 }
 
 // Одна карточка — одна разметка на весь каталог

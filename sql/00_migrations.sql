@@ -410,3 +410,32 @@ ALTER TABLE donors ADD COLUMN IF NOT EXISTS public_note text;
 ALTER TABLE parts ADD COLUMN IF NOT EXISTS client_key uuid;
 CREATE UNIQUE INDEX IF NOT EXISTS parts_client_key_uniq
     ON parts (client_key) WHERE client_key IS NOT NULL;
+
+
+-- ------------------------------------------------------------
+-- Отчёты по запросам покупателей
+-- ------------------------------------------------------------
+-- Поиск по названию писался только у вошедших — для истории в
+-- кабинете. Для отчёта нужен весь спрос, поэтому теперь пишутся и
+-- анонимные (customer_id NULL), с городом, который был выбран.
+ALTER TABLE search_queries ADD COLUMN IF NOT EXISTS city text;
+CREATE INDEX IF NOT EXISTS search_queries_created_idx
+    ON search_queries (created_at DESC);
+
+-- Подбор через каталог: какой узел открыли, какие состояния отметили,
+-- цена, машина, город — и сколько нашлось. Запись ставит фронт, когда
+-- выбор устоялся (полторы секунды без изменений), а не на каждый щелчок.
+CREATE TABLE IF NOT EXISTS catalog_browses (
+    id            bigserial PRIMARY KEY,
+    customer_id   bigint REFERENCES customers(id) ON DELETE SET NULL,
+    category_id   int REFERENCES part_categories(id) ON DELETE SET NULL,
+    generation_id int REFERENCES generations(id) ON DELETE SET NULL,
+    conditions    text[],
+    price_min     int,
+    price_max     int,
+    city          text,
+    results_count int NOT NULL DEFAULT 0,
+    created_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS catalog_browses_created_idx
+    ON catalog_browses (created_at DESC);

@@ -623,6 +623,7 @@ async def catalog_parts(
 class SearchLog(BaseModel):
     query: str = Field(max_length=200)
     results_count: int = Field(default=0, ge=0, le=1_000_000)
+    city: str | None = Field(default=None, max_length=80)
 
 
 @router.post("/api/catalog/searches", status_code=204)
@@ -638,18 +639,17 @@ async def log_search(
     Теперь зовёт фронт и только когда человек показал намерение: нажал
     Enter, нажал «Искать» или выбрал деталь из того, что предложил поиск.
 
-    Анонимных не пишем: такую историю всё равно некому показать.
+    Анонимные тоже пишутся — без покупателя: личной истории у них нет,
+    но в отчёт о спросе они входят наравне со всеми.
     """
-    if not customer:
-        return Response(status_code=204)
-
     query = payload.query.strip()
     if len(query) < 2:
         return Response(status_code=204)
 
     # Тот же запрос за последние десять минут — это уточнение
-    # (нажал Enter, посмотрел, кликнул деталь), а не новый поиск
-    recent = (
+    # (нажал Enter, посмотрел, кликнул деталь), а не новый поиск.
+    # У анонимных повтор отсекает фронт: на сервере их не различить
+    recent = customer and (
         await session.execute(
             text("""
         SELECT 1 FROM search_queries
@@ -666,10 +666,55 @@ async def log_search(
 
     await session.execute(
         text("""
-        INSERT INTO search_queries (customer_id, query, results_count)
-        VALUES (:c, :q, :n)
+        INSERT INTO search_queries (customer_id, query, results_count, city)
+        VALUES (:c, :q, :n, :city)
     """),
-        {"c": customer["id"], "q": query, "n": payload.results_count},
+        {"c": customer["id"] if customer else None, "q": query,
+         "n": payload.results_count, "city": (payload.city or "").strip() or None},
+    )
+    await session.commit()
+    return Response(status_code=204)
+
+
+class BrowseLog(BaseModel):
+    category_id: int | None = None
+    generation_id: int | None = None
+    conditions: list[str] = Field(default_factory=list, max_length=4)
+    price_min: int | None = Field(default=None, ge=0, le=100_000_000)
+    price_max: int | None = Field(default=None, ge=0, le=100_000_000)
+    city: str | None = Field(default=None, max_length=80)
+    results_count: int = Field(default=0, ge=0, le=1_000_000)
+
+
+@router.post("/api/catalog/browses", status_code=204)
+async def log_browse(
+    payload: BrowseLog,
+    session: AsyncSession = Depends(get_session),
+    customer: dict | None = Depends(optional_customer),
+):
+    """Подбор через каталог — для отчёта: какой узел выбрали, в каком
+    состоянии, за какую цену и что нашлось. Фронт зовёт, когда выбор
+    устоялся, поэтому промежуточные щелчки сюда не попадают."""
+    conds = [c for c in payload.conditions if c in CONDITION_LABELS] or None
+    # «Просто открыл каталог» или выбрал одну машину — не подбор:
+    # машина без узла и фильтров уже записана в журнал VIN
+    if not (payload.category_id or conds
+            or payload.price_min is not None or payload.price_max is not None):
+        return Response(status_code=204)
+
+    await session.execute(
+        text("""
+        INSERT INTO catalog_browses (customer_id, category_id, generation_id,
+                                     conditions, price_min, price_max, city,
+                                     results_count)
+        SELECT :c, (SELECT id FROM part_categories WHERE id = :cat),
+               (SELECT id FROM generations WHERE id = :gen),
+               :conds, :pmin, :pmax, :city, :n
+    """),
+        {"c": customer["id"] if customer else None, "cat": payload.category_id,
+         "gen": payload.generation_id, "conds": conds,
+         "pmin": payload.price_min, "pmax": payload.price_max,
+         "city": (payload.city or "").strip() or None, "n": payload.results_count},
     )
     await session.commit()
     return Response(status_code=204)

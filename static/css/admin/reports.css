@@ -25,3 +25,37 @@ tr:hover td{background:var(--panel-2)}
 .rep .why.why-sum{margin:14px 0 0}
 .muted{color:var(--dim)}
 .blank{color:var(--dim);font-size:13.5px;padding:18px 0}
+
+/* ── Журналы запросов ─────────────────────────────────────── */
+.rep[hidden]{display:none}
+.rep-head{display:flex;gap:12px 24px;justify-content:space-between;flex-wrap:wrap}
+.rep-filters{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.rep-filters label{font-size:11px;color:var(--dim);display:flex;flex-direction:column;gap:4px}
+.rep-filters select{padding:7px 9px;font-size:13.5px;min-width:130px}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
+  gap:8px;margin:4px 0 16px}
+.stat{background:var(--panel-2);border-radius:9px;padding:10px 12px}
+.stat b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--dim)}
+.stat.ok b{color:var(--ok)}
+.stat.no b{color:var(--err)}
+
+.rep h4{margin:4px 0 8px;font-size:13px;color:var(--muted);font-weight:600}
+table.top{margin-bottom:18px;max-width:640px}
+.conds{font-size:13px;color:var(--dim);margin:0 0 18px}
+.chip{display:inline-block;padding:2px 8px;border-radius:6px;background:var(--panel-2);
+  color:var(--ink);margin:2px 2px 0 0}
+
+/* Широкая таблица на телефоне листается сама, а не тянет страницу */
+.tbl-wrap{overflow-x:auto;margin:0 -4px;padding:0 4px}
+.tbl-wrap table{min-width:640px}
+td.vin{font-family:var(--mono,ui-monospace,monospace);font-size:12.5px;letter-spacing:.02em;
+  white-space:nowrap}
+td.q{font-weight:500}
+td .sub{font-size:11.5px;color:var(--dim);margin-top:2px}
+td.nowrap,.nowrap{white-space:nowrap}
+td.no{color:var(--err)}
+.res{font-size:12px;padding:2px 8px;border-radius:5px;white-space:nowrap}
+.res.ok{background:rgba(76,195,138,.14);color:var(--ok)}
+.res.no{background:rgba(255,95,86,.14);color:var(--err)}
