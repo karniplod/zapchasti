@@ -50,7 +50,8 @@ async function load(){
       <div class="meta">${when(o.created_at)} ·
         ${o.delivery_method === 'shipping'
           ? 'доставка' + (o.delivery_address ? ': ' + o.delivery_address : '')
-          : 'самовывоз'}${o.paid_at ? ' · оплачен ' + when(o.paid_at) : ''}
+          : 'самовывоз' + (o.pickup_branch ? ': ' + o.pickup_branch : '')}
+        ${o.payment_method ? ' · оплата ' + (o.payment_method === 'online' ? 'онлайн' : 'при получении') : ''}${o.paid_at ? ' · оплачен ' + when(o.paid_at) : ''}
         ${o.comment ? ' · ' + o.comment : ''}</div>
 
       <ul class="lines">

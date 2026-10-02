@@ -11,7 +11,7 @@
   <div class="acct-head">
     <div>
       <h1>{{ customer.name or 'Кабинет' }}</h1>
-      <p class="hint">{{ [customer.phone, customer.email] | select | join(' · ') }}</p>
+      <p class="hint">{{ [customer.phone | phone, customer.email] | select | join(' · ') }}</p>
     </div>
     <a class="btn btn-ghost btn-sm" href="/account/logout">Выйти</a>
   </div>

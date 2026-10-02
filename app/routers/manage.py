@@ -678,7 +678,13 @@ async def orders_list(
         text("""
         SELECT o.id, o.number, o.status::text AS status, o.total, o.created_at,
                o.paid_at, o.delivery_method, o.delivery_address, o.comment,
-               c.phone, c.name AS customer_name,
+               -- Получатель из формы заказа важнее карточки покупателя:
+               -- заказывать мог один человек, а забирать — другой
+               coalesce(o.contact_phone, c.phone) AS phone,
+               coalesce(o.contact_name, c.name) AS customer_name,
+               o.payment_method,
+               (SELECT br.city || ', ' || br.name FROM branches br
+                 WHERE br.id = o.pickup_branch_id) AS pickup_branch,
                (SELECT count(*) FROM order_items oi WHERE oi.order_id = o.id) AS items
           FROM orders o
           LEFT JOIN customers c ON c.id = o.customer_id

@@ -18,3 +18,21 @@ document.querySelectorAll('.pay').forEach(b => b.onclick = async () => {
   } catch { toast('Нет связи с сервером'); }
   b.disabled = false;
 });
+
+// Вернулись от банка, а платёж ещё «ожидает» — подтверждение приходит
+// через секунды. Перезагружаем страницу несколько раз: сервер при
+// каждом открытии сам спрашивает банк
+const wait = $('payWait');
+if (wait){
+  const n = +(sessionStorage.getItem('payWait') || 0);
+  if (n < 5){
+    sessionStorage.setItem('payWait', n + 1);
+    setTimeout(() => location.reload(), 3000);
+  } else {
+    sessionStorage.removeItem('payWait');
+    wait.textContent = 'Банк ещё не подтвердил оплату. Если деньги списались, '
+      + 'статус обновится сам в течение нескольких минут.';
+  }
+} else {
+  sessionStorage.removeItem('payWait');
+}

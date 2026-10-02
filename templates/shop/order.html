@@ -43,23 +43,42 @@
 
   <section class="block">
     <h2>Получение</h2>
-    <p>{% if order.delivery_method == 'shipping' %}
-        Доставка{% if order.delivery_address %} — {{ order.delivery_address }}{% endif %}
-       {% else %}Самовывоз со склада{% endif %}</p>
-    {% if order.comment %}<p class="hint">Комментарий: {{ order.comment }}</p>{% endif %}
+    <dl class="facts">
+      <dt>Способ</dt>
+      <dd>{% if order.delivery_method == 'shipping' %}Доставка транспортной компанией
+          {% else %}Самовывоз{% if order.pickup_branch %} — {{ order.pickup_branch }}{% endif %}{% endif %}</dd>
+      {% if order.delivery_address %}<dt>Адрес</dt><dd>{{ order.delivery_address }}</dd>{% endif %}
+      {% if order.contact_name %}<dt>Получатель</dt>
+      <dd>{{ order.contact_name }}{% if order.contact_phone %}, {{ order.contact_phone | phone }}{% endif %}</dd>{% endif %}
+      {% if payment_label %}<dt>Оплата</dt><dd>{{ payment_label }}</dd>{% endif %}
+      {% if order.comment %}<dt>Комментарий</dt><dd>{{ order.comment }}</dd>{% endif %}
+    </dl>
   </section>
 
   <section class="block">
     <h2>Оплата</h2>
 
+    {% if request.query_params.get('payerr') %}
+      <div class="notice notice-warn">Заказ оформлен, но банк не ответил.
+        Оплатите ниже — или при получении.</div>
+    {% endif %}
     {% if order.paid_at %}
-      <div class="notice notice-accent">
-        Оплачен {{ order.paid_at.strftime('%d.%m.%Y') }}.
+      <div class="notice notice-ok">
+        <b>Оплачен {{ order.paid_at.strftime('%d.%m.%Y') }}.</b> Спасибо! Менеджер
+        свяжется, когда заказ будет готов к выдаче или отправке.
       </div>
     {% elif not payable %}
       <p class="hint">Заказ {{ order.label }} — оплата к нему больше не относится.</p>
     {% elif methods %}
-      {# Сюда попадём, когда в PAYMENT_METHODS появится хоть один способ #}
+      {% if returned and payments and payments[0].status == 'pending' %}
+      {# Вернулись от банка, а он ещё не подтвердил — обычно это секунды #}
+      <div class="notice notice-accent" id="payWait" data-wait="1">
+        Проверяем оплату… Страница обновится сама.</div>
+      {% elif returned and payments and payments[0].status == 'failed' %}
+      <div class="notice notice-warn">Оплата не прошла. Попробуйте ещё раз
+        или выберите другой способ.</div>
+      {% endif %}
+      <p>Оплатить онлайн:</p>
       <div class="pay-methods">
         {% for m in methods %}
         <button class="btn btn-ghost pay" data-method="{{ m.code }}" data-order="{{ order.number }}">{{ m.title }}</button>
@@ -81,9 +100,10 @@
     <ul class="hist">
       {% for p in payments %}
       <li>
-        <span class="what">{{ p.method }}</span>
+        <span class="what">{{ p.method_label }}</span>
         <span class="n">{{ "{:,.0f}".format(p.amount).replace(",", " ") }} ₽</span>
-        <span class="date">{{ p.status }}</span>
+        <span class="date pay-{{ p.status }}">{{ p.status_label }},
+          {{ p.created_at.strftime('%d.%m %H:%M') }}</span>
       </li>
       {% endfor %}
     </ul>

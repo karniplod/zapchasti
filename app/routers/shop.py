@@ -17,6 +17,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import customer_auth as ca
+from .. import payments
 from ..config import settings
 from ..database import get_session
 from ..templating import templates
@@ -28,11 +29,11 @@ CART_COOKIE = "razbor_cart"
 # Имя человека: буквы любого алфавита, пробел, дефис, апостроф, точка
 NAME_RE = re.compile(r"^[^\W\d_][\w .'’-]{0,79}$")
 
-# Способы оплаты. Пусто — значит онлайн-оплата не подключена: заказ
-# оформляется, но платит человек при получении, а менеджер отмечает
-# оплату в бэкенде. Подключение провайдера = строка здесь и обработчик
-# в pay(); схема и шаблоны уже рассчитаны на это.
-PAYMENT_METHODS: list[dict] = []
+# Способы онлайн-оплаты — из app/payments.py: без ключей ЮKassa список
+# пуст, и заказ оплачивается при получении, а менеджер отмечает оплату
+# в бэкенде
+PAYMENT_LABELS = {"online": "онлайн, картой или СБП", "on_receipt": "при получении"}
+PAYMENT_STATUS = {"pending": "ожидает оплаты", "paid": "оплачен", "failed": "не прошёл"}
 
 ORDER_LABELS = {
     "new": "новый",
@@ -70,6 +71,7 @@ async def cart_rows(session: AsyncSession, token: str | None, customer: dict | N
                  WHERE ph.part_id = p.id ORDER BY sort_order LIMIT 1) AS photo,
                (SELECT br.city || ', ' || br.name FROM branches br
                  WHERE br.id = p.branch_id) AS branch,
+               p.branch_id,
                ci.added_at
           FROM cart_items ci
           JOIN parts p ON p.id = ci.part_id
@@ -89,6 +91,13 @@ async def cart_page(
     customer: dict | None = Depends(ca.optional_customer),
 ):
     items = await cart_rows(session, cart_token(request), customer)
+    branches = [dict(r._mapping) for r in await session.execute(text("""
+        SELECT id, city || ', ' || name AS label FROM branches
+         WHERE is_active ORDER BY sort_order, city, name"""))]
+    live = [i for i in items if i["status"] == "in_stock"]
+    # Самовывоз по умолчанию — из филиала, где лежит больше деталей заказа
+    here = [i["branch_id"] for i in live if i["branch_id"]]
+    pickup = max(set(here), key=here.count) if here else None
     return templates.TemplateResponse(
         "shop/cart.html",
         {
@@ -96,6 +105,11 @@ async def cart_page(
             "user": None,
             "customer": customer,
             "items": items,
+            "branches": branches,
+            "pickup": pickup,
+            # Детали из разных филиалов — предупредить, что соберём в один
+            "spread": len(set(here)) > 1,
+            "methods": payments.methods(),
             # Деталь могли продать, пока она лежала в корзине
             "gone": [i for i in items if i["status"] != "in_stock"],
             "no_price": [i for i in items if i["price"] is None],
@@ -186,8 +200,9 @@ async def me(
     items = await cart_rows(session, cart_token(request), customer)
     return {
         "authorized": bool(customer),
+        # Без имени — телефон или начало email: целиком адрес не влезает в шапку
         "name": (customer or {}).get("name") or (customer or {}).get("phone")
-                or (customer or {}).get("email"),
+                or ((customer or {}).get("email") or "").split("@")[0] or None,
         "cart": len(items),
     }
 
@@ -308,9 +323,18 @@ async def logout():
 
 
 class OrderIn(BaseModel):
+    contact_name: str = Field(min_length=1, max_length=80)
+    contact_phone: str = Field(min_length=10, max_length=40)
     delivery_method: str = Field(default="pickup", max_length=32)
+    pickup_branch_id: int | None = None
     delivery_address: str | None = Field(default=None, max_length=500)
+    payment_method: str = Field(default="on_receipt", max_length=32)
+    # Карта или СБП — для онлайн-оплаты
+    pay_with: str | None = Field(default=None, max_length=16)
     comment: str | None = Field(default=None, max_length=1000)
+    # Согласие на обработку персональных данных (152-ФЗ): без него
+    # имя и телефон хранить нельзя
+    agree: bool = False
 
 
 @router.post("/api/orders", status_code=201)
@@ -337,8 +361,33 @@ async def create_order(
             "Оставьте заявку — менеджер назовёт цену.",
         )
 
-    if payload.delivery_method == "shipping" and not (payload.delivery_address or "").strip():
-        raise HTTPException(422, "Укажите адрес доставки")
+    # Проверка полей — та же, что в форме: скрипт можно выключить
+    name = payload.contact_name.strip()
+    if not NAME_RE.match(name):
+        raise HTTPException(422, "Имя получателя — только буквы, пробел и дефис")
+    phone = ca.normalize_phone(payload.contact_phone)
+    if not phone:
+        raise HTTPException(422, "Телефон получателя в формате +7 900 000-00-00")
+    if payload.delivery_method not in ("pickup", "shipping"):
+        raise HTTPException(422, "Выберите способ получения")
+    address = (payload.delivery_address or "").strip()
+    branch = None
+    if payload.delivery_method == "pickup":
+        branch = (await session.execute(
+            text("SELECT id FROM branches WHERE id = :b AND is_active"),
+            {"b": payload.pickup_branch_id})).scalar()
+        if not branch:
+            raise HTTPException(422, "Выберите филиал для самовывоза")
+        address = ""
+    elif len(address) < 10:
+        raise HTTPException(422, "Адрес доставки: город, улица, дом — не короче 10 символов")
+    if payload.payment_method not in PAYMENT_LABELS:
+        raise HTTPException(422, "Выберите способ оплаты")
+    online = payload.payment_method == "online"
+    if online and not any(m["code"] == payload.pay_with for m in payments.methods()):
+        raise HTTPException(422, "Онлайн-оплата сейчас недоступна — выберите оплату при получении")
+    if not payload.agree:
+        raise HTTPException(422, "Нужно согласие на обработку персональных данных")
 
     total = sum(i["price"] for i in items)
     number = f"{date.today().year}-{await next_order_number(session):06d}"
@@ -347,8 +396,11 @@ async def create_order(
         await session.execute(
             text("""
         INSERT INTO orders (number, customer_id, status, source, total,
-                            delivery_method, delivery_address, comment)
-        VALUES (:n, :c, 'new', 'site', :total, :dm, :da, :cm)
+                            delivery_method, delivery_address, comment,
+                            contact_name, contact_phone, pickup_branch_id,
+                            payment_method)
+        VALUES (:n, :c, 'new', 'site', :total, :dm, :da, :cm,
+                :cn, :cp, :br, :pm)
         RETURNING id
     """),
             {
@@ -356,8 +408,12 @@ async def create_order(
                 "c": customer["id"],
                 "total": total,
                 "dm": payload.delivery_method,
-                "da": (payload.delivery_address or "").strip() or None,
+                "da": address or None,
                 "cm": (payload.comment or "").strip() or None,
+                "cn": name,
+                "cp": phone,
+                "br": branch,
+                "pm": payload.payment_method,
             },
         )
     ).scalar_one()
@@ -391,8 +447,53 @@ async def create_order(
         text("DELETE FROM cart_items WHERE part_id = ANY(:ids)"),
         {"ids": [i["part_id"] for i in items]},
     )
+    # Покупатель вошёл через соцсеть и телефона у него не было — запомним
+    # тот, что он указал, чтобы в следующий раз не спрашивать. Только
+    # если номер ничей: уникальность важнее удобства
+    await session.execute(text("""
+        UPDATE customers SET phone = :p, name = coalesce(name, :n)
+         WHERE id = :c AND phone IS NULL
+           AND NOT EXISTS (SELECT 1 FROM customers WHERE phone = :p)"""),
+        {"p": phone, "n": name, "c": customer["id"]})
     await session.commit()
-    return {"number": number}
+
+    out = {"number": number}
+    if online:
+        # Заказ уже оформлен: банк не ответил — заказ всё равно есть,
+        # оплатить можно со страницы заказа
+        try:
+            out["redirect_url"] = await start_payment(
+                session, {"id": order_id, "number": number, "total": total},
+                payload.pay_with, request)
+        except payments.PaymentError as e:
+            out["payment_error"] = str(e)
+    return out
+
+
+async def start_payment(session: AsyncSession, order: dict, method: str,
+                        request: Request) -> str:
+    """Платёж у провайдера и строка в payments → ссылка, куда уйти платить.
+    Незакрытый платёж тем же способом не плодим — отдаём его ссылку."""
+    kind = payments.provider()
+    open_one = (await session.execute(text("""
+        SELECT confirmation_url FROM payments
+         WHERE order_id = :o AND method = :m AND provider = :pr AND status = 'pending'
+           AND confirmation_url IS NOT NULL AND created_at > now() - interval '30 minutes'
+         ORDER BY id DESC LIMIT 1"""),
+        {"o": order["id"], "m": method, "pr": kind})).scalar()
+    if open_one:
+        return open_one
+
+    back = f"{settings.base_url}/account/orders/{order['number']}?paid=1"
+    ext_id, url = await payments.create(order, method, back)
+    await session.execute(text("""
+        INSERT INTO payments (order_id, method, amount, status, external_id,
+                              confirmation_url, provider)
+        VALUES (:o, :m, :a, 'pending', :x, :u, :pr)"""),
+        {"o": order["id"], "m": method, "a": order["total"], "x": ext_id,
+         "u": url, "pr": kind})
+    await session.commit()
+    return url
 
 
 async def next_order_number(session: AsyncSession) -> int:
@@ -411,7 +512,10 @@ async def orders_of(session: AsyncSession, customer_id: int, number: str | None 
     rows = await session.execute(
         text("""
         SELECT o.id, o.number, o.status::text AS status, o.total, o.created_at,
-               o.paid_at, o.delivery_method, o.delivery_address, o.comment
+               o.paid_at, o.delivery_method, o.delivery_address, o.comment,
+               o.contact_name, o.contact_phone, o.payment_method,
+               (SELECT br.city || ', ' || br.name FROM branches br
+                 WHERE br.id = o.pickup_branch_id) AS pickup_branch
           FROM orders o
          WHERE o.customer_id = :c
            AND (CAST(:n AS text) IS NULL OR o.number = CAST(:n AS text))
@@ -539,8 +643,17 @@ async def order_page(
         raise HTTPException(404, "Заказ не найден")
 
     order = orders[0]
-    payments = [
-        dict(r._mapping)
+    # Вернулись со страницы банка — уведомление могло ещё не дойти,
+    # сверяем сами. Статус мог смениться — перечитываем заказ
+    if order["status"] in ("new", "confirmed"):
+        await payments.refresh(session, order["id"])
+        order = (await orders_of(session, customer["id"], number))[0]
+
+    attempts = [
+        {**dict(r._mapping),
+         "method_label": next((m["title"] for m in payments.METHODS
+                               if m["code"] == r.method), r.method),
+         "status_label": PAYMENT_STATUS.get(r.status, r.status)}
         for r in await session.execute(
             text("""
         SELECT method, amount, status, created_at, paid_at
@@ -557,8 +670,10 @@ async def order_page(
             "user": None,
             "customer": customer,
             "order": order,
-            "payments": payments,
-            "methods": PAYMENT_METHODS,
+            "payments": attempts,
+            "methods": payments.methods(),
+            "payment_label": PAYMENT_LABELS.get(order["payment_method"] or ""),
+            "returned": request.query_params.get("paid") == "1",
             # Платить есть смысл, пока заказ не оплачен и не отменён
             "payable": order["status"] in ("new", "confirmed"),
         },
@@ -573,20 +688,16 @@ class PayIn(BaseModel):
 async def pay(
     number: str,
     payload: PayIn,
+    request: Request,
     session: AsyncSession = Depends(get_session),
     customer: dict = Depends(ca.current_customer),
 ):
-    """Единственное место, куда встраивается провайдер.
-
-    Сейчас список способов пуст, поэтому любая попытка честно отвечает,
-    что онлайн-оплата не подключена. Когда способ появится, здесь
-    создаётся платёж со статусом pending и возвращается ссылка на банк;
-    таблица payments и эта ручка меняться не будут.
-    """
+    """Оплатить оформленный заказ — со страницы заказа: при оформлении
+    выбрали «при получении» и передумали, или банк в тот раз не ответил."""
     order = (
         await session.execute(
             text("""
-        SELECT id, status::text AS status, total
+        SELECT id, number, status::text AS status, total
           FROM orders WHERE number = :n AND customer_id = :c
     """),
             {"n": number, "c": customer["id"]},
@@ -597,13 +708,81 @@ async def pay(
         raise HTTPException(404, "Заказ не найден")
     if order.status not in ("new", "confirmed"):
         raise HTTPException(409, "Этот заказ уже оплачен или отменён")
-
-    if not any(m["code"] == payload.method for m in PAYMENT_METHODS):
+    if not any(m["code"] == payload.method for m in payments.methods()):
         raise HTTPException(
             501,
             "Онлайн-оплата пока не подключена. Менеджер примет оплату "
             "при получении или выставит счёт.",
         )
+    try:
+        url = await start_payment(session, dict(order._mapping), payload.method, request)
+    except payments.PaymentError as e:
+        raise HTTPException(502, str(e)) from e
+    return {"redirect_url": url}
 
-    # Сюда встанет вызов провайдера и redirect_url в ответе
-    raise HTTPException(501, "Способ оплаты не настроен")
+
+@router.post("/api/payments/yookassa", status_code=200)
+async def yookassa_notify(request: Request, session: AsyncSession = Depends(get_session)):
+    """Уведомление ЮKassa. Телу не верим — берём из него только id
+    платежа и спрашиваем статус у самой ЮKassa."""
+    if payments.provider() != "yookassa":
+        raise HTTPException(404)
+    try:
+        ext_id = str((await request.json())["object"]["id"])
+    except (ValueError, KeyError, TypeError):
+        raise HTTPException(400) from None
+    pid = (await session.execute(text("""
+        SELECT id FROM payments WHERE provider = 'yookassa' AND external_id = :x"""),
+        {"x": ext_id})).scalar()
+    if pid:
+        await payments.settle(session, pid, await payments.remote_status(ext_id))
+    return {"ok": True}
+
+
+# ------------------------------------------------------------------
+# Учебная оплата — только при PAYMENT_DEMO=true
+# ------------------------------------------------------------------
+
+
+async def demo_payment(session: AsyncSession, ext_id: str, customer: dict):
+    if payments.provider() != "demo":
+        raise HTTPException(404)
+    row = (await session.execute(text("""
+        SELECT pm.id, pm.amount, pm.status, pm.method, o.number
+          FROM payments pm JOIN orders o ON o.id = pm.order_id
+         WHERE pm.provider = 'demo' AND pm.external_id = :x AND o.customer_id = :c"""),
+        {"x": ext_id, "c": customer["id"]})).first()
+    if not row:
+        raise HTTPException(404, "Платёж не найден")
+    return row
+
+
+@router.get("/pay/demo/{ext_id}", response_class=HTMLResponse)
+async def demo_page(
+    ext_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+    customer: dict = Depends(ca.current_customer),
+):
+    row = await demo_payment(session, ext_id, customer)
+    return templates.TemplateResponse("shop/pay_demo.html", {
+        "request": request, "user": None, "customer": customer, "p": row,
+        "method": next((m["title"] for m in payments.METHODS if m["code"] == row.method),
+                       row.method),
+    })
+
+
+class DemoResult(BaseModel):
+    result: str = Field(pattern="^(paid|failed)$")
+
+
+@router.post("/pay/demo/{ext_id}")
+async def demo_finish(
+    ext_id: str,
+    payload: DemoResult,
+    session: AsyncSession = Depends(get_session),
+    customer: dict = Depends(ca.current_customer),
+):
+    row = await demo_payment(session, ext_id, customer)
+    await payments.settle(session, row.id, payload.result)
+    return {"redirect_url": f"/account/orders/{row.number}?paid=1"}

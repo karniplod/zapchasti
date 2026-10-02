@@ -1,0 +1,33 @@
+{% extends "_base.html" %}
+{% block title %}Учебная оплата{% endblock %}
+{% block description %}Учебная страница оплаты — деньги не списываются.{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ asset('css/shop.css') }}">
+{% endblock %}
+
+{% block content %}
+{# Страница вместо банка — только при PAYMENT_DEMO=true на стенде #}
+<div class="wrap shop narrow">
+  <h1>Оплата заказа № {{ p.number }}</h1>
+  <div class="demo-pay" id="demoPay" data-id="{{ request.path_params.ext_id }}">
+    <div class="notice notice-warn"><b>Учебный режим.</b> Это не банк: деньги
+      не списываются. Выберите, чем закончится оплата.</div>
+    <div><span class="hint">{{ method }}</span>
+      <div class="amount">{{ "{:,.0f}".format(p.amount).replace(",", " ") }} ₽</div></div>
+    {% if p.status == 'pending' %}
+    <div class="row">
+      <button class="btn btn-primary" data-r="paid" type="button">Оплатить</button>
+      <button class="btn btn-ghost" data-r="failed" type="button">Отказаться</button>
+    </div>
+    {% else %}
+    <p>Этот платёж уже {{ 'оплачен' if p.status == 'paid' else 'отклонён' }}.
+      <a href="/account/orders/{{ p.number }}">К заказу</a></p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ asset('js/shop/pay_demo.js') }}"></script>
+{% endblock %}

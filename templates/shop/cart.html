@@ -6,9 +6,14 @@
 <link rel="stylesheet" href="{{ asset('css/shop.css') }}">
 {% endblock %}
 
+{% macro rub(v) %}{{ "{:,.0f}".format(v).replace(",", " ") }} ₽{% endmacro %}
+
 {% block content %}
 <div class="wrap shop">
-  <h1>Корзина</h1>
+  <div class="cart-head">
+    <h1>Корзина{% if items %} <span class="cnt">{{ items | length }}</span>{% endif %}</h1>
+    {% if items %}<a class="act-link" href="/catalog">← Продолжить покупки</a>{% endif %}
+  </div>
 
   {% if not items %}
     <div class="empty">
@@ -22,6 +27,7 @@
   <div class="notice notice-warn">
     <b>Часть деталей уже забрали.</b> Деталь штучная: кто первый оформил,
     того и деталь. Уберите их из корзины, остальное оформится.
+    <button class="linkish" id="dropGone" type="button">Убрать проданные</button>
   </div>
   {% endif %}
 
@@ -36,7 +42,7 @@
     <div class="cart-list">
       {% for i in items %}
       <div class="cart-row {% if i.status != 'in_stock' %}is-gone{% endif %}"
-           data-part="{{ i.part_id }}">
+           data-part="{{ i.part_id }}" data-gone="{{ 1 if i.status != 'in_stock' else 0 }}">
         <a class="pic" href="/p/{{ i.sku }}">
           {% if i.photo %}<img src="{{ i.photo }}" alt="" loading="lazy">
           {% else %}<span class="none">нет фото</span>{% endif %}
@@ -48,40 +54,105 @@
           {% if i.status != 'in_stock' %}<span class="gone-note">уже продана</span>{% endif %}
         </div>
         <div class="price">
-          {% if i.price %}{{ "{:,.0f}".format(i.price).replace(",", " ") }} ₽
+          {% if i.price %}{{ rub(i.price) }}
           {% else %}<span class="ask">по запросу</span>{% endif %}
         </div>
-        <button class="drop" title="Убрать" aria-label="Убрать из корзины">×</button>
+        <button class="drop" type="button" title="Убрать" aria-label="Убрать из корзины">×</button>
       </div>
       {% endfor %}
     </div>
 
     <aside class="checkout">
+      <dl class="sum-lines">
+        <dt>Детали</dt><dd>{{ rub(total) }}</dd>
+        <dt>Получение</dt><dd id="shipLine">бесплатно, самовывоз</dd>
+      </dl>
       <div class="sum">
         <span>К оплате</span>
-        <b>{{ "{:,.0f}".format(total).replace(",", " ") }} ₽</b>
+        <b>{{ rub(total) }}</b>
       </div>
 
       {% if customer %}
-      <form id="orderForm">
-        <label for="dm">Как получить</label>
-        <select class="field" id="dm">
-          <option value="pickup">Заберу сам со склада</option>
-          <option value="shipping">Отправьте в мой город</option>
-        </select>
+      <form id="orderForm" novalidate data-online="{{ 1 if methods else 0 }}">
+        <fieldset>
+          <legend>Получатель</legend>
+          <div class="fld">
+            <label for="cname">Имя</label>
+            <input class="field" id="cname" autocomplete="name" maxlength="80"
+                   value="{{ customer.name or '' }}" required>
+          </div>
+          <div class="fld">
+            <label for="cphone">Телефон</label>
+            <input class="field" id="cphone" type="tel" inputmode="tel" autocomplete="tel"
+                   placeholder="+7 900 000-00-00" maxlength="18"
+                   value="{{ customer.phone or '' }}" required>
+          </div>
+        </fieldset>
 
-        <div id="addrBox" hidden>
-          <label for="addr">Адрес или город и транспортная компания</label>
-          <input class="field" id="addr" placeholder="Город, ТК, пункт выдачи">
+        <fieldset>
+          <legend>Как получить</legend>
+          <div class="choice" role="radiogroup">
+            <label class="opt"><input type="radio" name="dm" value="pickup" checked>
+              <span><b>Самовывоз</b><small>бесплатно, из филиала</small></span></label>
+            <label class="opt"><input type="radio" name="dm" value="shipping">
+              <span><b>Доставка</b><small>транспортной компанией</small></span></label>
+          </div>
+
+          <div class="fld" id="pickupBox">
+            <label for="branch">Филиал</label>
+            <select class="field" id="branch">
+              {% for b in branches %}
+              <option value="{{ b.id }}" {% if b.id == pickup %}selected{% endif %}>{{ b.label }}</option>
+              {% endfor %}
+            </select>
+            {% if spread %}<p class="hint">Детали лежат в разных филиалах — соберём
+              заказ в выбранном, перевоз займёт несколько дней.</p>{% endif %}
+          </div>
+
+          <div class="fld" id="addrBox" hidden>
+            <label for="addr">Адрес доставки</label>
+            <textarea class="field" id="addr" rows="2" maxlength="500"
+                      placeholder="Город, улица, дом или пункт выдачи ТК"></textarea>
+            <p class="hint">Доставку оплачиваете в транспортной компании по её тарифу.</p>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Оплата</legend>
+          <div class="choice" role="radiogroup">
+            {% if methods %}
+            <label class="opt"><input type="radio" name="pm" value="online" checked>
+              <span><b>Онлайн</b><small>картой или СБП</small></span></label>
+            {% endif %}
+            <label class="opt"><input type="radio" name="pm" value="on_receipt"
+                   {% if not methods %}checked{% endif %}>
+              <span><b>При получении</b><small>наличными или картой</small></span></label>
+          </div>
+          {% if methods %}
+          <div class="fld" id="payWithBox">
+            <label for="payWith">Чем платить</label>
+            <select class="field" id="payWith">
+              {% for m in methods %}<option value="{{ m.code }}">{{ m.title }}</option>{% endfor %}
+            </select>
+          </div>
+          {% endif %}
+        </fieldset>
+
+        <div class="fld">
+          <label for="cmt">Комментарий</label>
+          <textarea class="field" id="cmt" rows="2" maxlength="1000"
+                    placeholder="Необязательно"></textarea>
         </div>
 
-        <label for="cmt">Комментарий</label>
-        <textarea class="field" id="cmt" rows="3"
-                  placeholder="Необязательно"></textarea>
+        <label class="agree">
+          <input type="checkbox" id="agree">
+          <span>Согласен на обработку персональных данных для оформления и доставки заказа</span>
+        </label>
+        <p class="fld-err" id="agreeErr" hidden></p>
 
-        <button class="btn btn-primary" id="place" type="submit">Оформить заказ</button>
-        <p class="hint">Деталь закрепится за вами сразу после оформления.
-          Оплата — при получении: онлайн-оплату пока не подключили.</p>
+        <button class="btn btn-primary" id="place" type="submit"
+                {% if not total %}disabled{% endif %}>Оформить заказ</button>
+        <p class="hint">Деталь закрепится за вами сразу после оформления.</p>
       </form>
       {% else %}
       <div class="notice notice-accent">
@@ -99,5 +170,6 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ asset('js/validate.js') }}"></script>
 <script src="{{ asset('js/shop/cart.js') }}"></script>
 {% endblock %}
