@@ -114,6 +114,9 @@ async def parts_list(
                p.donor_id, d.code AS donor_code,
                b.name AS brand, m.name AS model,
                (SELECT count(*) FROM part_photos ph WHERE ph.part_id = p.id) AS photos,
+               -- Миниатюра для списка в приложении сотрудника
+               (SELECT coalesce(ph.thumb, ph.path) FROM part_photos ph
+                 WHERE ph.part_id = p.id ORDER BY ph.sort_order LIMIT 1) AS photo,
                (SELECT count(*) FROM part_applicability pa WHERE pa.part_id = p.id) AS fits
           FROM parts p
           JOIN part_categories c  ON c.id = p.category_id
