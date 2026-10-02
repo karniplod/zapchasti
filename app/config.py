@@ -83,6 +83,9 @@ class Settings(BaseSettings):
     google_client_secret: str = ""
     # VK ID (id.vk.com): OAuth 2.1 с PKCE, секрет не нужен — только ID приложения
     vk_client_id: str = ""
+    # Яндекс ID (oauth.yandex.ru): почта и телефон приходят подтверждёнными
+    yandex_client_id: str = ""
+    yandex_client_secret: str = ""
     # Telegram Login Widget: бот из @BotFather, домен сайта задаётся там же /setdomain
     telegram_bot_name: str = ""
     telegram_bot_token: str = ""

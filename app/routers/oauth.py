@@ -1,11 +1,11 @@
-"""Быстрый вход покупателя: Google, VK ID, Telegram, MAX.
+"""Быстрый вход покупателя: Google, Яндекс ID, VK ID, Telegram, MAX.
 
 Каждый способ включается своими ключами в .env: нет ключей — нет
 кнопки, и ручки отвечают 404. Итог у всех один — identity_login()
 находит или заводит покупателя, дальше та же кука, что и при входе
 по паролю, и та же передача корзины.
 
-Google и VK — обычный OAuth с переходом на сайт провайдера и обратно.
+Google, Яндекс и VK — обычный OAuth с переходом на сайт провайдера и обратно.
 state и PKCE-ключ живут в подписанной куке на десять минут: вернулся
 не тот браузер или прошло много времени — вход не засчитывается.
 
@@ -53,6 +53,7 @@ MAX_TTL_MIN = 5
 
 PROVIDERS = {
     "google": "Google",
+    "yandex": "Яндекс",
     "vk": "VK ID",
     "telegram": "Telegram",
     "max": "MAX",
@@ -63,6 +64,7 @@ def enabled() -> list[dict]:
     """Какие кнопки показать на странице входа."""
     on = {
         "google": bool(settings.google_client_id and settings.google_client_secret),
+        "yandex": bool(settings.yandex_client_id and settings.yandex_client_secret),
         "vk": bool(settings.vk_client_id),
         "telegram": bool(settings.telegram_bot_name and settings.telegram_bot_token),
         "max": bool(settings.max_bot_name and settings.max_bot_token),
@@ -128,6 +130,11 @@ async def vk_start(next: str = "/account"):
     return oauth_start("vk", next)
 
 
+@router.get("/auth/yandex/start")
+async def yandex_start(next: str = "/account"):
+    return oauth_start("yandex", next)
+
+
 def oauth_start(provider: str, next: str) -> RedirectResponse:
     if not is_enabled(provider):
         raise HTTPException(404, "Этот способ входа не подключён")
@@ -147,6 +154,18 @@ def oauth_start(provider: str, next: str) -> RedirectResponse:
             "code_challenge": challenge,
             "code_challenge_method": "S256",
             "prompt": "select_account",
+        })
+    elif provider == "yandex":
+        # Доступы (почта, имя, телефон) заданы в настройках приложения
+        # на oauth.yandex.ru — в запросе их не перечисляем: лишний scope
+        # Яндекс отвергает ошибкой
+        url = "https://oauth.yandex.ru/authorize?" + urlencode({
+            "response_type": "code",
+            "client_id": settings.yandex_client_id,
+            "redirect_uri": callback_url("yandex"),
+            "state": state,
+            "code_challenge": challenge,
+            "code_challenge_method": "S256",
         })
     else:
         url = "https://id.vk.com/authorize?" + urlencode({
@@ -261,6 +280,52 @@ async def vk_callback(
     cid = await ca.identity_login(
         session, "vk", str(u["user_id"]), name=name, email=u.get("email"),
         email_verified=bool(u.get("email")), phone=u.get("phone"), display=name)
+    return await finish(request, session, cid, st["n"])
+
+
+@router.get("/auth/yandex/callback")
+async def yandex_callback(
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    session: AsyncSession = Depends(get_session),
+):
+    if not is_enabled("yandex"):
+        raise HTTPException(404)
+    if error:
+        return fail("Вход через Яндекс отменён")
+    st = read_state(request, "yandex", state)
+    if not st or not code:
+        return fail("Вход через Яндекс не удался — попробуйте ещё раз")
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as http:
+            tok = await http.post("https://oauth.yandex.ru/token", data={
+                "grant_type": "authorization_code",
+                "code": code,
+                "client_id": settings.yandex_client_id,
+                "client_secret": settings.yandex_client_secret,
+                "code_verifier": st["v"],
+            })
+            tok.raise_for_status()
+            me = await http.get("https://login.yandex.ru/info", params={"format": "json"},
+                                headers={"Authorization": f"OAuth {tok.json()['access_token']}"})
+            me.raise_for_status()
+            u = me.json()
+    except (httpx.HTTPError, KeyError, ValueError) as e:
+        log.warning("Яндекс ID: %s", e)
+        return fail("Яндекс не ответил — попробуйте ещё раз")
+
+    name = (u.get("real_name") or " ".join(
+        x for x in (u.get("first_name"), u.get("last_name")) if x) or u.get("display_name"))
+    # Почту и телефон Яндекс отдаёт только подтверждёнными: адрес — свой
+    # или привязанный с проверкой, номер — подтверждённый кодом
+    email = u.get("default_email")
+    phone = (u.get("default_phone") or {}).get("number")
+    cid = await ca.identity_login(
+        session, "yandex", str(u["id"]), name=name, email=email,
+        email_verified=bool(email), phone=phone, display=email or u.get("login") or name)
     return await finish(request, session, cid, st["n"])
 
 

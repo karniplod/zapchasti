@@ -114,6 +114,9 @@ python tools/check_js.py    # в файле поменять B на адрес �
   только когда ключи заданы (после правки — `systemctl restart razbor`):
   - Google: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` из Google Cloud Console
     (OAuth client «Web application»), адрес возврата `{BASE_URL}/auth/google/callback`;
+  - Яндекс ID: `YANDEX_CLIENT_ID`, `YANDEX_CLIENT_SECRET` из oauth.yandex.ru
+    (веб-сервисы), Redirect URI `{BASE_URL}/auth/yandex/callback`, доступы —
+    почта, логин и имя, номер телефона;
   - VK ID: `VK_CLIENT_ID` из id.vk.com (веб-приложение), доверенный адрес
     `{BASE_URL}/auth/vk/callback`, доступы — email и телефон;
   - Telegram: бот у @BotFather, `TELEGRAM_BOT_NAME` и `TELEGRAM_BOT_TOKEN`,
