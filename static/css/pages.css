@@ -52,3 +52,8 @@
 
 .page .notice{margin-bottom:16px}
 .page .notice a{margin-left:4px}
+
+/* Политика конфиденциальности: длинный текст списками */
+.privacy ul{padding-left:20px;margin:0 0 16px;line-height:1.6}
+.privacy li+li{margin-top:6px}
+.privacy p:not(.hint){color:var(--ink);font-size:var(--t-md);line-height:1.6}

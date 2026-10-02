@@ -341,4 +341,6 @@
 
 .foot-bottom{border-top:1px solid rgba(255,255,255,.08);padding:18px 0;
   font-size:var(--t-sm)}
+.foot-bottom a{color:inherit;text-decoration:underline;text-underline-offset:3px}
+.foot-bottom a:hover{color:#fff}
 

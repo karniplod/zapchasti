@@ -77,6 +77,21 @@ async def contacts(
     )
 
 
+# Дата редакции политики — менять вместе с текстом templates/privacy.html
+PRIVACY_UPDATED = "2 октября 2026 г."
+
+
+@router.get("/privacy", response_class=HTMLResponse)
+async def privacy(request: Request, session: AsyncSession = Depends(get_session)):
+    """Политика конфиденциальности: на неё ссылаются согласие при заказе
+    и экраны входа через Google и VK — без неё их не опубликовать."""
+    return templates.TemplateResponse(
+        "privacy.html",
+        {"request": request, "user": await optional_user(request, session),
+         "updated": PRIVACY_UPDATED},
+    )
+
+
 @router.get("/delivery", response_class=HTMLResponse)
 async def delivery(request: Request, session: AsyncSession = Depends(get_session)):
     return templates.TemplateResponse(
@@ -205,7 +220,7 @@ async def sitemap(session: AsyncSession = Depends(get_session)):
     )
 
     urls = [f"<url><loc>{settings.base_url}{p}</loc></url>"
-            for p in ("/", "/catalog", "/cars", "/delivery", "/contacts")]
+            for p in ("/", "/catalog", "/cars", "/delivery", "/contacts", "/privacy")]
     for r in await session.execute(text(
             "SELECT code FROM donors WHERE status IN ('accepted', 'dismantling', 'dismantled')")):
         urls.append(f"<url><loc>{settings.base_url}/cars/{r.code}</loc></url>")
