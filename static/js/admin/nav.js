@@ -47,6 +47,19 @@
   setOpen(false);
 
   btn.onclick = e => { e.stopPropagation(); setOpen(menu.hidden); };
+
+  // Время входа — в часовом поясе сотрудника, а не сервера
+  const t = menu.querySelector('.acct-time');
+  if (t) t.textContent = new Date(t.getAttribute('datetime')).toLocaleString('ru',
+    {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'});
+
+  // Права роли раскрываются по нажатию на роль
+  const role = document.getElementById('acctRole');
+  const perms = document.getElementById('acctPerms');
+  if (role && perms) role.onclick = () => {
+    perms.hidden = !perms.hidden;
+    role.setAttribute('aria-expanded', String(!perms.hidden));
+  };
   // Закрывается по клику мимо и по Escape — иначе висит поверх работы
   document.addEventListener('click', () => setOpen(false));
   document.addEventListener('keydown', e => { if (e.key === 'Escape') setOpen(false); });

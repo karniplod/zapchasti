@@ -313,6 +313,24 @@ button{font-family:inherit}
 .nav .acct-who span{font-size:12px;color:var(--muted);display:block}
 .nav .acct-who .acct-login{font-family:ui-monospace,monospace;font-size:11px;
   color:var(--dim)}
+.nav .acct-menu{min-width:250px}
+.nav .acct-facts{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;
+  margin:10px 0 0;font-size:12.5px;align-items:center}
+.nav .acct-facts dt{color:var(--dim)}
+.nav .acct-facts dd{margin:0;color:var(--ink)}
+.nav .acct-role{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;
+  border-radius:6px;border:1px dashed var(--line);background:none;
+  color:var(--amber);font:inherit;cursor:pointer}
+.nav .acct-role:hover,.nav .acct-role[aria-expanded="true"]{border-style:solid;
+  border-color:var(--amber)}
+.nav .acct-role svg{width:13px;height:13px;flex:0 0 auto}
+.nav .acct-perms{margin-top:10px;padding:10px 12px;border-radius:8px;
+  background:var(--panel-2);font-size:12.5px;line-height:1.45}
+.nav .acct-perms[hidden]{display:none}
+.nav .acct-perms b{display:block;font-size:12px;color:var(--muted);
+  font-weight:600;margin-bottom:6px}
+.nav .acct-perms ul{margin:0;padding-left:16px}
+.nav .acct-perms li+li{margin-top:3px}
 .nav .acct-out{display:block;padding:11px 14px;font-size:14px;color:var(--ink)}
 .nav .acct-out:hover{background:rgba(255,95,86,.12);color:var(--err,#ff5f56)}
 

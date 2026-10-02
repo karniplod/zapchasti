@@ -26,6 +26,38 @@ app_signer = URLSafeTimedSerializer(settings.secret_key, salt="razbor-app")
 
 ROLE_RANK = {"dismantler": 1, "manager": 2, "admin": 3}
 
+# Что видит сотрудник по нажатию на свою роль в меню. Список сверен
+# с require_role в роутерах: поменялся доступ — поправить и здесь,
+# иначе подсказка начнёт обещать то, чего нет
+ROLE_INFO = {
+    "dismantler": {
+        "label": "Разборщик",
+        "can": [
+            "Разбор машин: снимать детали, фотографировать",
+            "Печатать этикетки с QR",
+            "Дополнять справочник моделей при разборе",
+            "Смотреть сводку, машины, детали и заказы",
+        ],
+    },
+    "manager": {
+        "label": "Менеджер",
+        "can": [
+            "Всё, что может разборщик",
+            "Принимать машины и отдельные детали",
+            "Править цены, статусы и карточки, удалять детали и фото",
+            "Вести заказы и заявки покупателей",
+            "Смотреть отчёты и проверять справочник",
+        ],
+    },
+    "admin": {
+        "label": "Администратор",
+        "can": [
+            "Всё, что может менеджер",
+            "Полный доступ ко всем разделам бэкенда",
+        ],
+    },
+}
+
 
 # ------------------------------------------------------------------
 # Пароли
@@ -84,7 +116,10 @@ def _read_token(request: Request) -> dict:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Нужно войти")
 
     try:
-        return s.loads(token, max_age=ttl)
+        # Время подписи — это и есть время входа: токен выдаётся ровно
+        # при вводе пароля и больше не переподписывается
+        data, signed_at = s.loads(token, max_age=ttl, return_timestamp=True)
+        return {**data, "signed_at": signed_at}
     except SignatureExpired:
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED, "Смена закончилась, войдите заново"
@@ -144,7 +179,8 @@ async def current_user(request: Request, session: AsyncSession = Depends(get_ses
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Учётная запись отключена")
 
     return {"id": row.id, "login": row.login, "name": row.full_name,
-            "role": row.role, "branch_id": row.branch_id}
+            "role": row.role, "branch_id": row.branch_id,
+            "login_at": data["signed_at"]}
 
 
 async def optional_user(

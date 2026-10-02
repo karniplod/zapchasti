@@ -8,6 +8,7 @@ from urllib.parse import unquote
 
 from fastapi.templating import Jinja2Templates
 
+from .auth import ROLE_INFO
 from .config import settings
 
 templates = Jinja2Templates(directory="templates")
@@ -49,6 +50,7 @@ templates.env.globals["admin_css_version"] = _admin_css_version
 templates.env.globals["app_name"] = settings.app_name
 templates.env.globals["base_url"] = settings.base_url
 templates.env.globals["chosen_city"] = _chosen_city
+templates.env.globals["role_info"] = ROLE_INFO
 
 
 def _plural(n: int, one: str, few: str, many: str) -> str:

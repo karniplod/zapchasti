@@ -31,11 +31,37 @@
         stroke="currentColor" stroke-width="1.6" fill="none"/></svg>
     </button>
     <div class="acct-menu" id="acctMenu" hidden>
+      {% set role = role_info.get(user.role) %}
       <div class="acct-who">
         <b>{{ user.name or user.login }}</b>
-        <span>{{ {'admin':'Администратор','manager':'Менеджер',
-                  'dismantler':'Разборщик'}.get(user.role, user.role) }}</span>
         {% if user.name %}<span class="acct-login">{{ user.login }}</span>{% endif %}
+        <dl class="acct-facts">
+          <dt>Роль</dt>
+          <dd>
+            {# Права роли — по нажатию: в меню они нужны редко, а место
+               занимали бы всегда #}
+            <button type="button" class="acct-role" id="acctRole"
+                    aria-expanded="false" aria-controls="acctPerms">
+              {{ role.label if role else user.role }}
+              <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"
+                fill="none" stroke="currentColor" stroke-width="1.4"/><path
+                d="M8 7.2v4M8 4.6v.1" stroke="currentColor" stroke-width="1.6"
+                stroke-linecap="round"/></svg>
+            </button>
+          </dd>
+          {% if user.login_at %}
+          <dt>Вход</dt>
+          {# Время показывает браузер — в часовом поясе сотрудника #}
+          <dd><time class="acct-time" datetime="{{ user.login_at.isoformat() }}">
+            {{ user.login_at.strftime('%d.%m.%Y %H:%M') }} UTC</time></dd>
+          {% endif %}
+        </dl>
+        {% if role %}
+        <div class="acct-perms" id="acctPerms" role="tooltip" hidden>
+          <b>Права роли «{{ role.label }}»</b>
+          <ul>{% for c in role.can %}<li>{{ c }}</li>{% endfor %}</ul>
+        </div>
+        {% endif %}
       </div>
       <a href="/logout" class="acct-out">Выйти</a>
     </div>
