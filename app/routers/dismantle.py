@@ -278,18 +278,18 @@ async def part_by_client_key(session: AsyncSession, key: uuid.UUID) -> dict | No
 async def create_part(
     donor_id: int = Form(...),
     category_id: int = Form(...),
-    name: str = Form(...),
+    name: str = Form(..., min_length=2, max_length=200),
     condition: str = Form(...),
-    oem_number: str | None = Form(None),
+    oem_number: str | None = Form(None, max_length=40),
     # Какую подсказку нажал разборщик; пусто — набрал руками
     oem_source: str | None = Form(None),
     # Оригинал / ОЕМ / аналог: от этого зависит, чей номер искать
     origin: str = Form("original"),
-    part_brand: str | None = Form(None),
-    condition_note: str | None = Form(None),
-    price: Decimal | None = Form(None),
-    location: str | None = Form(None),
-    weight_kg: Decimal | None = Form(None),
+    part_brand: str | None = Form(None, max_length=80),
+    condition_note: str | None = Form(None, max_length=500),
+    price: Decimal | None = Form(None, ge=0, le=100_000_000),
+    location: str | None = Form(None, max_length=40),
+    weight_kg: Decimal | None = Form(None, ge=0, le=5000),
     # Ключ, который придумал телефон. Связь в цеху рвётся: запрос дошёл,
     # ответ потерялся — приложение шлёт деталь ещё раз. С тем же ключом
     # сервер отдаёт уже созданную, а не заводит вторую с новым артикулом

@@ -18,6 +18,16 @@ $('tabs').onclick = e => {
 $('q').oninput = () => { clearTimeout(timer);
   timer = setTimeout(() => { q = $('q').value.trim(); pager.reset(); load(); }, 300); };
 
+// Поля строки детали — и ежедневные, и полного редактора
+const PART_RULES = {
+  '.f-price': v => Check.money(v),
+  '.f-loc': v => Check.text(v, {max: 40, what: 'Место'}),
+  '.f-name': v => Check.text(v, {min: 2, max: 200, what: 'Название'}),
+  '.f-oem': v => Check.oem(v),
+  '.f-weight': v => Check.number(v, {min: 0, max: 5000, what: 'Вес'}),
+  '.f-note': v => Check.text(v, {max: 500, what: 'Дефекты'}),
+};
+
 const ST = {draft:'черновик',in_stock:'в наличии',reserved:'бронь',
             sold:'продана',written_off:'списана'};
 
@@ -92,6 +102,9 @@ async function load(){
     el.querySelector('.more').onclick = () => toggleFull(el, row);
 
     el.querySelector('.save').onclick = () => {
+      // Правила собираются при нажатии: полный редактор мог раскрыться позже
+      const rules = bindRules(el, PART_RULES);
+      if (!validate(rules)) return;
       const body = {
         price: el.querySelector('.f-price').value || null,
         condition: el.querySelector('.f-cond').value,

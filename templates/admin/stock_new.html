@@ -60,21 +60,21 @@
       </select>
     </div>
     <div><label for="price">Цена, ₽</label>
-      <input type="number" id="price" min="0" step="50" inputmode="numeric"></div>
+      <input type="number" id="price" min="0" max="100000000" step="50" inputmode="numeric"></div>
   </div>
 
   <div class="row mt-14">
     <div><label for="oem">Каталожный номер</label>
-      <input type="text" id="oem" autocomplete="off">
+      <input type="text" id="oem" autocomplete="off" maxlength="40">
       {# Подсказка появляется, когда известны и узел, и машина:
          без машины спрашивать нечего — номер зависит от неё #}
       <div class="oem-hints" id="oemHints" hidden></div></div>
-    <div><label for="loc">Место хранения</label><input type="text" id="loc" autocomplete="off"></div>
+    <div><label for="loc">Место хранения</label><input type="text" id="loc" autocomplete="off" maxlength="40"></div>
   </div>
 
   <div class="mt-14">
     <label for="note">Дефекты</label>
-    <input type="text" id="note" placeholder="потёртость, скол">
+    <input type="text" id="note" maxlength="500" placeholder="потёртость, скол">
   </div>
 </section>
 
@@ -107,6 +107,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="{{ asset('js/validate.js') }}"></script>
 <script src="{{ asset('js/admin/stock_new.js') }}"></script>
 {% include "admin/_cropper.html" %}
 </body></html>

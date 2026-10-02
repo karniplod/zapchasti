@@ -6,18 +6,20 @@ let t;
 function toast(m){ $('toast').textContent = m; $('toast').classList.add('show');
   clearTimeout(t); t = setTimeout(() => $('toast').classList.remove('show'), 3000); }
 
+// Проверяем здесь же, чтобы не гонять заведомо неверное на сервер.
+// Сервер проверяет ещё раз — форму можно обойти
+const rules = [
+  [$('lPhone'), v => Check.phoneRule(v)],
+  [$('lName'), v => Check.name(v, {optional: true})],
+  [$('lMsg'), v => Check.text(v, {max: 2000, what: 'Сообщение'})],
+];
+live(rules);
+phoneMask($('lPhone'));
+
 $('leadForm').onsubmit = async e => {
   e.preventDefault();
+  if (!validate(rules)) return;
   const phone = $('lPhone').value.trim();
-  // Проверяем здесь же, чтобы не гонять заведомо пустое на сервер.
-  // Сервер проверяет ещё раз — форму можно обойти
-  if (phone.replace(/\D/g, '').length < 10){
-    $('lPhone').classList.add('bad');
-    $('lPhone').focus();
-    toast('Проверьте номер телефона');
-    return;
-  }
-  $('lPhone').classList.remove('bad');
 
   const btn = $('lSend');
   btn.disabled = true;
@@ -39,7 +41,8 @@ $('leadForm').onsubmit = async e => {
       return;
     }
     const d = await r.json().catch(() => ({}));
-    toast(d.detail || 'Не получилось отправить');
+    if (!serverErrors(d, {phone: $('lPhone'), name: $('lName'), message: $('lMsg')}))
+      toast(typeof d.detail === 'string' ? d.detail : 'Не получилось отправить');
   } catch {
     toast('Нет связи с сервером');
   }

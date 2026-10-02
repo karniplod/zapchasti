@@ -65,18 +65,18 @@ async def acceptable_donors(
 @router.post("/api/stock/parts", status_code=201)
 async def create_standalone(
     category_id: int = Form(...),
-    name: str = Form(...),
+    name: str = Form(..., min_length=2, max_length=200),
     condition: str = Form(...),
     source: str = Form(...),
     # Донор указан — применимость берётся от него, generations не нужен
     donor_id: int | None = Form(None),
     generations: str = Form(""),  # id поколений через запятую
-    oem_number: str | None = Form(None),
+    oem_number: str | None = Form(None, max_length=40),
     # Какую подсказку нажал приёмщик; пусто — набрал руками
     oem_source: str | None = Form(None),
-    condition_note: str | None = Form(None),
-    price: Decimal | None = Form(None),
-    location: str | None = Form(None),
+    condition_note: str | None = Form(None, max_length=500),
+    price: Decimal | None = Form(None, ge=0, le=100_000_000),
+    location: str | None = Form(None, max_length=40),
     files: list[UploadFile] = File(default=[]),
     user=Depends(require_role("manager")),
     session: AsyncSession = Depends(get_session),

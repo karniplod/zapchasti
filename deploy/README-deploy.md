@@ -106,9 +106,27 @@ python tools/check_js.py    # в файле поменять B на адрес �
 - **Подсказка каталожных номеров** — `PARSERS_ENABLED=true` и ключ Brave
   в `SEARCH_API_KEY`. По умолчанию выключено: сервер не должен сам ходить
   на чужие сайты.
+- **Быстрый вход покупателя** — ключи в `/opt/razbor/.env`, кнопка появляется,
+  только когда ключи заданы (после правки — `systemctl restart razbor`):
+  - Google: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` из Google Cloud Console
+    (OAuth client «Web application»), адрес возврата `{BASE_URL}/auth/google/callback`;
+  - VK ID: `VK_CLIENT_ID` из id.vk.com (веб-приложение), доверенный адрес
+    `{BASE_URL}/auth/vk/callback`, доступы — email и телефон;
+  - Telegram: бот у @BotFather, `TELEGRAM_BOT_NAME` и `TELEGRAM_BOT_TOKEN`,
+    там же `/setdomain` — домен сайта;
+  - MAX: бот на платформе MAX для партнёров, `MAX_BOT_NAME`, `MAX_BOT_TOKEN`,
+    `MAX_WEBHOOK_SECRET` (5–256 символов); подписка на вебхук —
+    `POST https://platform-api2.max.ru/subscriptions` с
+    `{"url": "{BASE_URL}/auth/max/webhook", "update_types": ["bot_started", "message_callback"], "secret": "…"}`.
+- **Онлайн-оплата** — ЮKassa: `YOOKASSA_SHOP_ID`, `YOOKASSA_SECRET_KEY`;
+  в личном кабинете ЮKassa HTTP-уведомления на `{BASE_URL}/api/payments/yookassa`
+  (события `payment.succeeded`, `payment.canceled`). Без ключей заказ
+  оплачивается при получении. `PAYMENT_DEMO=true` — учебная оплата без банка,
+  только для стенда.
 - **Тестовые данные** (11 машин, 57 деталей) на бою не нужны. Если их
   залили для показа, убрать:
   `sudo -u razbor venv/bin/python -m app.scripts.seed_test_data --remove --apply`
+  Города Владивосток и Самара (по 50 деталей) — `seed_test_data --cities --apply`.
 
 ## Обновление
 

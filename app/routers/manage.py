@@ -176,23 +176,23 @@ async def parts_list(
 
 
 class PartPatch(BaseModel):
-    price: Decimal | None = None
+    price: Decimal | None = Field(default=None, ge=0, le=100_000_000)
     condition: str | None = None
-    location: str | None = None
+    location: str | None = Field(default=None, max_length=40)
     status: str | None = None
     published: bool | None = None
     # Поля полного редактора: в списке они не показываются, правятся
     # по кнопке — их меняют редко, а место занимают на каждой строке
-    name: str | None = None
+    name: str | None = Field(default=None, min_length=2, max_length=200)
     category_id: int | None = None
-    oem_number: str | None = None
-    condition_note: str | None = None
-    weight_kg: Decimal | None = None
+    oem_number: str | None = Field(default=None, max_length=40)
+    condition_note: str | None = Field(default=None, max_length=500)
+    weight_kg: Decimal | None = Field(default=None, ge=0, le=5000)
     # Деталь можно перевезти в другой филиал независимо от машины
     branch_id: int | None = None
     # Оригинал / ОЕМ / аналог и бренд детали для двух последних
     origin: str | None = None
-    part_brand: str | None = None
+    part_brand: str | None = Field(default=None, max_length=80)
 
 
 class DonorPatch(BaseModel):
@@ -200,14 +200,14 @@ class DonorPatch(BaseModel):
     применимость уже снятых деталей, и смена молча увела бы их не к той
     машине. Для этого есть слияние поколений в справочнике."""
 
-    vin: str | None = None
-    year: int | None = None
-    color: str | None = None
-    mileage_km: int | None = None
-    plate: str | None = None
-    purchase_price: Decimal | None = None
+    vin: str | None = Field(default=None, max_length=25)
+    year: int | None = Field(default=None, ge=1950, le=2100)
+    color: str | None = Field(default=None, max_length=40)
+    mileage_km: int | None = Field(default=None, ge=0, le=3_000_000)
+    plate: str | None = Field(default=None, max_length=15)
+    purchase_price: Decimal | None = Field(default=None, ge=0, le=100_000_000)
     accepted_at: date | None = None
-    notes: str | None = None
+    notes: str | None = Field(default=None, max_length=2000)
     # Пустая строка — стереть описание; None — не трогать
     public_note: str | None = Field(default=None, max_length=2000)
     status: str | None = None
@@ -397,14 +397,15 @@ async def patch_donor(
         params["branch"] = payload.branch_id
 
     if payload.year is not None:
-        if not (1950 <= payload.year <= 2030):
-            raise HTTPException(422, "Год вне допустимого диапазона")
+        top = date.today().year + 1
+        if not (1950 <= payload.year <= top):
+            raise HTTPException(422, f"Год: от 1950 до {top}")
         sets.append("year = :year")
         params["year"] = payload.year
 
     if payload.accepted_at is not None:
         if payload.accepted_at.year < 2000 or payload.accepted_at > date.today():
-            raise HTTPException(422, "Дата приёмки вне допустимого диапазона")
+            raise HTTPException(422, "Дата приёмки: с 2000 года и не позже сегодня")
         sets.append("accepted_at = :acc")
         params["acc"] = payload.accepted_at
 

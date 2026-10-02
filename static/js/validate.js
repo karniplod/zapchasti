@@ -76,17 +76,55 @@ const Check = {
     if (e) return e;
     return new RegExp(LETTER).test(v) && /\d/.test(v) ? '' : 'Нужны и буквы, и цифры';
   },
+  // Год выпуска: с 1950 и не позже следующего — модельный год бывает вперёд
+  year(v, {optional = true} = {}){
+    return Check.number(v, {min: 1950, max: new Date().getFullYear() + 1,
+                            optional, what: 'Год', plain: true})
+      || (v !== '' && !Number.isInteger(+v) ? 'Год — целое число' : '');
+  },
+  // Госномер: буквы, цифры, пробел; иностранные тоже бывают — без шаблона РФ
+  plate(v){
+    v = String(v || '').trim();
+    if (!v) return '';
+    if (v.length > 15) return 'Госномер: не длиннее 15 знаков';
+    return /^[0-9A-Za-zА-Яа-яЁё ]+$/.test(v) ? '' : 'Госномер: только буквы и цифры';
+  },
+  // Каталожный номер: латиница, цифры, дефис, точка, пробел, слэш
+  oem(v){
+    v = String(v || '').trim();
+    if (!v) return '';
+    if (v.length > 40) return 'Номер: не длиннее 40 знаков';
+    return /^[0-9A-Za-z .\-\/]+$/.test(v) ? '' : 'Номер: латиница, цифры, дефис';
+  },
+  vinRule(v, {optional = true} = {}){
+    v = String(v || '').trim();
+    if (!v) return optional ? '' : 'Введите VIN';
+    if (v.length !== 17) return `В VIN 17 знаков, сейчас ${v.length}`;
+    return Check.vin(v) ? '' : 'В VIN только латиница и цифры, без I, O, Q';
+  },
+  // Дата не из будущего: приёмку задним числом вносят, вперёд — нет
+  pastDate(v){
+    if (!v) return '';
+    const d = new Date(v + 'T00:00:00');
+    if (isNaN(d)) return 'Неверная дата';
+    if (d > new Date()) return 'Дата не может быть в будущем';
+    return d.getFullYear() < 2000 ? 'Дата не раньше 2000 года' : '';
+  },
+  money(v, what = 'Цена'){ return Check.number(v, {min: 0, max: 100000000, what}); },
+
   text(v, {max = 1000, min = 0, what = 'Текст'} = {}){
     v = String(v || '').trim();
     if (v.length < min) return min === 1 ? 'Заполните поле' : `${what}: не короче ${min} символов`;
     return v.length > max ? `${what}: не длиннее ${max} символов` : '';
   },
-  number(v, {min = 0, max = 1e9, optional = true, what = 'Число'} = {}){
+  number(v, {min = 0, max = 1e9, optional = true, what = 'Число', plain = false} = {}){
     if (v === '' || v == null) return optional ? '' : 'Заполните поле';
     const n = Number(v);
+    // Годы без разрядов: «1 950» читается как число, а не как год
+    const f = x => plain ? String(x) : x.toLocaleString('ru');
     if (!Number.isFinite(n)) return `${what}: только цифры`;
-    if (n < min) return `${what}: не меньше ${min.toLocaleString('ru')}`;
-    if (n > max) return `${what}: не больше ${max.toLocaleString('ru')}`;
+    if (n < min) return `${what}: не меньше ${f(min)}`;
+    if (n > max) return `${what}: не больше ${f(max)}`;
     return '';
   },
 };
@@ -94,7 +132,11 @@ const Check = {
 // Ошибка у поля: подпись под ним, красная рамка, aria-invalid для
 // программ чтения с экрана. Место под подпись — <p id="<id>Err">,
 // а если его нет, создаём сразу после поля
+let fieldSeq = 0;
 function fieldError(input, msg){
+  // Поля строк в списках (правка детали, машины) id не имеют — даём свой,
+  // чтобы подпись с ошибкой нашлась при следующей проверке
+  if (!input.id) input.id = 'fld' + (++fieldSeq);
   let box = document.getElementById(input.id + 'Err');
   if (!box && msg){
     box = document.createElement('p');
@@ -152,14 +194,48 @@ function phoneMask(input){
   });
 }
 
-// Ошибку сервера кладём к полю, если понятно, к какому она: 422 от
-// FastAPI приходит списком с путём до поля
+// Ошибку сервера кладём к полю, если понятно, к какому она: на 422
+// сервер отдаёт errors — список {field, msg} (см. app/errors.py)
 function serverErrors(d, map){
-  if (!Array.isArray(d.detail)) return false;
+  if (!Array.isArray(d.errors)) return false;
   let shown = false;
-  for (const e of d.detail){
-    const key = (e.loc || [])[e.loc.length - 1];
-    if (map[key]){ fieldError(map[key], e.msg); shown = true; }
+  for (const e of d.errors){
+    if (map[e.field]){ fieldError(map[e.field], e.msg); shown = true; }
   }
   return shown;
+}
+
+// Поле VIN: только допустимые знаки, верхний регистр, кнопка — при 17.
+// Знаки, которых в VIN не бывает (I, O, Q, кириллица), не пропадают
+// молча: человек видит, почему его буква не набралась
+function vinInput(input, onGo, button){
+  const err = document.getElementById(input.id + 'Err');
+  const say = msg => { if (err){ err.textContent = msg; err.hidden = !msg; } };
+  input.addEventListener('input', () => {
+    const raw = input.value.toUpperCase();
+    const v = raw.replace(/[^A-HJ-NPR-Z0-9]/g, '');
+    input.value = v;
+    input.classList.remove('bad');
+    button.disabled = v.length !== 17;
+    const dropped = raw.replace(/[A-HJ-NPR-Z0-9]/g, '').replace(/\s/g, '');
+    say(/[IOQ]/.test(dropped) ? 'Букв I, O и Q в VIN нет — это цифры 1 и 0'
+      : /[А-ЯЁ]/.test(dropped) ? 'VIN пишется латиницей — переключите раскладку'
+      : dropped ? 'В VIN только латинские буквы и цифры' : '');
+  });
+  input.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    if (input.value.length === 17) onGo();
+    else say(`В VIN 17 знаков, сейчас ${input.value.length}`);
+  });
+  button.onclick = onGo;
+}
+
+// Правила по селекторам внутри одного блока — для форм в строках списка:
+//   const rules = bindRules(row, {'.f-price': v => Check.money(v)});
+function bindRules(root, map){
+  const rules = Object.entries(map)
+    .map(([sel, rule]) => [root.querySelector(sel), rule])
+    .filter(([input]) => input);
+  live(rules);
+  return rules;
 }

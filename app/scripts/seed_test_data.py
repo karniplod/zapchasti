@@ -411,7 +411,7 @@ async def create_per_brand(s, apply: bool) -> None:
             "gen": r.gen_id, "mod": r.mod_id, "compl": r.compl_id, "year": year,
             "color": BULK_COLORS[n % len(BULK_COLORS)],
             "mileage": 60_000 + (n * 1_370) % 180_000,
-            "plate": "Т{:03d}ТТ716".format(n),
+            "plate": f"Т{n:03d}ТТ716",
             "price": 40_000 + (n * 2_500) % 200_000,
             "notes": "Машина заведена для проверки витрины. " + MARK,
             "public_note": "Тестовая запись: машина добавлена, чтобы посмотреть, "
@@ -440,8 +440,8 @@ async def create_per_brand(s, apply: bool) -> None:
                     'test', false, 'original', NULL)
             RETURNING id"""), {
             "sku": sku, "d": donor.id, "cat": cats[part_name], "name": part_name,
-            "oem": "TESTB{:04d}".format(r.brand_id), "cond": cond, "note": note,
-            "price": price, "loc": "С-{:02d}".format(n % 40 + 1), "weight": weight,
+            "oem": f"TESTB{r.brand_id:04d}", "cond": cond, "note": note,
+            "price": price, "loc": f"С-{n % 40 + 1:02d}", "weight": weight,
             "branch": branches[n % len(branches)],
         })).scalar()
         await add_photo(s, part_id, part_name, r.brand + " " + r.model + " · " + sku)

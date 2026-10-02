@@ -4,22 +4,27 @@
 
 const $ = id => document.getElementById(id);
 
-function fail(msg, field){
+function fail(msg){
   $('aErr').textContent = msg;
   $('aErr').hidden = false;
-  if (field){ field.classList.add('bad'); field.focus(); }
 }
+
+// Проверяем здесь же, чтобы не гонять заведомо неверное на сервер.
+// Сервер проверяет ещё раз — форму можно обойти
+const rules = [
+  [$('aPhone'), v => Check.phoneRule(v)],
+  [$('aName'), v => Check.name(v, {optional: true})],
+  [$('aMsg'), v => v.trim().length < 3 ? 'Напишите, какая деталь нужна'
+                                        : Check.text(v, {max: 2000, what: 'Сообщение'})],
+];
+live(rules);
+phoneMask($('aPhone'));
 
 $('askForm').onsubmit = async e => {
   e.preventDefault();
   $('aErr').hidden = true;
-  $('aPhone').classList.remove('bad');
-
+  if (!validate(rules)) return;
   const phone = $('aPhone').value.trim();
-  // Проверяем здесь же, чтобы не гонять заведомо пустое на сервер.
-  // Сервер проверяет ещё раз — форму можно обойти
-  if (phone.replace(/\D/g, '').length < 10) return fail('Проверьте номер телефона', $('aPhone'));
-  if (!$('aMsg').value.trim()) return fail('Напишите, какая деталь нужна', $('aMsg'));
 
   const btn = $('aSend');
   btn.disabled = true;

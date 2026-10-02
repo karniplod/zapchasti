@@ -19,14 +19,7 @@ function syncUrl(){
 }
 
 // ── VIN ──────────────────────────────────────────────────
-$('vin').addEventListener('input', e => {
-  const v = e.target.value.toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g,'');
-  e.target.value = v; e.target.classList.remove('bad');
-  $('vinGo').disabled = v.length !== 17;
-});
-$('vin').addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !$('vinGo').disabled) findByVin(); });
-$('vinGo').onclick = findByVin;
+vinInput($('vin'), findByVin, $('vinGo'));
 
 async function findByVin(){
   $('vinGo').disabled = true; $('vinGo').textContent = 'Ищу…';
@@ -221,8 +214,21 @@ async function loadFacets(){
 }
 
 let debounce;
+// Цена: целое, не отрицательное, «от» не больше «до». С ошибкой выдачу
+// не трогаем — иначе «от 5000 до 50» показало бы пустой каталог без объяснений
+function priceError(){
+  const a = $('pmin').value, b = $('pmax').value;
+  const bad = v => v !== '' && (!/^\d{1,9}$/.test(v));
+  if (bad(a) || bad(b)) return 'Цена — целое число рублей';
+  if (a !== '' && b !== '' && +a > +b) return '«От» больше, чем «до»';
+  return '';
+}
 ['pmin','pmax'].forEach(id => $(id).addEventListener('input', () => {
   clearTimeout(debounce);
+  const msg = priceError();
+  $('priceErr').textContent = msg; $('priceErr').hidden = !msg;
+  ['pmin', 'pmax'].forEach(x => $(x).classList.toggle('is-bad', !!msg));
+  if (msg) return;
   debounce = setTimeout(() => {
     state.price_min = $('pmin').value || null;
     state.price_max = $('pmax').value || null;

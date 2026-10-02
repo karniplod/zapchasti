@@ -206,7 +206,21 @@ function refreshSave(){
   else              $('save').textContent = 'Принять автомобиль';
 }
 
+// Поля карточки машины: ошибку видно у поля сразу, как с него ушли
+const rules = [
+  [$('year'), v => Check.year(v)],
+  [$('color'), v => Check.text(v, {max: 40, what: 'Цвет'})],
+  [$('mileage'), v => Check.number(v, {min: 0, max: 3000000, what: 'Пробег'})],
+  [$('plate'), v => Check.plate(v)],
+  [$('price'), v => Check.money(v, 'Цена закупки')],
+  [$('acceptedAt'), v => Check.pastDate(v)],
+  [$('notes-field'), v => Check.text(v, {max: 2000, what: 'Заметки'})],
+  [$('pub-field'), v => Check.text(v, {max: 2000, what: 'Описание'})],
+];
+live(rules);
+
 $('save').addEventListener('click', async () => {
+  if (!validate(rules)) return;
   $('save').disabled = true;
   $('status').textContent = 'Сохраняю…';
   const body = {

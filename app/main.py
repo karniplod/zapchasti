@@ -12,6 +12,7 @@ import time
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Form, Request, Response
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -22,6 +23,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from .auth import authenticate, current_user, drop_session, issue_app_token, issue_session
 from .config import settings
 from .database import check_connection, dispose, get_session
+from .errors import translate
 from .routers import (
     admin,
     cars,
@@ -272,6 +274,12 @@ async def http_error(request: Request, exc: StarletteHTTPException):
         },
         status_code=exc.status_code,
     )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(request: Request, exc: RequestValidationError):
+    """422 по-русски: текст для всплывашки и список ошибок по полям."""
+    return JSONResponse(translate(exc), status_code=422)
 
 
 @app.exception_handler(IntegrityError)

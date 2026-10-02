@@ -9,7 +9,6 @@
 но писать в неё было некому — форма заявки не существовала.
 """
 
-import re
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -18,6 +17,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .. import customer_auth as ca
 from ..auth import optional_user
 from ..config import settings
 from ..database import get_session
@@ -130,11 +130,18 @@ async def create_lead(
     if _too_many(ip):
         raise HTTPException(429, "Слишком много заявок подряд. Позвоните нам.")
 
-    # Телефон в любом виде, лишь бы можно было перезвонить: человек
-    # пишет и +7 (912) 345-67-89, и 89123456789
-    digits = re.sub(r"\D", "", payload.phone)
-    if len(digits) < 10:
-        raise HTTPException(422, "Проверьте номер телефона")
+    # Телефон в любом виде: человек пишет и +7 (912) 345-67-89, и
+    # 89123456789. Храним одним видом — менеджеру проще найти повтор
+    phone = ca.normalize_phone(payload.phone)
+    if not phone:
+        raise HTTPException(422, "Телефон в формате +7 900 000-00-00")
+    name = (payload.name or "").strip()
+    if name and not ca.NAME_RE.match(name):
+        raise HTTPException(422, "В имени — только буквы, пробел и дефис")
+    message = (payload.message or "").strip()
+    # Вопрос по машине без текста бессмыслен: непонятно, что снимать
+    if payload.donor and len(message) < 3:
+        raise HTTPException(422, "Напишите, какая деталь нужна")
 
     part_id = None
     if payload.sku:
@@ -166,9 +173,9 @@ async def create_lead(
         {
             "p": part_id,
             "d": donor_id,
-            "phone": payload.phone.strip(),
-            "name": (payload.name or "").strip() or None,
-            "msg": (payload.message or "").strip() or None,
+            "phone": phone,
+            "name": name or None,
+            "msg": message or None,
         },
     )
     await session.commit()

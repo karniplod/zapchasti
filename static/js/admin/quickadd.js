@@ -37,14 +37,32 @@
     name.focus();
   };
 
+  // Что не так — текстом под полями, а не только серой кнопкой:
+  // иначе непонятно, почему «Сохранить» не нажимается
+  function problem(){
+    const n = name.value.trim();
+    if (!n) return '';                      // ещё ничего не ввели — молчим
+    if (n.length > 80) return 'Название: не длиннее 80 символов';
+    if (mode !== 'generation') return '';
+    const from = document.getElementById('qaFrom').value;
+    const to = document.getElementById('qaTo').value;
+    const max = new Date().getFullYear() + 2;
+    if (!from) return '';
+    if (+from < 1950 || +from > max) return `Год начала: от 1950 до ${max}`;
+    if (to && (+to < +from || +to > max)) return `Год окончания: от ${from} до ${max}`;
+    return '';
+  }
   function valid(){
-    if (!name.value.trim()) return false;
+    if (!name.value.trim() || problem()) return false;
     if (mode === 'generation') return !!document.getElementById('qaFrom').value;
     return true;
   }
-  ['qaName','qaFrom'].forEach(id =>
+  ['qaName','qaFrom','qaTo'].forEach(id =>
     document.getElementById(id).addEventListener('input', () => {
       document.getElementById('qaSave').disabled = !valid();
+      const p = problem();
+      warn.textContent = p;
+      warn.className = p ? 'warn show' : 'warn';
     }));
 
   name.addEventListener('keydown', e => {

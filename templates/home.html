@@ -25,6 +25,7 @@
                autocomplete="off" placeholder="XTA210740X1234567" aria-label="VIN автомобиля">
         <button class="btn btn-primary" id="vinGo" disabled>Подобрать</button>
       </div>
+      <p class="fld-err" id="vinErr" role="alert" hidden></p>
       <p class="banner-alt">VIN под рукой нет? <a href="/catalog">Выбрать по марке и модели</a></p>
     </div>
 
@@ -132,5 +133,6 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ asset('js/validate.js') }}"></script>
 <script src="{{ asset('js/home.js') }}"></script>
 {% endblock %}

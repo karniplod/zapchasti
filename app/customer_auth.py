@@ -55,6 +55,11 @@ def normalize_phone(raw: str) -> str | None:
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$")
 
 
+# Имя человека: с буквы, дальше буквы, пробел, дефис, апостроф, точка.
+# Цифры и подчёркивание \w тоже пропустил бы — их вычитаем отдельно
+NAME_RE = re.compile(r"^[^\W\d_](?:[^\W\d_]|[ .'’-]){0,79}$")
+
+
 def normalize_email(raw: str) -> str | None:
     v = (raw or "").strip().lower()
     return v if len(v) <= 200 and EMAIL_RE.match(v) else None

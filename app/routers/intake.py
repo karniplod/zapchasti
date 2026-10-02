@@ -51,14 +51,14 @@ class DonorCreate(BaseModel):
     # Филиал, принявший машину. Пусто — берём филиал приёмщика
     branch_id: int | None = None
     year: int | None = None
-    color: str | None = None
-    mileage_km: int | None = None
-    plate: str | None = None
-    purchase_price: float | None = None
+    color: str | None = Field(default=None, max_length=40)
+    mileage_km: int | None = Field(default=None, ge=0, le=3_000_000)
+    plate: str | None = Field(default=None, max_length=15)
+    purchase_price: float | None = Field(default=None, ge=0, le=100_000_000)
     # Пусто = сегодня. Машину нередко заводят в системе через день-два
     # после того, как она реально приехала
     accepted_at: date | None = None
-    notes: str | None = None
+    notes: str | None = Field(default=None, max_length=2000)
     # Описание для покупателя — видно на сайте, в отличие от notes
     public_note: str | None = Field(default=None, max_length=2000)
 
@@ -73,8 +73,10 @@ class DonorCreate(BaseModel):
     @field_validator("year")
     @classmethod
     def sane_year(cls, v):
-        if v is not None and not (1950 <= v <= 2030):
-            raise ValueError("Год вне допустимого диапазона")
+        # Модельный год бывает на год вперёд — дальше уже опечатка
+        top = date.today().year + 1
+        if v is not None and not (1950 <= v <= top):
+            raise ValueError(f"от 1950 до {top}")
         return v
 
     @field_validator("accepted_at")

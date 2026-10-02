@@ -6,7 +6,6 @@
 пропадает. Иначе двое купят один и тот же бампер.
 """
 
-import re
 import secrets
 from datetime import date
 
@@ -26,8 +25,7 @@ router = APIRouter(tags=["shop"])
 
 CART_COOKIE = "razbor_cart"
 
-# Имя человека: буквы любого алфавита, пробел, дефис, апостроф, точка
-NAME_RE = re.compile(r"^[^\W\d_][\w .'’-]{0,79}$")
+NAME_RE = ca.NAME_RE
 
 # Способы онлайн-оплаты — из app/payments.py: без ключей ЮKassa список
 # пуст, и заказ оплачивается при получении, а менеджер отмечает оплату
@@ -225,7 +223,7 @@ async def cart_count(
 
 @router.get("/account/login", response_class=HTMLResponse)
 async def login_form(request: Request, next: str = "/account", error: str | None = None):
-    from .oauth import enabled, safe_next   # oauth импортирует shop — здесь, а не наверху
+    from .oauth import enabled, safe_next  # oauth импортирует shop — здесь, а не наверху
 
     return templates.TemplateResponse(
         "shop/login.html",

@@ -105,11 +105,12 @@
 
     <form class="ask-form" id="askForm" novalidate data-donor="{{ car.code }}">
       <div><label for="aPhone">Телефон</label>
-        <input class="field" id="aPhone" type="tel" autocomplete="tel" placeholder="+7 900 000-00-00"></div>
+        <input class="field" id="aPhone" type="tel" inputmode="tel" autocomplete="tel"
+               placeholder="+7 900 000-00-00" maxlength="18"></div>
       <div><label for="aName">Как к вам обращаться</label>
-        <input class="field" id="aName" autocomplete="name" placeholder="Необязательно"></div>
+        <input class="field" id="aName" autocomplete="name" placeholder="Необязательно" maxlength="80"></div>
       <div><label for="aMsg">Что нужно</label>
-        <textarea class="field" id="aMsg" rows="3"
+        <textarea class="field" id="aMsg" rows="3" maxlength="2000"
           placeholder="Например: задняя левая дверь в сборе, стеклоподъёмник"></textarea></div>
       <button class="btn btn-primary" id="aSend" type="submit">Спросить</button>
       <p class="err" id="aErr" hidden></p>
@@ -121,5 +122,6 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ asset('js/validate.js') }}"></script>
 <script src="{{ asset('js/car.js') }}"></script>
 {% endblock %}

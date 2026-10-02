@@ -18,6 +18,7 @@
              autocomplete="off" placeholder="XTA210740X1234567" aria-label="VIN автомобиля">
       <button class="btn btn-primary" id="vinGo" disabled>Подобрать</button>
     </div>
+    <p class="fld-err" id="vinErr" role="alert" hidden></p>
 
     <div class="alt">
       <span>VIN под рукой нет?</span>
@@ -62,9 +63,12 @@
     <section><h4>Состояние</h4><div id="conds"></div></section>
     <section><h4>Цена, ₽</h4>
       <div class="range">
-        <input type="number" id="pmin" class="field" placeholder="от" inputmode="numeric">
-        <input type="number" id="pmax" class="field" placeholder="до" inputmode="numeric">
+        <input type="number" id="pmin" class="field" placeholder="от" inputmode="numeric"
+               min="0" max="999999999" step="1" aria-label="Цена от">
+        <input type="number" id="pmax" class="field" placeholder="до" inputmode="numeric"
+               min="0" max="999999999" step="1" aria-label="Цена до">
       </div>
+      <p class="fld-err" id="priceErr" role="alert" hidden></p>
     </section>
     <button class="reset" id="reset">Сбросить фильтры</button>
   </aside>
@@ -76,7 +80,7 @@
     {# Форма, а не одинокое поле: Enter в форме — это отправка,
        её не нужно ловить отдельным обработчиком клавиш #}
     <form class="sbar search" id="searchForm">
-      <input class="field" id="q" type="search" placeholder="Название или каталожный номер"
+      <input class="field" id="q" type="search" maxlength="200" placeholder="Название или каталожный номер"
              autocomplete="off" aria-label="Поиск по названию или номеру">
       <button class="btn btn-primary" type="submit">Искать</button>
     </form>
@@ -96,5 +100,6 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ asset('js/validate.js') }}"></script>
 <script src="{{ asset('js/catalog.js') }}"></script>
 {% endblock %}

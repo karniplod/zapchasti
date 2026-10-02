@@ -52,15 +52,15 @@
       <div>
         <label for="lPhone">Телефон</label>
         <input class="field" id="lPhone" type="tel" inputmode="tel"
-               autocomplete="tel" placeholder="+7 900 000-00-00" required>
+               autocomplete="tel" placeholder="+7 900 000-00-00" maxlength="18" required>
       </div>
       <div>
         <label for="lName">Как к вам обращаться</label>
-        <input class="field" id="lName" autocomplete="name" placeholder="Необязательно">
+        <input class="field" id="lName" autocomplete="name" placeholder="Необязательно" maxlength="80">
       </div>
       <div>
         <label for="lMsg">Что нужно</label>
-        <textarea class="field" id="lMsg" rows="4"
+        <textarea class="field" id="lMsg" rows="4" maxlength="2000"
           placeholder="Марка, модель, год и что ищете. Или VIN — так точнее."></textarea>
       </div>
       <button class="btn btn-primary" id="lSend" type="submit">Отправить</button>
@@ -74,5 +74,6 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ asset('js/validate.js') }}"></script>
 <script src="{{ asset('js/contacts.js') }}"></script>
 {% endblock %}

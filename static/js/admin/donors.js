@@ -98,7 +98,7 @@ function toggleEdit(el, c){
   box.className = 'edit';
   box.innerHTML = `
     <div><label>VIN</label><input class="f-vin" maxlength="17" value="${val(c.vin)}"></div>
-    <div><label>Год</label><input type="number" class="f-year" min="1950" max="2030" value="${val(c.year)}"></div>
+    <div><label>Год</label><input type="number" class="f-year" min="1950" max="2100" value="${val(c.year)}"></div>
     <div><label>Цвет</label><input class="f-color" value="${val(c.color)}"></div>
     <div><label>Пробег, км</label><input type="number" class="f-mileage" min="0" value="${val(c.mileage_km)}"></div>
     <div><label>Госномер</label><input class="f-plate" value="${val(c.plate)}"></div>
@@ -148,6 +148,18 @@ async function fill(sel, generationId, current){
 }
 
 async function save(el, id, box){
+  const rules = bindRules(box, {
+    '.f-vin': v => Check.vinRule(v),
+    '.f-year': v => Check.year(v),
+    '.f-color': v => Check.text(v, {max: 40, what: 'Цвет'}),
+    '.f-mileage': v => Check.number(v, {min: 0, max: 3000000, what: 'Пробег'}),
+    '.f-plate': v => Check.plate(v),
+    '.f-price': v => Check.money(v, 'Цена закупки'),
+    '.f-acc': v => Check.pastDate(v),
+    '.f-notes': v => Check.text(v, {max: 2000, what: 'Заметки'}),
+    '.f-pub': v => Check.text(v, {max: 2000, what: 'Описание'}),
+  });
+  if (!validate(rules)) return;
   const num = v => v === '' ? null : +v;
   const str = v => v.trim() === '' ? null : v.trim();
   const body = {

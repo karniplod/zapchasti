@@ -178,7 +178,19 @@ function refresh(){
 }
 $('name').addEventListener('input', refresh);
 
+const rules = [
+  [$('price'), v => Check.money(v)],
+  [$('name'), v => v.trim() ? Check.text(v, {min: 2, max: 200, what: 'Название'}) : ''],
+  [$('oem'), v => Check.oem(v)],
+  [$('partBrand'), v => Check.text(v, {max: 80, what: 'Бренд'})],
+  [$('note'), v => Check.text(v, {max: 500, what: 'Дефекты'})],
+  [$('loc'), v => Check.text(v, {max: 40, what: 'Место'})],
+  [$('weight'), v => Check.number(v, {min: 0, max: 5000, what: 'Вес'})],
+];
+live(rules);
+
 $('save').onclick = async () => {
+  if (!validate(rules)) return;
   $('save').disabled = true;
   const fd = new FormData();
   fd.append('donor_id', DONOR_ID);

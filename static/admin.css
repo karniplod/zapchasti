@@ -48,6 +48,10 @@ input,select,textarea{width:100%;background:var(--panel-2);border:1px solid var(
   border-radius:9px;color:var(--ink);padding:11px 12px;font-size:14px;
   font-family:inherit;outline:none}
 input:focus,select:focus,textarea:focus{border-color:var(--amber)}
+/* Ошибка у поля — из static/js/validate.js */
+input.is-bad,select.is-bad,textarea.is-bad{border-color:var(--err)}
+.fld-err{margin:5px 0 0;color:var(--err);font-size:12px;line-height:1.35}
+.fld-err[hidden]{display:none}
 select:disabled{opacity:.4}
 textarea{resize:vertical;min-height:64px}
 

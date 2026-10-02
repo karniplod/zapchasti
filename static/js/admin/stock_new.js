@@ -191,7 +191,16 @@ function refresh(){
   else                  $('save').textContent='Принять запчасть';
 }
 
+const rules = [
+  [$('price'), v => Check.money(v)],
+  [$('oem'), v => Check.oem(v)],
+  [$('loc'), v => Check.text(v, {max: 40, what: 'Место'})],
+  [$('note'), v => Check.text(v, {max: 500, what: 'Дефекты'})],
+];
+live(rules);
+
 $('save').onclick = async () => {
+  if (!validate(rules)) return;
   const miss = firstMissing();
   if (miss){
     miss.scrollIntoView({behavior:'smooth', block:'center'});
