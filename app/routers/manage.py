@@ -778,7 +778,8 @@ async def leads_list(
         text("""
         SELECT l.id, l.phone, l.name, l.message, l.processed, l.created_at,
                p.sku, p.name AS part_name, p.status::text AS part_status,
-               d.code AS donor_code, d.status::text AS donor_status,
+               -- id — чтобы приложение открыло карточку машины из заявки
+               l.donor_id, d.code AS donor_code, d.status::text AS donor_status,
                concat_ws(' ', b.name, m.name, d.year) AS donor_car
           FROM leads l
           LEFT JOIN parts p ON p.id = l.part_id
