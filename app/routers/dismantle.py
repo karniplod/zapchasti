@@ -132,6 +132,9 @@ async def donor_info(
 @router.get("/api/part-categories")
 async def part_categories(
     q: str | None = None,
+    # Весь список разом — приложение держит его на телефоне и ищет по нему,
+    # когда в цеху пропал wifi: без категории деталь не сохранить
+    all: bool = False,
     session: AsyncSession = Depends(get_session),
     user=Depends(require_role("dismantler")),
 ):
@@ -156,9 +159,9 @@ async def part_categories(
            AND NOT pc.is_placeholder
            AND (CAST(:q AS text) IS NULL OR t.path ILIKE '%' || CAST(:q AS text) || '%')
          ORDER BY t.path
-         LIMIT 60
+         LIMIT CASE WHEN CAST(:all AS boolean) THEN NULL ELSE 60 END
     """),
-        {"q": q},
+        {"q": q, "all": all},
     )
     return [dict(r._mapping) for r in rows]
 
