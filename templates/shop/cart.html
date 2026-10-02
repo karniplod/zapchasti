@@ -161,24 +161,29 @@
             заказ в выбранном, перевоз займёт несколько дней.</p>{% endif %}
         </div>
 
-        {% if carriers %}
-        {# Доставка службой: город → варианты с ценой → пункт или адрес.
-           Цену показываем, но при оформлении сервер считает её заново #}
-        <div id="shipBox" hidden data-carriers="{{ carriers | join(',') }}">
+        {# Доставка: страна и город → варианты служб с ценой → пункт выдачи
+           или адрес по полям. Цену показываем, но при оформлении сервер
+           считает её заново. Подсказки улицы и дома — DaData, если ключ задан #}
+        <div id="shipBox" hidden data-carriers="{{ carriers | join(',') }}"
+             data-hints="{{ 1 if address_hints else 0 }}">
           <div class="co-grid">
+            <div class="fld">
+              <label for="dCountry">Страна</label>
+              <select class="field" id="dCountry" autocomplete="country">
+                <option value="RU" selected>Россия</option>
+                <option value="BY">Беларусь</option>
+                <option value="KZ">Казахстан</option>
+              </select>
+            </div>
             <div class="fld city-fld">
-              <label for="dCity">Город</label>
-              <input class="field" id="dCity" autocomplete="off" maxlength="120"
+              <label for="dCity">Город или населённый пункт</label>
+              <input class="field" id="dCity" autocomplete="address-level2" maxlength="120"
                      placeholder="Начните вводить: Самара">
               <div class="suggest" id="dCityList" role="listbox" hidden></div>
             </div>
-            {% if 'pochta' in carriers %}
-            <div class="fld">
-              <label for="dPost">Индекс <small>— для Почты России</small></label>
-              <input class="field" id="dPost" inputmode="numeric" maxlength="6" placeholder="443001">
-            </div>
-            {% endif %}
           </div>
+
+          {% if carriers %}
           <p class="hint" id="dState">Укажите город — посчитаем стоимость и срок доставки.</p>
           <div class="co-tiles d-options" id="dOptions" role="radiogroup" aria-label="Вариант доставки"></div>
           <div class="fld" id="dPointBox" hidden>
@@ -187,13 +192,36 @@
             <div class="points" id="dPoints" role="radiogroup" aria-label="Пункт выдачи"></div>
             <p class="fld-err" id="dPointErr" hidden></p>
           </div>
-        </div>
-        {% endif %}
+          {% endif %}
 
-        <div class="fld" id="addrBox" hidden>
-          <label for="addr">Адрес доставки</label>
-          <textarea class="field" id="addr" rows="2" maxlength="500"
-                    placeholder="Город, улица, дом или пункт выдачи ТК"></textarea>
+          <div id="addrBox" class="addr-grid" hidden>
+            <div class="fld sug-fld a-street">
+              <label for="aStreet">Улица</label>
+              <input class="field" id="aStreet" autocomplete="off" maxlength="120"
+                     placeholder="{{ 'Начните вводить: Ленинградская' if address_hints else 'ул. Ленинградская' }}">
+              <div class="suggest" id="aStreetList" role="listbox" hidden></div>
+            </div>
+            <div class="fld sug-fld a-house">
+              <label for="aHouse">Дом</label>
+              <input class="field" id="aHouse" autocomplete="off" maxlength="20" placeholder="10">
+              <div class="suggest" id="aHouseList" role="listbox" hidden></div>
+            </div>
+            <div class="fld a-block">
+              <label for="aBlock">Корпус, строение</label>
+              <input class="field" id="aBlock" maxlength="20" placeholder="—">
+            </div>
+            <div class="fld a-flat">
+              <label for="aFlat">Квартира, офис</label>
+              <input class="field" id="aFlat" maxlength="20" placeholder="—">
+            </div>
+            <div class="fld a-post">
+              <label for="dPost">Индекс</label>
+              <input class="field" id="dPost" inputmode="numeric" maxlength="6"
+                     autocomplete="postal-code" placeholder="443001">
+              <p class="hint" id="postHint">{{ 'Подставится сам, когда адрес введён полностью'
+                 if address_hints else 'Шесть цифр — нужен для Почты России' }}</p>
+            </div>
+          </div>
         </div>
       </section>
 

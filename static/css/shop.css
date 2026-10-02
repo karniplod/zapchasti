@@ -52,7 +52,7 @@
 .co-card .fld + .fld,.co-tiles + .fld{margin-top:14px}
 .co-card textarea.field{resize:vertical;font-family:inherit}
 .co-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.co-grid .fld + .fld{margin-top:0}
+.co-grid .fld + .fld,.addr-grid .fld + .fld{margin-top:0}
 @media(max-width:560px){.co-grid{grid-template-columns:1fr}}
 .co-login p{margin:0 0 14px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -132,7 +132,18 @@
 #shipBox{margin-top:14px;display:grid;gap:12px}
 #shipBox[hidden]{display:none}
 #shipBox .hint{margin:0}
-.city-fld{position:relative}
+.city-fld,.sug-fld{position:relative}
+/* Адрес по полям: улица широкая, остальное узкое */
+.addr-grid{display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px 14px}
+.addr-grid[hidden]{display:none}
+.addr-grid .a-street{grid-column:1/2}
+.addr-grid .a-post .hint{margin:4px 0 0;font-size:var(--t-xs)}
+.addr-grid .field.autofilled{background:rgba(30,142,90,.06);border-color:#bfe5cf}
+@media(max-width:640px){
+  .addr-grid{grid-template-columns:1fr 1fr}
+  .addr-grid .a-street{grid-column:1/-1}
+}
+.suggest button small{display:block;color:var(--muted);font-size:var(--t-xs)}
 .suggest{position:absolute;left:0;right:0;top:100%;z-index:20;margin-top:4px;
   background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r);
   box-shadow:0 12px 28px rgba(0,0,0,.12);max-height:280px;overflow:auto}

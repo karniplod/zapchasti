@@ -110,6 +110,10 @@ class Settings(BaseSettings):
     yandex_delivery_test: bool = False
     # Почта России: публичный тарификатор tariff.pochta.ru — ключ не нужен
     pochta_enabled: bool = True
+    # DaData «Подсказки» (dadata.ru, бесплатно до 10 000 запросов в день):
+    # улица и дом по мере ввода, индекс по полному адресу. Пусто — адрес
+    # вводят руками, индекс тоже
+    dadata_api_key: str = ""
 
     # --- онлайн-оплата ---
     # ЮKassa: shopId и секретный ключ из личного кабинета. Уведомления —

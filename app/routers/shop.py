@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .. import address as addr
 from .. import customer_auth as ca
 from .. import delivery as ship_services
 from .. import mailer, payments
@@ -136,6 +137,7 @@ async def cart_page(
             "spread": len(set(here)) > 1,
             "methods": payments.methods(),
             "carriers": ship_services.enabled(),
+            "address_hints": addr.enabled(),
             # Деталь могли продать, пока она лежала в корзине
             "gone": [i for i in items if i["status"] != "in_stock"],
             "no_price": [i for i in items if i["price"] is None],
@@ -516,6 +518,13 @@ class OrderIn(BaseModel):
     delivery_cdek_code: int | None = None
     delivery_postcode: str | None = Field(default=None, pattern=r"^\d{6}$")
     delivery_point: str | None = Field(default=None, max_length=64)
+    # Адрес по полям — для курьера, Почты и доставки ТК. Сервер собирает
+    # из них строку сам (app/address.py)
+    delivery_country: str | None = Field(default=None, max_length=2)
+    delivery_street: str | None = Field(default=None, max_length=120)
+    delivery_house: str | None = Field(default=None, max_length=20)
+    delivery_block: str | None = Field(default=None, max_length=20)
+    delivery_flat: str | None = Field(default=None, max_length=20)
     # Согласие на обработку персональных данных (152-ФЗ): без него
     # имя и телефон хранить нельзя
     agree: bool = False
@@ -555,6 +564,18 @@ async def create_order(
     if payload.delivery_method not in ("pickup", "shipping"):
         raise HTTPException(422, "Выберите способ получения")
     address = (payload.delivery_address or "").strip()
+    # Адрес по полям: проверяем каждое и собираем строку. Для пункта
+    # выдачи адрес не нужен — его даёт сам пункт
+    if (payload.delivery_method == "shipping" and payload.delivery_street is not None
+            and payload.delivery_mode != "pvz"):
+        address, err = addr.compose(
+            payload.delivery_country or "RU", payload.delivery_postcode,
+            payload.delivery_city or "", payload.delivery_street,
+            payload.delivery_house or "", payload.delivery_block, payload.delivery_flat)
+        if err:
+            raise HTTPException(422, err)
+        if len((payload.delivery_city or "").strip()) < 2:
+            raise HTTPException(422, "Укажите город доставки")
     branch = None
     if payload.delivery_method == "pickup":
         branch = (await session.execute(
