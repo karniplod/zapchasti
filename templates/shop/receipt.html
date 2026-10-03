@@ -1,0 +1,67 @@
+{% extends "_base.html" %}
+{% block title %}Чек об оплате заказа № {{ order.number }}{% endblock %}
+{% block description %}Чек об оплате заказа: позиции, доставка, способ и дата оплаты.{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ asset('css/shop.css') }}">
+<meta name="robots" content="noindex">
+{% endblock %}
+
+{% macro rub(v) %}{{ "{:,.2f}".format(v).replace(",", " ").replace(".", ",") }} ₽{% endmacro %}
+
+{#
+  Чек об оплате в личном кабинете (app/routers/account_orders.py,
+  receipt_context). Позиции — те же, что уходят в кассовый чек ЮKassa.
+  Печатается без шапки и подвала сайта — «Сохранить как PDF» в окне печати.
+#}
+{% block content %}
+<div class="wrap shop narrow receipt-page">
+  <p class="crumbs no-print"><a href="{{ back }}">← Заказ № {{ order.number }}</a></p>
+
+  <article class="receipt">
+    <header class="rc-seller">
+      <b>{{ seller.name or 'Автодонор' }}</b>
+      {% if seller.inn %}<span>ИНН {{ seller.inn }}{% if seller.ogrn %} · {{ 'ОГРНИП' if seller.ogrn | length == 15 else 'ОГРН' }} {{ seller.ogrn }}{% endif %}</span>{% endif %}
+      {% if seller.address %}<span>{{ seller.address }}</span>{% endif %}
+      <span>{{ site }}</span>
+    </header>
+
+    <h1>Чек об оплате</h1>
+    <p class="rc-meta">Заказ № {{ order.number }} · оплачен {{ paid_at.strftime('%d.%m.%Y в %H:%M') }}</p>
+
+    <table class="rc-lines">
+      <thead><tr><th>Наименование</th><th class="n">Кол-во</th><th class="n">Цена</th><th class="n">Сумма</th></tr></thead>
+      <tbody>
+        {% for i in lines %}
+        <tr>
+          <td>{{ i.name }}{% if i.sku %}<small>{{ i.sku }}</small>{% endif %}</td>
+          <td class="n">{{ i.qty }}</td>
+          <td class="n">{{ rub(i.price) }}</td>
+          <td class="n">{{ rub(i.sum) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <dl class="rc-total">
+      <dt>Итого</dt><dd>{{ rub(total) }}</dd>
+      <dt>В том числе НДС</dt><dd>{{ vat }}</dd>
+      <dt>Способ оплаты</dt><dd>{{ how }}</dd>
+      {% if payment_id %}<dt>Номер платежа</dt><dd class="mono">{{ payment_id }}</dd>{% endif %}
+      <dt>Покупатель</dt><dd>{{ order.contact_name or '—' }}{% if order.contact_phone %}, {{ order.contact_phone | phone }}{% endif %}</dd>
+      {% if order.delivery_address %}<dt>Доставка</dt><dd>{{ order.delivery_address }}</dd>{% endif %}
+    </dl>
+
+    <p class="rc-fiscal">Это подтверждение оплаты заказа. {{ fiscal }}.</p>
+  </article>
+
+  <div class="rc-actions no-print">
+    <button type="button" class="btn btn-primary" id="printReceipt">Распечатать или сохранить в PDF</button>
+    <a class="btn btn-ghost" href="{{ back }}">К заказу</a>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ asset('js/shop/receipt.js') }}"></script>
+{% endblock %}

@@ -263,13 +263,14 @@
         Оплатите ниже — или при получении.</div>
     {% endif %}
     {% if order.paid_at %}
-      <div class="notice notice-ok">
-        <b>Оплачен {{ order.paid_at.strftime('%d.%m.%Y') }}.</b> Спасибо! Менеджер
-        свяжется, когда заказ будет готов к выдаче или отправке.
+      <div class="notice notice-ok pay-done">
+        <div><b>Оплачен {{ order.paid_at.strftime('%d.%m.%Y') }}.</b> Спасибо! Менеджер
+          свяжется, когда заказ будет готов к выдаче или отправке.</div>
+        <a class="btn btn-ghost btn-sm" href="/account/orders/{{ order.number }}/receipt">Чек об оплате</a>
       </div>
     {% elif not payable %}
       <p class="hint">Заказ {{ order.label }} — оплата к нему больше не относится.</p>
-    {% elif methods %}
+    {% else %}
       {% if returned and payments and payments[0].status == 'pending' %}
       {# Вернулись от банка, а он ещё не подтвердил — обычно это секунды #}
       <div class="notice notice-accent" id="payWait" data-wait="1">
@@ -278,21 +279,31 @@
       <div class="notice notice-warn">Оплата не прошла. Попробуйте ещё раз
         или выберите другой способ.</div>
       {% endif %}
-      <p>Оплатить онлайн:</p>
-      <div class="pay-methods">
-        {% for m in methods %}
-        <button class="btn btn-ghost pay" data-method="{{ m.code }}" data-order="{{ order.number }}">{{ m.title }}</button>
-        {% endfor %}
-      </div>
-    {% else %}
-      <div class="notice notice-warn">
-        <b>Онлайн-оплата пока не подключена.</b>
-        Заказ закреплён за вами, детали сняты с витрины. Оплатить можно
-        при получении — наличными или картой на складе. Если нужен счёт
-        для юрлица, напишите в <a href="/contacts">контактах</a>.
-      </div>
-      <p class="hint">Когда подключим оплату картой и СБП, кнопка появится
-        здесь же, а заказ оплатится без звонка.</p>
+      {# Способ оплаты меняется, пока заказ не оплачен: онлайн — сразу
+         к оплате, «при получении» — неоплаченные ссылки аннулируются #}
+      {% set cur = order.pay_with if order.payment_method == 'online' and order.pay_with else
+                   ('on_receipt' if order.payment_method != 'online' else '') %}
+      <form class="pay-choice" id="payChoice" data-number="{{ order.number }}" data-current="{{ cur }}"
+            data-total="{{ order.total }}">
+        <p class="pay-now">Способ оплаты: <b>{{ (methods | selectattr('code', 'equalto', cur) | map(attribute='title') | first)
+          or ('при получении' if cur == 'on_receipt' else 'онлайн') }}</b></p>
+        <div class="co-tiles">
+          {% for m in methods %}
+          <label class="tile"><input type="radio" name="pm" value="{{ m.code }}" {% if m.code == cur %}checked{% endif %}>
+            <span><b>{{ m.title }}</b><small>{{ m.hint }}. Онлайн, сразу</small></span></label>
+          {% endfor %}
+          <label class="tile"><input type="radio" name="pm" value="on_receipt" {% if cur == 'on_receipt' %}checked{% endif %}>
+            <span><b>При получении</b><small>Наличными или картой — в филиале или курьеру</small></span></label>
+        </div>
+        {% if not methods %}
+        <p class="hint">Онлайн-оплата пока не подключена — оплатить можно при получении.
+          Если нужен счёт для юрлица, напишите в <a href="/contacts">контактах</a>.</p>
+        {% endif %}
+        <div class="pay-go">
+          <button type="submit" class="btn btn-primary" id="payGo">Оплатить {{ rub(order.total) }}</button>
+          <span class="hint" id="payNote"></span>
+        </div>
+      </form>
     {% endif %}
 
     {% if payments %}

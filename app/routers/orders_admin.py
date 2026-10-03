@@ -264,6 +264,8 @@ async def order_card(order_id: int, session: AsyncSession = Depends(get_session)
         "payments": pays, "events": events,
         "goods": sum((i["sum"] for i in items), Decimal(0)),
         "money_locked": money_locked(o), "edit_locked": edit_locked(o),
+        # Способы онлайн-оплаты — для смены способа в карточке
+        "pay_methods": [{"code": m["code"], "title": m["title"]} for m in payments.methods()],
         "can_edit": user["role"] in ("manager", "admin"),
     }
 
@@ -295,6 +297,8 @@ class OrderPatch(BaseModel):
     delivery_point: str | None = Field(default=None, max_length=64)
     # Доставка без посылок (самовывоз, «Доставка ТК») — цену ставит менеджер
     delivery_price: Decimal | None = Field(default=None, ge=0, le=1_000_000)
+    # Способ оплаты: on_receipt / card / sbp / robokassa
+    pay_choice: str | None = Field(default=None, max_length=16)
 
 
 # Куда можно перевести заказ. Список, а не свободный переход: «отменён»
@@ -480,6 +484,14 @@ async def patch_order(
         await sync_totals(session, order_id)
     if changes:
         await order_log.log(session, order_id, "edit", "; ".join(changes), user)
+
+    # --- способ оплаты -------------------------------------------------
+    if payload.pay_choice:
+        if o.paid_at or o.status not in ("new", "confirmed"):
+            raise HTTPException(409, "Заказ оплачен или отменён — способ оплаты не меняется")
+        # account_orders импортирует этот модуль — поэтому здесь
+        from .account_orders import switch_payment
+        await switch_payment(session, o, payload.pay_choice, user)
 
     # --- статус ---------------------------------------------------------
     if "status" in sent and payload.status != o.status:

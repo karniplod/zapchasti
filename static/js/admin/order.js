@@ -445,15 +445,27 @@ function parcels(o){
 
 // ── Оплата ──────────────────────────────────────────────────────
 function payment(o){
+  const cur = o.payment_method === 'online' ? (o.pay_with || '') : 'on_receipt';
+  const canPay = D.can_edit && !o.paid_at && ['new', 'confirmed'].includes(o.status);
+  const named = (D.pay_methods.find(m => m.code === o.pay_with) || {}).title;
   return `<section class="panel blk">
-      <div class="blk-h"><h2>Оплата</h2></div>
+      <div class="blk-h"><h2>Оплата</h2>
+        ${o.paid_at ? `<a class="lnk" href="/orders/${encodeURIComponent(o.number)}/receipt" target="_blank" rel="noopener">Чек об оплате →</a>` : ''}</div>
       <dl class="facts">
-        <dt>Способ</dt><dd>${esc(o.payment_label || '—')}</dd>
+        <dt>Способ</dt><dd>${esc(o.payment_method === 'online' ? 'онлайн' + (named ? ' — ' + named : '') : (o.payment_label || '—'))}</dd>
         <dt>Статус</dt><dd>${o.paid_at ? `<span class="ok">оплачен ${dt(o.paid_at)}</span>` : 'не оплачен'}</dd>
       </dl>
       ${D.payments.length ? `<ul class="pays">${D.payments.map(p => `<li><span>${esc(p.method_label)}</span>
           <span>${money(p.amount)}</span><span class="pay-${p.status}">${esc(p.status_label)}, ${dt(p.created_at)}</span></li>`).join('')}</ul>`
         : '<p class="muted">Онлайн-оплат не было.</p>'}
+      ${canPay ? `<div class="ship-edit">
+          <label class="mini">Сменить способ<select id="payChoice">
+            <option value="on_receipt" ${cur === 'on_receipt' ? 'selected' : ''}>при получении</option>
+            ${D.pay_methods.map(m => `<option value="${esc(m.code)}" ${m.code === cur ? 'selected' : ''}>онлайн — ${esc(m.title)}</option>`).join('')}
+          </select></label>
+          <button type="button" class="btn" id="savePay">Сохранить</button>
+          <span class="muted">неоплаченные ссылки другим способом аннулируются</span>
+        </div>` : ''}
     </section>`;
 }
 
@@ -555,6 +567,12 @@ $('card').addEventListener('click', async e => {
     t.disabled = true;
     if (await api('PATCH', `/api/manage/shipments/${box.dataset.ship}`, body)){ toast('Сохранено', 'ok'); load(); }
     else t.disabled = false;
+    return;
+  }
+  if (t.id === 'savePay'){
+    if (await api('PATCH', `/api/manage/orders/${ID}`, {pay_choice: $('payChoice').value})){
+      toast('Способ оплаты сохранён', 'ok'); load();
+    }
     return;
   }
   if (t.id === 'saveComments'){

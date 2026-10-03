@@ -614,13 +614,13 @@ async def create_order(
         INSERT INTO orders (number, customer_id, status, source, total,
                             delivery_method, delivery_address, comment,
                             contact_name, contact_phone, pickup_branch_id,
-                            payment_method, delivery_carrier, delivery_mode,
+                            payment_method, pay_with, delivery_carrier, delivery_mode,
                             delivery_tariff, delivery_price, delivery_days,
                             delivery_city, delivery_point, delivery_point_address,
                             delivery_postcode, delivery_cdek_code, delivery_country,
                             delivery_street, delivery_house, delivery_block, delivery_flat)
         VALUES (:n, :c, 'new', 'site', :total, :dm, :da, :cm,
-                :cn, :cp, :br, :pm, :dc, :dmode, :dt, :dp, :dd,
+                :cn, :cp, :br, :pm, :pw, :dc, :dmode, :dt, :dp, :dd,
                 :dcity, :dpt, :dpta, :dpost, :dcode, :dcountry,
                 :dstreet, :dhouse, :dblock, :dflat)
         RETURNING id
@@ -636,6 +636,7 @@ async def create_order(
                 "cp": phone,
                 "br": branch,
                 "pm": payload.payment_method,
+                "pw": payload.pay_with if payload.payment_method == "online" else None,
                 "dc": ship and ship["carrier"], "dmode": ship and ship["mode"],
                 "dt": ship and ship["tariff"], "dp": ship and ship["price"],
                 "dd": ship and ship["days"], "dcity": ship and ship["city"],
@@ -797,30 +798,7 @@ async def start_payment(session: AsyncSession, order: dict, method: str,
         return open_one
 
     back = f"{settings.base_url}/account/orders/{order['number']}?paid=1"
-    # Для чека: что продали и куда прислать чек — почта покупателя или
-    # телефон получателя из заказа
-    order = {**order, "items": [dict(r._mapping) for r in await session.execute(text("""
-        SELECT p.name, p.sku, oi.price, oi.qty FROM order_items oi JOIN parts p ON p.id = oi.part_id
-         WHERE oi.order_id = :o ORDER BY oi.id"""), {"o": order["id"]})]}
-    contact = (await session.execute(text("""
-        SELECT coalesce(o.contact_email, c.email) AS email,
-               coalesce(o.contact_phone, c.phone) AS phone,
-               o.delivery_price, o.delivery_carrier
-          FROM orders o LEFT JOIN customers c ON c.id = o.customer_id
-         WHERE o.id = :o"""), {"o": order["id"]})).first()
-    if contact:
-        order.update(email=contact.email, phone=contact.phone)
-        # Доставка входит в сумму заказа — значит, и в чек: иначе сумма
-        # позиций не сойдётся с платежом, и ЮKassa его отклонит. Строка
-        # на каждую посылку: «Доставка СДЭК из Перми»
-        parcels = [s for s in await shipments_of(session, [order["id"]]) if s["price"]]
-        if not parcels and contact.delivery_price:
-            parcels = [{"carrier": contact.delivery_carrier, "price": contact.delivery_price}]
-        for s in parcels:
-            name = ship_services.CARRIERS.get(s["carrier"], "")
-            frm = s.get("from_city", "") if len(parcels) > 1 else ""
-            order["items"].append({"name": " ".join(x for x in ("Доставка", name, frm) if x),
-                                   "sku": "", "price": s["price"], "qty": 1, "subject": "service"})
+    order = {**order, **await receipt_of(session, order["id"])}
     # Строка платежа — до похода к провайдеру: её номер нужен Робокассе
     # как номер счёта. Провайдер не ответил — строку убираем
     pay_id = (await session.execute(text("""
@@ -845,6 +823,37 @@ async def start_payment(session: AsyncSession, order: dict, method: str,
         {"x": ext_id, "u": url, "id": pay_id})
     await session.commit()
     return url
+
+
+async def receipt_of(session: AsyncSession, order_id: int) -> dict:
+    """Позиции чека и куда его прислать. Одни и те же строки уходят в
+    кассовый чек ЮKassa и показываются на странице чека в кабинете.
+    → {items: [{name, sku, price, qty, subject}], email, phone}."""
+    items = [dict(r._mapping) for r in await session.execute(text("""
+        SELECT p.name, p.sku, oi.price, oi.qty FROM order_items oi JOIN parts p ON p.id = oi.part_id
+         WHERE oi.order_id = :o ORDER BY oi.id"""), {"o": order_id})]
+    out = {"items": items, "email": None, "phone": None}
+    contact = (await session.execute(text("""
+        SELECT coalesce(o.contact_email, c.email) AS email,
+               coalesce(o.contact_phone, c.phone) AS phone,
+               o.delivery_price, o.delivery_carrier
+          FROM orders o LEFT JOIN customers c ON c.id = o.customer_id
+         WHERE o.id = :o"""), {"o": order_id})).first()
+    if not contact:
+        return out
+    out.update(email=contact.email, phone=contact.phone)
+    # Доставка входит в сумму заказа — значит, и в чек: иначе сумма
+    # позиций не сойдётся с платежом, и ЮKassa его отклонит. Строка
+    # на каждую посылку: «Доставка СДЭК из Перми»
+    parcels = [s for s in await shipments_of(session, [order_id]) if s["price"]]
+    if not parcels and contact.delivery_price:
+        parcels = [{"carrier": contact.delivery_carrier, "price": contact.delivery_price}]
+    for s in parcels:
+        name = ship_services.CARRIERS.get(s["carrier"], "")
+        frm = s.get("from_city", "") if len(parcels) > 1 else ""
+        items.append({"name": " ".join(x for x in ("Доставка", name, frm) if x),
+                      "sku": "", "price": s["price"], "qty": 1, "subject": "service"})
+    return out
 
 
 async def next_order_number(session: AsyncSession) -> int:
@@ -889,7 +898,7 @@ async def orders_of(session: AsyncSession, customer_id: int, number: str | None 
         text("""
         SELECT o.id, o.number, o.status::text AS status, o.total, o.created_at,
                o.paid_at, o.delivery_method, o.delivery_address, o.comment,
-               o.contact_name, o.contact_phone, o.payment_method,
+               o.contact_name, o.contact_phone, o.payment_method, o.pay_with,
                o.delivery_carrier, o.delivery_mode, o.delivery_price, o.delivery_days,
                o.delivery_city, o.delivery_point_address, o.delivery_postcode,
                o.delivery_point, o.delivery_cdek_code, o.delivery_country, o.delivery_street,
@@ -1111,6 +1120,13 @@ async def pay(
             "Онлайн-оплата пока не подключена. Менеджер примет оплату "
             "при получении или выставит счёт.",
         )
+    # Способ, которым начали платить, — способ оплаты заказа
+    # (account_orders импортирует shop — поэтому здесь, а не наверху)
+    from .account_orders import switch_payment
+    full = (await session.execute(text("SELECT * FROM orders WHERE id = :o FOR UPDATE"),
+                                  {"o": order.id})).first()
+    await switch_payment(session, full, payload.method)
+    await session.commit()
     try:
         url = await start_payment(session, dict(order._mapping), payload.method, request)
     except payments.PaymentError as e:

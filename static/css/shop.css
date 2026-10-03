@@ -468,3 +468,42 @@ button.tile{width:100%;padding:0;border:0;background:none;font:inherit;text-alig
 .oe-city-h + .oe-item{border-top:0}
 .oe-item .src{font-family:var(--body)}
 .order .items .nm small.src{color:var(--accent-dk)}
+
+/* Способ оплаты на странице заказа */
+.pay-choice .pay-now{margin:0 0 12px}
+.pay-go{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:16px}
+.pay-go .btn[hidden]{display:none}
+.pay-done{display:flex;align-items:center;justify-content:space-between;gap:12px 20px;flex-wrap:wrap}
+
+/* Чек об оплате (templates/shop/receipt.html) */
+.receipt{max-width:640px;margin:8px auto 0;padding:28px 32px;background:var(--surface);
+  border:1px solid var(--line);border-radius:var(--r)}
+.rc-seller{display:grid;gap:2px;padding-bottom:14px;border-bottom:1px dashed var(--line-2);
+  font-size:var(--t-sm);color:var(--muted)}
+.rc-seller b{font-family:var(--display);font-size:var(--t-md);color:var(--ink)}
+.receipt h1{margin:18px 0 4px;font-size:24px}
+.rc-meta{margin:0 0 16px;color:var(--muted);font-size:var(--t-sm)}
+.rc-lines{width:100%;border-collapse:collapse;font-size:var(--t-sm)}
+.rc-lines th{text-align:left;font-weight:500;color:var(--dim);font-size:var(--t-xs);
+  padding:6px 0;border-bottom:1px solid var(--line-2)}
+.rc-lines td{padding:9px 0;border-bottom:1px solid var(--line);vertical-align:top}
+.rc-lines td small{display:block;color:var(--dim);font-family:var(--mono);font-size:var(--t-xs)}
+.rc-lines .n{text-align:right;padding-left:14px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.rc-total{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:16px 0 0;font-size:var(--t-sm)}
+.rc-total dt{color:var(--muted)}
+.rc-total dd{margin:0;text-align:right}
+.rc-total dt:first-child,.rc-total dt:first-child + dd{font-family:var(--display);font-size:18px;
+  font-weight:600;color:var(--ink)}
+.rc-fiscal{margin:18px 0 0;padding-top:14px;border-top:1px dashed var(--line-2);font-size:var(--t-xs);
+  color:var(--muted);line-height:1.55}
+.rc-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:20px 0 10px}
+@media(max-width:640px){
+  .receipt{padding:20px 16px}
+  .rc-lines th:nth-child(3),.rc-lines td:nth-child(3){display:none}
+}
+/* На печати — только чек: без шапки, подвала и кнопок */
+@media print{
+  body{background:#fff}
+  .topbar,.head-slot,.site-head,.site-foot,.cat-menu,.no-print,.toast{display:none!important}
+  .receipt{border:0;padding:0;max-width:none}
+}

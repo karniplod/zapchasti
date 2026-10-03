@@ -247,8 +247,8 @@ async def settle(session: AsyncSession, payment_id: int, status: str) -> None:
     if row and before == "cancelled":
         await order_log.log(session, row.order_id, "payment",
                             f"Пришла оплата {row.amount:.0f} ₽ по аннулированной ссылке — "
-                            "сумма заказа с тех пор менялась, сверьте и при необходимости "
-                            "верните разницу")
+                            "покупатель с тех пор менял заказ или способ оплаты: сверьте "
+                            "сумму и при необходимости верните деньги")
     elif row:
         await order_log.log(session, row.order_id, "payment",
                             "Оплачен онлайн" if status == "paid" else "Онлайн-оплата не прошла")

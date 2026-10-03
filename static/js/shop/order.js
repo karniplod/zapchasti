@@ -5,19 +5,44 @@ let t;
 function toast(m){ $('toast').textContent = m; $('toast').classList.add('show');
   clearTimeout(t); t = setTimeout(() => $('toast').classList.remove('show'), 3200); }
 
-document.querySelectorAll('.pay').forEach(b => b.onclick = async () => {
-  b.disabled = true;
-  try {
-    const r = await fetch(`/api/orders/${b.dataset.order}/pay`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({method: b.dataset.method})});
-    const d = await r.json().catch(() => ({}));
-    // Провайдер вернёт ссылку на оплату — тогда уходим на неё
-    if (r.ok && d.redirect_url){ location.href = d.redirect_url; return; }
-    toast(d.detail || 'Оплата недоступна');
-  } catch { toast('Нет связи с сервером'); }
-  b.disabled = false;
-});
+// Способ оплаты: пока заказ не оплачен, его можно сменить. Онлайн —
+// кнопка «Оплатить» сразу ведёт к оплате выбранным способом; «при
+// получении» — сохраняем выбор, неоплаченные ссылки сервер аннулирует
+const payForm = $('payChoice');
+if (payForm){
+  const sum = Math.round(+payForm.dataset.total).toLocaleString('ru') + ' ₽';
+  const pick = () => (payForm.querySelector('input[name=pm]:checked') || {}).value || '';
+  const sync = () => {
+    const m = pick(), cur = payForm.dataset.current;
+    $('payGo').hidden = !m || (m === 'on_receipt' && cur === 'on_receipt');
+    $('payGo').textContent = m === 'on_receipt' ? 'Сохранить: оплачу при получении' : `Оплатить ${sum}`;
+    $('payNote').textContent = m === 'on_receipt' && cur === 'on_receipt'
+      ? 'Выбрана оплата при получении' : '';
+  };
+  payForm.querySelectorAll('input[name=pm]').forEach(i => i.onchange = sync);
+  sync();
+  payForm.onsubmit = async e => {
+    e.preventDefault();
+    const m = pick();
+    if (!m) return;
+    $('payGo').disabled = true;
+    try {
+      const r = await fetch(`/api/account/orders/${payForm.dataset.number}/payment`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({method: m})});
+      const d = await r.json().catch(() => ({}));
+      // Онлайн — провайдер вернул ссылку: уходим платить
+      if (r.ok && d.redirect_url){ location.href = d.redirect_url; return; }
+      if (r.ok){ location.href = location.pathname + '?payset=1'; return; }
+      toast(typeof d.detail === 'string' ? d.detail : 'Оплата недоступна');
+    } catch { toast('Нет связи с сервером'); }
+    $('payGo').disabled = false;
+  };
+}
+if (new URLSearchParams(location.search).get('payset') === '1'){
+  toast('Способ оплаты сохранён: при получении');
+  history.replaceState(null, '', location.pathname);
+}
 
 // Вернулись от банка, а платёж ещё «ожидает» — подтверждение приходит
 // через секунды. Перезагружаем страницу несколько раз: сервер при

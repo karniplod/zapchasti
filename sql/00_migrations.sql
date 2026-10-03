@@ -701,3 +701,14 @@ UPDATE order_items oi SET source = 'manager'
        SELECT 1 FROM order_events e JOIN parts p ON p.id = oi.part_id
         WHERE e.order_id = oi.order_id AND e.kind = 'item'
           AND e.text LIKE 'Добавлено: ' || p.sku || '%');
+
+
+-- ------------------------------------------------------------
+-- Каким онлайн-способом платят: card / sbp / robokassa
+-- ------------------------------------------------------------
+-- payment_method — онлайн или при получении; pay_with — чем именно
+-- онлайн. Покупатель может сменить способ, пока заказ не оплачен
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS pay_with text;
+UPDATE orders o SET pay_with = (SELECT p.method FROM payments p WHERE p.order_id = o.id
+                                 ORDER BY p.id DESC LIMIT 1)
+ WHERE o.pay_with IS NULL AND o.payment_method = 'online';

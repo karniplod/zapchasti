@@ -19,16 +19,21 @@
 заплатили бы старую сумму (см. payments.settle).
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import customer_auth as ca
-from .. import order_log
+from .. import order_log, payments
+from ..auth import current_user
+from ..config import settings
 from ..database import get_session
+from ..templating import templates
 from .orders_admin import (_shipment_for, apply_quote, money, quote_order, return_stock,
                            set_order_status, shipping_address, sync_totals, take_stock)
+from .shop import receipt_of, start_payment
 
 router = APIRouter(tags=["account-orders"])
 
@@ -273,3 +278,141 @@ async def cancel_order(number: str, session: AsyncSession = Depends(get_session)
     await session.commit()
     return {"ok": True}
 
+
+
+# ------------------------------------------------------------------
+# Способ оплаты
+# ------------------------------------------------------------------
+# Выбрал Робокассу, а решил платить при получении — или наоборот. Пока
+# заказ не оплачен, способ меняется в кабинете: онлайн — сразу к оплате,
+# «при получении» — неоплаченные ссылки аннулируются, чтобы по ним не
+# заплатили второй раз.
+
+class PaymentChoice(BaseModel):
+    method: str = Field(max_length=16)        # on_receipt / card / sbp / robokassa
+
+
+async def switch_payment(session: AsyncSession, o, method: str, who: dict | None = None) -> bool:
+    """Записать новый способ оплаты; ссылки другими способами аннулировать.
+    Без commit. → поменялся ли способ."""
+    online = method != "on_receipt"
+    if online and not payments.method(method):
+        raise HTTPException(422, "Этот способ оплаты сейчас недоступен")
+    old = payments.title_of(o.pay_with) if o.payment_method == "online" and o.pay_with else (
+        "онлайн" if o.payment_method == "online" else "при получении")
+    new = payments.title_of(method) if online else "при получении"
+    # Ссылка тем же способом остаётся: её и откроем снова
+    await session.execute(text("""
+        UPDATE payments SET status = 'cancelled'
+         WHERE order_id = :o AND status = 'pending' AND method IS DISTINCT FROM :m"""),
+        {"o": o.id, "m": method if online else None})
+    if (o.payment_method, o.pay_with) == ("online" if online else "on_receipt", method if online else None):
+        return False
+    await session.execute(text("""
+        UPDATE orders SET payment_method = :pm, pay_with = :pw, updated_at = now() WHERE id = :o"""),
+        {"pm": "online" if online else "on_receipt", "pw": method if online else None, "o": o.id})
+    await order_log.log(session, o.id, "payment",
+                        ("Покупатель сменил" if who is None else "Сменён") + f" способ оплаты: {old} → {new}",
+                        who)
+    return True
+
+
+@router.post("/api/account/orders/{number}/payment")
+async def choose_payment(number: str, payload: PaymentChoice, request: Request,
+                         session: AsyncSession = Depends(get_session),
+                         customer: dict = Depends(ca.current_customer)):
+    o = (await session.execute(text("""
+        SELECT o.*, o.status::text AS status FROM orders o
+         WHERE o.number = :n AND o.customer_id = :c FOR UPDATE"""),
+        {"n": number, "c": customer["id"]})).first()
+    if not o:
+        raise HTTPException(404, "Заказ не найден")
+    if o.paid_at or o.status not in ("new", "confirmed"):
+        raise HTTPException(409, "Заказ уже оплачен или отменён — способ оплаты не меняется")
+    await switch_payment(session, o, payload.method)
+    await session.commit()
+    if payload.method == "on_receipt":
+        return {"ok": True}
+    # Онлайн — сразу к оплате. Провайдер не ответил — способ уже выбран,
+    # оплатить можно снова с этой же страницы
+    try:
+        url = await start_payment(session, {"id": o.id, "number": o.number, "total": o.total},
+                                  payload.method, request)
+    except payments.PaymentError as e:
+        raise HTTPException(502, str(e)) from e
+    return {"ok": True, "redirect_url": url}
+
+
+# ------------------------------------------------------------------
+# Чек об оплате
+# ------------------------------------------------------------------
+# Страница в кабинете: что оплачено, кем продано, когда и как. Позиции —
+# те же, что уходят в кассовый чек ЮKassa (shop.receipt_of). Сам
+# кассовый чек по 54-ФЗ присылает касса провайдера — об этом на чеке
+# сказано, куда он отправлен.
+
+VAT_LABELS = {1: "без НДС", 2: "НДС 0%", 3: "НДС 10%", 4: "НДС 20%",
+              5: "НДС 10/110", 6: "НДС 20/120"}
+
+
+async def receipt_context(session: AsyncSession, order_id: int) -> dict:
+    o = (await session.execute(text("""
+        SELECT o.*, o.status::text AS status FROM orders o WHERE o.id = :o"""),
+        {"o": order_id})).first()
+    if not o or not o.paid_at:
+        raise HTTPException(404, "Заказ ещё не оплачен — чека пока нет")
+    pay = (await session.execute(text("""
+        SELECT method, provider, amount, paid_at, external_id FROM payments
+         WHERE order_id = :o AND status = 'paid' ORDER BY paid_at DESC LIMIT 1"""),
+        {"o": order_id})).first()
+    rc = await receipt_of(session, order_id)
+    lines = [{**i, "sum": i["price"] * i["qty"]} for i in rc["items"]]
+    if pay:
+        how = payments.title_of(pay.method) + " (онлайн)"
+        fiscal = (f"Кассовый чек по 54-ФЗ отправлен на {rc['email'] or phone_label(rc['phone'])}"
+                  if pay.provider in ("yookassa", "robokassa") and (rc["email"] or rc["phone"])
+                  else "Кассовый чек по 54-ФЗ формирует касса платёжного сервиса")
+    else:
+        how = "при получении"
+        fiscal = "Кассовый чек выдаётся при получении и оплате заказа"
+    return {
+        "order": dict(o._mapping), "lines": lines, "total": sum(i["sum"] for i in lines),
+        "paid_at": pay.paid_at if pay else o.paid_at, "how": how,
+        "payment_id": pay.external_id if pay else None, "fiscal": fiscal,
+        "vat": VAT_LABELS.get(settings.yookassa_vat_code, "без НДС"),
+        "seller": {"name": settings.seller_name, "inn": settings.seller_inn,
+                   "ogrn": settings.seller_ogrn, "address": settings.seller_address},
+        "site": settings.base_url.split("//")[-1],
+    }
+
+
+def phone_label(p: str | None) -> str:
+    d = "".join(ch for ch in (p or "") if ch.isdigit())
+    return f"+7 {d[1:4]} {d[4:7]}-{d[7:9]}-{d[9:]}" if len(d) == 11 else (p or "")
+
+
+@router.get("/account/orders/{number}/receipt", response_class=HTMLResponse)
+async def receipt_page(number: str, request: Request, session: AsyncSession = Depends(get_session),
+                       customer: dict = Depends(ca.current_customer)):
+    oid = (await session.execute(text("""
+        SELECT id FROM orders WHERE number = :n AND customer_id = :c"""),
+        {"n": number, "c": customer["id"]})).scalar()
+    if not oid:
+        raise HTTPException(404, "Заказ не найден")
+    return templates.TemplateResponse("shop/receipt.html", {
+        "request": request, "user": None, "customer": customer,
+        "back": f"/account/orders/{number}", **await receipt_context(session, oid)})
+
+
+@router.get("/orders/{number}/receipt", response_class=HTMLResponse)
+async def receipt_page_staff(number: str, request: Request,
+                             session: AsyncSession = Depends(get_session),
+                             user=Depends(current_user)):
+    """Тот же чек — для менеджера: покупатель просит прислать его ещё раз."""
+    oid = (await session.execute(text("SELECT id FROM orders WHERE number = :n"),
+                                 {"n": number})).scalar()
+    if not oid:
+        raise HTTPException(404, "Заказ не найден")
+    return templates.TemplateResponse("shop/receipt.html", {
+        "request": request, "user": None, "customer": None,
+        "back": f"/orders/{number}", **await receipt_context(session, oid)})
