@@ -36,9 +36,10 @@ def _admin_css_version() -> str:
 
 
 def _chosen_city(request) -> str:
-    """Город из куки — чтобы шапка отрисовалась сразу с нужным названием,
-    а не мигнула заглушкой, пока грузится JS. Кириллица в куке лежит
-    percent-encoded: браузер иначе её туда не пустит."""
+    """Город покупателя из куки — чтобы шапка отрисовалась сразу с нужным
+    названием, а не мигнула заглушкой, пока грузится JS. Кириллица в куке
+    лежит percent-encoded: браузер иначе её туда не пустит. Код города
+    для служб доставки — в куке city_code (chosen_city_code)."""
     raw = request.cookies.get("city", "")
     return unquote(raw) if raw else ""
 
@@ -50,6 +51,8 @@ templates.env.globals["admin_css_version"] = _admin_css_version
 templates.env.globals["app_name"] = settings.app_name
 templates.env.globals["base_url"] = settings.base_url
 templates.env.globals["chosen_city"] = _chosen_city
+templates.env.globals["chosen_city_code"] = lambda request: (
+    request.cookies.get("city_code", "") if request.cookies.get("city_code", "").isdigit() else "")
 templates.env.globals["role_info"] = ROLE_INFO
 
 

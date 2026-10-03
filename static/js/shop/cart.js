@@ -74,8 +74,10 @@ if (form && $('cname')){
   const shipBox = $('shipBox');
   const hasCarriers = !!$('dOptions');
   const hints = shipBox && shipBox.dataset.hints === '1';
-  const D = {city: '', cdek_code: null, options: [], point: null, points: [], street_fias: '',
-             parcels: [], issues: {}};
+  // Город доставки — из шапки (templates/_city.html): сервер подставил его
+  // в поле, код СДЭК — в data-cdek
+  const D = {city: '', cdek_code: hasCarriers && +$('dCity').dataset.cdek || null, options: [],
+             point: null, points: [], street_fias: '', parcels: [], issues: {}};
   const opt = () => D.options.find(o => `${o.carrier}:${o.mode}` === val('dopt')) || null;
   const postcode = () => $('dPost').value.length === 6 ? $('dPost').value : null;
 
@@ -109,6 +111,34 @@ if (form && $('cname')){
   form.querySelectorAll('input[name=dm], input[name=pm]').forEach(r => r.onchange = sync);
   $('branch').onchange = sync;
 
+  // Выбрали доставку, а город уже известен из шапки — считаем сразу,
+  // не заставляя вводить его заново
+  form.querySelectorAll('input[name=dm]').forEach(r => r.addEventListener('change', () => {
+    if (val('dm') === 'shipping' && hasCarriers && $('dCity').value.trim() && !D.options.length) loadQuotes();
+  }));
+
+  // Самовывоз: в городе покупателя есть наш филиал — предлагаем его
+  const pickBranch = city => {
+    if (!city) return;
+    const cur = $('branch').selectedOptions[0];
+    const mine = [...$('branch').options].find(o => o.text.startsWith(city + ','));
+    if (mine && !(cur && cur.text.startsWith(city + ','))){ mine.selected = true; sync(); }
+  };
+  pickBranch(window.siteCity ? window.siteCity.get().city : '');
+
+  // Город сменили в шапке, не уходя со страницы, — доставка и самовывоз
+  // следуют за ним. Смена отсюда же (подсказка в поле ниже) сюда тоже
+  // приходит — тогда поле уже совпадает и пересчитывать нечего
+  document.addEventListener('citychange', e => {
+    const {city, code} = e.detail;
+    pickBranch(city);
+    if (!city || $('dCity').value.trim() === city) return;
+    $('dCity').value = city; D.cdek_code = code; D.street_fias = '';
+    fieldError($('dCity'), '');
+    if (val('dm') === 'shipping') loadQuotes();
+    else { D.options = []; if (hasCarriers) $('dOptions').innerHTML = ''; }
+  });
+
   // Город — подсказка из справочника СДЭК: у города там код для тарифов
   let ct, seq = 0;
   $('dCity').addEventListener('input', () => {
@@ -123,6 +153,8 @@ if (form && $('cname')){
       suggestList($('dCityList'), rows, c => esc(c.full_name), c => {
         $('dCity').value = c.name; D.cdek_code = c.cdek_code;
         fieldError($('dCity'), '');
+        // Город сменили здесь — он и город покупателя в шапке
+        if (window.siteCity) window.siteCity.set(c.name, c.cdek_code);
         loadQuotes();
         $('aStreet').focus();
       });
@@ -229,6 +261,15 @@ if (form && $('cname')){
     const city = $('dCity').value.trim();
     if (city.length < 2) return;
     const my = ++qseq;
+    // Город из шапки без кода или набран без подсказки — код СДЭК находим
+    // по точному названию: без кода СДЭК не считает
+    if (!D.cdek_code && !point){
+      try {
+        const rows = await (await fetch('/api/delivery/cities?q=' + encodeURIComponent(city))).json();
+        const hit = rows.find(c => c.name.toLowerCase() === city.toLowerCase());
+        if (hit) D.cdek_code = hit.cdek_code;
+      } catch {}
+    }
     if (!point){ $('dState').textContent = 'Считаем доставку…'; $('dOptions').innerHTML = ''; }
     const r = await fetch('/api/delivery/quotes', {method: 'POST',
       headers: {'Content-Type': 'application/json'},

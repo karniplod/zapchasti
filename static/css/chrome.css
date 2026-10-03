@@ -71,22 +71,33 @@
   border-bottom:1px dashed var(--line-2)}
 .city-btn[aria-expanded="true"] b{border-bottom-color:var(--accent)}
 
-.city-pop{position:absolute;top:calc(100% - 4px);right:0;z-index:50;
-  min-width:220px;background:var(--surface);border:1px solid var(--line);
-  border-radius:var(--r);padding:5px;box-shadow:0 12px 32px rgba(0,0,0,.13)}
-.city-pop button{display:flex;align-items:center;width:100%;gap:10px;
-  background:none;border:0;padding:9px 11px;border-radius:3px;
-  font:inherit;font-size:var(--t-sm);color:var(--ink);cursor:pointer;
-  text-align:left}
-.city-pop button:hover{background:var(--surface-2);color:var(--accent)}
-.city-pop button[aria-selected]{font-weight:600;color:var(--accent)}
-.city-pop .n{margin-left:auto;color:var(--dim);font-size:var(--t-xs);
-  font-variant-numeric:tabular-nums}
-.city-pop .all{border-top:1px solid var(--line);margin-top:4px;padding-top:11px;
-  border-radius:0 0 3px 3px;color:var(--muted)}
+/* Выбор города: поиск по справочнику и быстрые кнопки */
+.city-pop{position:absolute;top:calc(100% - 4px);left:0;z-index:50;width:360px;
+  background:var(--surface);border:1px solid var(--line);border-radius:8px;
+  padding:16px;box-shadow:0 12px 32px rgba(0,0,0,.13);cursor:default}
+.city-pop[hidden]{display:none}
+.cp-title{margin:0;font-family:var(--display);font-size:var(--t-md);font-weight:600;color:var(--ink)}
+.cp-hint{margin:2px 0 12px;font-size:var(--t-xs);color:var(--muted)}
+.cp-search{position:relative}
+.cp-found{position:absolute;left:0;right:0;top:100%;z-index:2;margin-top:4px;max-height:260px;
+  overflow:auto;background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r);
+  box-shadow:0 12px 28px rgba(0,0,0,.12)}
+.cp-found[hidden]{display:none}
+.cp-found button{display:block;width:100%;padding:9px 12px;border:0;background:none;text-align:left;
+  font:inherit;font-size:var(--t-sm);color:var(--ink);cursor:pointer}
+.cp-found button:hover,.cp-found button:focus{background:var(--surface-2);outline:0}
+.cp-found small{display:block;color:var(--muted);font-size:var(--t-xs)}
+.cp-found p{margin:0;padding:10px 12px;font-size:var(--t-sm);color:var(--muted)}
+.cp-sub{margin:14px 0 6px;font-size:var(--t-xs);color:var(--dim);text-transform:uppercase;
+  letter-spacing:.08em}
+.cp-quick{display:flex;flex-wrap:wrap;gap:6px}
+.cp-quick button{padding:6px 10px;border:1px solid var(--line-2);border-radius:999px;background:none;
+  font:inherit;font-size:var(--t-sm);color:var(--ink);cursor:pointer}
+.cp-quick button:hover{border-color:var(--accent);color:var(--accent)}
+.cp-quick button[aria-current]{border-color:var(--accent);background:var(--accent-bg);color:var(--accent-dk)}
 
 /* Догадка geoip: висит под полосой, пока человек не ответит */
-.city-ask{position:absolute;top:calc(100% - 4px);right:0;z-index:50;width:260px;
+.city-ask{position:absolute;top:calc(100% - 4px);left:0;z-index:50;width:260px;
   background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
   padding:14px;box-shadow:0 12px 32px rgba(0,0,0,.13)}
 .city-ask p{margin:0 0 11px;font-size:var(--t-sm)}
@@ -307,7 +318,9 @@
 @media(max-width:560px){
   /* Остаётся название города: подпись занимает место, а смысл несёт значок */
   .city-btn .lbl{display:none}
-  .city-pop,.city-ask{right:auto;left:50%;transform:translateX(-50%)}
+  .city-ask{left:0}
+  /* Выбор города — почти во всю ширину экрана */
+  .city-pop{position:fixed;left:8px;right:8px;width:auto;top:44px;max-height:calc(100vh - 60px);overflow:auto}
   /* Имя покупателя длинное, а места нет */
   .acct-link{max-width:92px}
   .brand span{display:none}

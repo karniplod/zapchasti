@@ -1,28 +1,42 @@
 {#
-  Город покупателя в шапке. Один на всю витрину: и каталог, и карточка
-  детали, и главная читают одну и ту же куку.
+  Город покупателя в шапке — куда везти. Угадываем по IP или покупатель
+  выбирает сам; при оформлении заказа город подставляется в доставку
+  (static/js/shop/cart.js), а наш филиал там — в самовывоз.
 
-  Название подставляет сервер из куки — иначе при каждом переходе
-  вместо города мигала бы заглушка.
+  Хранится в куках: city — название, city_code — код города у СДЭК (по
+  нему считаются тарифы). Название подставляет сервер — иначе при каждом
+  переходе вместо города мигала бы заглушка.
+
+  Каталог по этому городу не сужается: где лежит деталь — отдельный
+  фильтр каталога («Где лежит деталь»).
 #}
 <div class="city" id="cityBox">
-  <button class="city-btn" id="cityBtn" aria-expanded="false" aria-haspopup="listbox">
+  <button class="city-btn" id="cityBtn" aria-expanded="false" aria-haspopup="dialog"
+          aria-controls="cityPop">
     <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
       <path d="M8 1.5c-2.5 0-4.5 2-4.5 4.5 0 3.2 4.5 8.5 4.5 8.5s4.5-5.3 4.5-8.5
                c0-2.5-2-4.5-4.5-4.5zm0 6.2a1.8 1.8 0 1 1 0-3.6 1.8 1.8 0 0 1 0 3.6z"
             fill="currentColor"/>
     </svg>
     <span class="lbl">Ваш город</span>
-    {# Пустая кука — осознанный выбор «все города», её нельзя путать
-       с отсутствием выбора #}
-    <b id="cityName">{{ chosen_city(request)
-        or ('все города' if 'city' in request.cookies else 'не выбран') }}</b>
+    <b id="cityName">{{ chosen_city(request) or 'не выбран' }}</b>
   </button>
 
-  <div class="city-pop" id="cityPop" role="listbox" hidden></div>
+  <div class="city-pop" id="cityPop" role="dialog" aria-label="Ваш город" hidden>
+    <p class="cp-title">Ваш город</p>
+    <p class="cp-hint">Подставим его в доставку при оформлении заказа</p>
+    <div class="cp-search">
+      <input class="field" id="citySearch" type="search" autocomplete="off" maxlength="80"
+             placeholder="Начните вводить город" aria-label="Поиск города">
+      <div class="cp-found" id="cityFound" role="listbox" hidden></div>
+    </div>
+    <p class="cp-sub">Наши филиалы — можно забрать самим</p>
+    <div class="cp-quick" id="cityOurs"></div>
+    <p class="cp-sub">Крупные города</p>
+    <div class="cp-quick" id="cityBig"></div>
+  </div>
 
-  {# Подтверждение показывается только когда город определили сами:
-     угадали — человек должен видеть, что это догадка, и мочь поправить #}
+  {# Догадка по IP — человек должен видеть, что это догадка, и мочь поправить #}
   <div class="city-ask" id="cityAsk" hidden>
     <p>Ваш город — <b id="askName"></b>?</p>
     <div class="row">

@@ -19,6 +19,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import optional_user, require_role
+from .. import delivery
 from ..config import settings
 from ..customer_auth import optional_customer
 from ..database import get_session
@@ -454,32 +455,19 @@ async def catalog_cities(session: AsyncSession = Depends(get_session)):
 
 @router.get("/api/catalog/geo")
 async def catalog_geo(request: Request, session: AsyncSession = Depends(get_session)):
-    """Подсказка города по IP. Отвечает городом только если он у нас
-    действительно есть: угадать «Казань» и показать пустой каталог хуже,
-    чем не угадать вовсе."""
+    """Город покупателя по IP — догадка для шапки (templates/_city.html):
+    шапка спросит «Ваш город — …?», а оформление заказа подставит его в
+    доставку. Любой город, не только наши: везём по всей России.
+
+    code — код города в справочнике СДЭК: по нему считаются тарифы.
+    branch — есть ли в этом городе наш филиал (самовывоз)."""
     city = detect_city(request, settings.geoip_db)
     if not city:
         return {"city": None}
-
-    row = (
-        await session.execute(
-            text("""
-        SELECT count(DISTINCT br.id) AS branches,
-               count(p.id) FILTER (
-                   WHERE p.status = 'in_stock' AND p.published) AS parts
-          FROM branches br
-          LEFT JOIN parts p ON p.branch_id = br.id
-         WHERE br.city = :c AND br.is_active
-    """),
-            {"c": city},
-        )
-    ).first()
-
-    # Агрегат без GROUP BY возвращает строку всегда, поэтому «наш ли это
-    # город» решает счётчик филиалов, а не сам факт строки
-    if not row.branches:
-        return {"city": None, "detected": city}
-    return {"city": city, "parts": row.parts, "detected": city}
+    hit = next((c for c in await delivery.cities(city) if c["name"] == city), None)
+    branch = (await session.execute(text("""
+        SELECT 1 FROM branches WHERE city = :c AND is_active LIMIT 1"""), {"c": city})).first()
+    return {"city": city, "code": hit["cdek_code"] if hit else None, "branch": bool(branch)}
 
 
 @router.get("/api/catalog/parts")
@@ -865,6 +853,19 @@ async def catalog_facets(
         params,
     )
 
+    # Где лежит деталь — города наших филиалов. Это фильтр каталога; город
+    # покупателя в шапке — другое: туда везут, а не оттуда
+    cities = await session.execute(
+        text(f"""
+        SELECT br.city, count(*) AS cnt
+          FROM parts p LEFT JOIN donors d ON d.id = p.donor_id
+          JOIN branches br ON br.id = p.branch_id
+         WHERE {where}
+         GROUP BY br.city ORDER BY cnt DESC, br.city
+    """),
+        params,
+    )
+
     price = (
         await session.execute(
             text(f"""
@@ -882,6 +883,7 @@ async def catalog_facets(
             {**dict(r._mapping), "label": CONDITION_LABELS.get(r.condition)} for r in conds
         ],
         "price": dict(price._mapping) if price else {"min": 0, "max": 0},
+        "cities": [dict(r._mapping) for r in cities],
         "donor": dict(car._mapping) if car else None,
     }
 

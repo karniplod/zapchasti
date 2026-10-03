@@ -15,6 +15,7 @@ function syncUrl(){
   const p = new URLSearchParams();
   if (state.donor) p.set('donor', state.donor);
   if (state.category_id) p.set('category', state.category_id);
+  if (state.city) p.set('city', state.city);
   history.replaceState(null, '', '/catalog' + (p.toString() ? '?' + p : ''));
 }
 
@@ -207,6 +208,14 @@ async function loadFacets(){
     state.condition = [...$('conds').querySelectorAll('input:checked')].map(x => x.value);
     state.page = 1; loadParts(); });
 
+  // Где лежит деталь: «Все города» и города филиалов со счётчиком
+  $('cities').innerHTML = `<label><input type="radio" name="city" value="" ${state.city ? '' : 'checked'}>Все города</label>`
+    + f.cities.map(c => `<label><input type="radio" name="city" value="${esc(c.city)}"
+        ${c.city === state.city ? 'checked' : ''}>${esc(c.city)}<span class="n">${c.cnt}</span></label>`).join('');
+  $('cities').querySelectorAll('input').forEach(i => i.onchange = () => {
+    state.city = i.value || null; state.page = 1; loadParts(); syncUrl();
+  });
+
   if (f.price.min != null){
     $('pmin').placeholder = 'от '+f.price.min;
     $('pmax').placeholder = 'до '+f.price.max;
@@ -277,10 +286,8 @@ $('grid').addEventListener('click', e => {
 });
 $('sort').onchange = () => { state.sort = $('sort').value; state.page = 1; loadParts(); };
 $('reset').onclick = () => {
-  // Город намеренно не сбрасываем: это не фильтр подбора, а место,
-  // куда человек готов приехать — и радиокнопки остались бы отмеченными
   Object.assign(state, {category_id:null, condition:[], price_min:null,
-    price_max:null, q:'', page:1});
+    price_max:null, q:'', city:null, page:1});
   $('q').value = ''; $('pmin').value = ''; $('pmax').value = '';
   syncUrl();
   loadFacets(); loadParts();
@@ -311,16 +318,15 @@ async function loadParts(){
       <h3>Ничего не нашлось</h3>
       <p>Уберите часть фильтров или напишите нам — деталь может лежать
          на складе, но ещё не быть выложенной.</p>
-      ${state.city ? `<p>Сейчас показан только
-        <b>${state.city}</b>. <button class="linkish" id="allCities">Искать
+      ${state.city ? `<p>Сейчас показаны детали только из города
+        <b>${esc(state.city)}</b>. <button class="linkish" id="allCities">Искать
         во всех городах</button></p>` : ''}</div>`;
     const all = $('allCities');
-    // Город меняем через шапку, чтобы подпись там не разошлась с выдачей
     if (all) all.onclick = () => {
-      document.cookie = 'city=;path=/;max-age=31536000';
-      const nm = document.getElementById('cityName');
-      if (nm) nm.textContent = 'все города';
-      window.onCityChange('');
+      state.city = null; state.page = 1;
+      const r = $('cities').querySelector('input[value=""]');
+      if (r) r.checked = true;
+      syncUrl(); loadParts();
     };
     $('pager').innerHTML = ''; return;
   }
@@ -416,23 +422,9 @@ let freshRun = 0;
 async function loadFresh(){
   const run = ++freshRun;
 
-  const ask = async city => {
-    const p = new URLSearchParams({sort:'new', page:1});
-    if (city) p.set('city', city);
-    return (await fetch('/api/catalog/parts?'+p)).json();
-  };
-
   try {
-    let d = await ask(state.city);
-    let wider = false;
-
-    // В выбранном городе может не быть вообще ничего — например,
-    // филиал только открыли. Прятать блок нельзя: человек решит, что
-    // магазин пустой. Показываем весь склад и объясняем, почему
-    if (!d.items.length && state.city){
-      d = await ask(null);
-      wider = true;
-    }
+    // Свежие — со всего склада: где лежит деталь, выбирают фильтром ниже
+    const d = await (await fetch('/api/catalog/parts?' + new URLSearchParams({sort: 'new', page: 1}))).json();
     if (run !== freshRun) return;
 
     // Выбрана машина (VIN, марка, машина с главной) или узел из меню —
@@ -446,11 +438,7 @@ async function loadFresh(){
     $('fresh').hidden = !d.items.length;
     if (!d.items.length) return;
 
-    $('freshNote').hidden = !wider;
-    if (wider){
-      $('freshNote').textContent =
-        `В городе ${state.city} пока ничего не выложено — показываем склад целиком.`;
-    }
+    $('freshNote').hidden = true;
     // Карточек с запасом, лишние спрячет fillRows: сколько влезет
     // в один полный ряд, зависит от ширины экрана
     $('freshGrid').innerHTML = d.items.slice(0, 12).map(card).join('');
@@ -462,21 +450,10 @@ async function loadFresh(){
 const _openCatalog = openCatalog;
 openCatalog = function(){ $('fresh').hidden = true; _openCatalog(); };
 
-// ── Город ───────────────────────────────────────────────
-// Выбирается в шапке (templates/_city.html), сюда приходит готовым.
-// Каталог только читает куку и слушает смену
-const cityCookie = () => {
-  const m = document.cookie.match(/(?:^|; )city=([^;]*)/);
-  return m ? decodeURIComponent(m[1]) : null;
-};
-state.city = cityCookie();
-
-window.onCityChange = city => {
-  state.city = city || null;
-  state.page = 1;
-  loadFresh();
-  if (!$('side').hidden) loadParts();
-};
+// ── Где лежит деталь ────────────────────────────────────
+// Фильтр каталога, а не город в шапке: шапка — куда везти заказ.
+// Из адреса: /catalog?city=Пермь — фильтр переживает обновление страницы
+state.city = new URLSearchParams(location.search).get('city') || null;
 
 loadFresh();
 

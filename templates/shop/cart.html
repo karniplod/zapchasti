@@ -179,8 +179,11 @@
             </div>
             <div class="fld city-fld">
               <label for="dCity">Город или населённый пункт</label>
+              {# Город — из шапки сайта (templates/_city.html): угадан по IP
+                 или выбран покупателем. Здесь его можно сменить #}
               <input class="field" id="dCity" autocomplete="address-level2" maxlength="120"
-                     placeholder="Начните вводить: Самара">
+                     placeholder="Начните вводить: Самара" value="{{ chosen_city(request) }}"
+                     data-cdek="{{ chosen_city_code(request) }}">
               <div class="suggest" id="dCityList" role="listbox" hidden></div>
             </div>
           </div>
