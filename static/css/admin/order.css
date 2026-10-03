@@ -122,6 +122,7 @@
 .it .nm a:hover{text-decoration:underline}
 .it .nm small{display:block;font-size:12px;color:var(--muted);margin-top:2px}
 .shelf{color:var(--amber);font-weight:600}
+.src-customer,.src-manager{color:#8fb4ff}
 .it .q{font-size:13px;color:var(--muted);white-space:nowrap}
 .it .sum{min-width:90px;text-align:right;font-variant-numeric:tabular-nums}
 .mini{display:flex;flex-direction:column;gap:3px;margin:0;font-size:11px;color:var(--dim)}

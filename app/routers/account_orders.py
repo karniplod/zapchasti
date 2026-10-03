@@ -177,8 +177,8 @@ async def apply_edit(session: AsyncSession, o, payload: CustomerEdit) -> dict:
             # даст пересчёт доставки ниже
             sid = await _shipment_for(session, o, p.branch_id) if o.delivery_carrier else None
             await session.execute(text("""
-                INSERT INTO order_items (order_id, part_id, price, qty, shipment_id)
-                VALUES (:o, :p, :pr, :q, :s)"""),
+                INSERT INTO order_items (order_id, part_id, price, qty, shipment_id, source)
+                VALUES (:o, :p, :pr, :q, :s, 'customer')"""),
                 {"o": o.id, "p": p.id, "pr": p.price, "q": a.qty, "s": sid})
         changes.append(f"Добавлено: {p.sku} {p.name}" + (f" × {a.qty}" if a.qty > 1 else ""))
 

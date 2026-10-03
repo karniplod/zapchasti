@@ -910,7 +910,9 @@ async def orders_of(session: AsyncSession, customer_id: int, number: str | None 
     items = await session.execute(
         text("""
         SELECT oi.id AS item_id, oi.order_id, oi.price, oi.qty, oi.price * oi.qty AS sum,
-               oi.shipment_id, p.quantity AS stock,
+               oi.shipment_id, oi.source, p.quantity AS stock,
+               (SELECT br.city FROM branches br WHERE br.id = p.branch_id) AS city,
+               (SELECT br.name FROM branches br WHERE br.id = p.branch_id) AS branch_name,
                p.sku, p.name, p.status::text AS status,
                p.condition::text AS condition,
                (SELECT coalesce(ph.thumb, ph.path) FROM part_photos ph

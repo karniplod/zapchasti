@@ -458,3 +458,13 @@ button.tile{width:100%;padding:0;border:0;background:none;font:inherit;text-alig
   .f-pr{margin-left:56px}
   .f-row .btn{margin-left:auto}
 }
+
+/* Детали в правке заказа — по городам: из каждого своя посылка */
+.oe-group + .oe-group{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line-2)}
+.oe-city-h{display:flex;align-items:baseline;gap:10px;margin:0 0 2px;font-size:var(--t-sm)}
+.oe-city-h b{font-weight:600}
+.oe-city-h small{font-size:var(--t-xs);color:var(--muted)}
+.oe-group.is-new .oe-city-h small{color:var(--accent)}
+.oe-city-h + .oe-item{border-top:0}
+.oe-item .src{font-family:var(--body)}
+.order .items .nm small.src{color:var(--accent-dk)}

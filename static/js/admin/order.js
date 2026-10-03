@@ -18,6 +18,8 @@ const CARRIER = {cdek: 'СДЭК', yandex: 'Яндекс Доставка', poch
 const MODE = {pvz: 'до пункта выдачи', door: 'курьером до двери', post: 'до отделения'};
 const SHIP_ST = {assembling: 'собирается', sent: 'отправлена', delivered: 'доставлена',
                  cancelled: 'отменена'};
+// Откуда деталь в заказе: оформлена из корзины или добавлена потом
+const SOURCE = {cart: 'из корзины', customer: 'добавил покупатель', manager: 'добавил менеджер'};
 const KIND = {created: 'Оформление', status: 'Статус', edit: 'Правка', item: 'Состав',
               shipment: 'Посылка', delivery: 'Доставка', payment: 'Оплата', note: 'Комментарий'};
 
@@ -393,6 +395,7 @@ function goods(o){
           <div class="nm"><a href="/p/${encodeURIComponent(i.sku)}" target="_blank" rel="noopener">${esc(i.name)}</a>
             <small><span class="mono">${esc(i.sku)}</span> · ${esc(i.branch || 'без филиала')}
               ${i.location ? ` · <b class="shelf">полка ${esc(i.location)}</b>` : ''} · сост. ${esc(i.condition || '—')}
+              · <span class="src src-${esc(i.source || 'cart')}">${SOURCE[i.source] || SOURCE.cart}</span>
               ${+i.price_now && +i.price_now !== +i.price ? ` · на витрине ${money(i.price_now)}` : ''}</small></div>
           ${m ? `<label class="mini">Шт<input class="i-qty" type="number" min="1" max="999" value="${i.qty}"></label>
                  <label class="mini">Цена, ₽<input class="i-price" type="number" min="0" step="1" value="${Math.round(+i.price)}"></label>`

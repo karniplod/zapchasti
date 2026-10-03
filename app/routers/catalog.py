@@ -607,7 +607,7 @@ async def catalog_parts(
                  ORDER BY b2.name LIMIT 1) AS fits_first,
                (SELECT count(*) FROM part_applicability pa
                  WHERE pa.part_id = p.id) AS fits_count,
-               br.city
+               br.city, br.name AS branch_name
         {base_from}
         WHERE {where_sql}
         ORDER BY {order}

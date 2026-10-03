@@ -8,6 +8,8 @@
 
 {% set CN = {'cdek': 'СДЭК', 'yandex': 'Яндекс Доставка', 'pochta': 'Почта России'} %}
 {% set MN = {'pvz': 'до пункта выдачи', 'door': 'курьером до двери', 'post': 'до отделения'} %}
+{# Откуда деталь в заказе: оформлена из корзины или добавлена потом #}
+{% set SRC = {'cart': 'из корзины', 'customer': 'добавлена вами', 'manager': 'добавил менеджер'} %}
 {% macro rub(v) %}{{ "{:,.0f}".format(v).replace(",", " ") }} ₽{% endmacro %}
 
 {% macro line(i) %}
@@ -18,7 +20,8 @@
         </a>
         <span class="nm"><a href="/p/{{ i.sku }}">{{ i.name }}</a>
           <small class="mono">{{ i.sku }}</small>
-          {% if i.branch %}<small>{{ i.branch }}</small>{% endif %}</span>
+          {% if i.branch %}<small>{{ i.branch }}</small>{% endif %}
+          {%- if i.source and i.source != 'cart' %}<small class="src">{{ SRC[i.source] }}</small>{% endif %}</span>
         <span class="cond">{{ i.condition }}</span>
         <span class="sum">{{ rub(i.sum) }}
           {%- if i.qty > 1 %}<small>{{ i.qty }} шт × {{ rub(i.price) }}</small>{% endif %}</span>
@@ -129,11 +132,19 @@
 
     <section>
       <h3>Детали</h3>
+      {# Детали — по филиалам, где лежат: из каждого своя посылка. Крупно —
+         город, рядом — адрес филиала: в одном городе их бывает несколько #}
+      {% set groups = order.lines | groupby('branch') %}
       <div class="oe-items">
-        {% for i in order.lines %}
+        {% for branch, rows in groups %}
+        <div class="oe-group" data-branch="{{ branch or '' }}">
+          <p class="oe-city-h"><b>{{ rows[0].city or 'Склад не указан' }}</b>
+            <small>{{ rows[0].branch_name or '' }}
+            {%- if order.delivery_method == 'shipping' and groups | length > 1 %} · отдельная посылка{% endif %}</small></p>
+        {% for i in rows %}
         {% set more = i.stock if i.status == 'in_stock' and i.stock else 0 %}
         <div class="oe-item" data-item="{{ i.item_id }}" data-qty="{{ i.qty }}" data-sku="{{ i.sku }}">
-          <span class="nm">{{ i.name }}<small class="mono">{{ i.sku }}</small></span>
+          <span class="nm">{{ i.name }}<small class="mono">{{ i.sku }} · <span class="src">{{ SRC.get(i.source, 'из корзины') }}</span></small></span>
           <div class="qty qty-sm" data-max="{{ i.qty + more }}">
             <button type="button" class="qty-btn" data-d="-1" aria-label="Меньше">−</button>
             <input class="qty-in" type="number" inputmode="numeric" min="1" max="{{ i.qty + more }}"
@@ -142,6 +153,8 @@
           </div>
           <span class="pr">{{ rub(i.price) }} / шт</span>
           <button type="button" class="linkish oe-drop">Убрать</button>
+        </div>
+        {% endfor %}
         </div>
         {% endfor %}
       </div>

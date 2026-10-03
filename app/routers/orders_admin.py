@@ -233,7 +233,7 @@ async def order_card(order_id: int, session: AsyncSession = Depends(get_session)
         customer = dict(c._mapping) if c else None
 
     items = [dict(r._mapping) for r in await session.execute(text("""
-        SELECT oi.id, oi.part_id, oi.price, oi.qty, oi.price * oi.qty AS sum, oi.shipment_id,
+        SELECT oi.id, oi.part_id, oi.price, oi.qty, oi.price * oi.qty AS sum, oi.shipment_id, oi.source,
                p.sku, p.name, p.status::text AS status, p.condition::text AS condition,
                p.quantity AS stock, p.price AS price_now, p.location, p.branch_id,
                (SELECT br.city || ', ' || br.name FROM branches br
@@ -625,8 +625,8 @@ async def add_item(order_id: int, payload: ItemAdd, session: AsyncSession = Depe
     else:
         sid = await _shipment_for(session, o, p.branch_id) if o.delivery_carrier else None
         await session.execute(text("""
-            INSERT INTO order_items (order_id, part_id, price, qty, shipment_id)
-            VALUES (:o, :p, :pr, :q, :s)"""),
+            INSERT INTO order_items (order_id, part_id, price, qty, shipment_id, source)
+            VALUES (:o, :p, :pr, :q, :s, 'manager')"""),
             {"o": order_id, "p": p.id, "pr": p.price, "q": payload.qty, "s": sid})
     await sync_totals(session, order_id)
     await order_log.log(session, order_id, "item",

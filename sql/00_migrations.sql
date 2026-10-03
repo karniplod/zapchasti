@@ -681,3 +681,23 @@ CREATE TABLE IF NOT EXISTS order_events (
 );
 CREATE INDEX IF NOT EXISTS order_events_order_idx ON order_events (order_id, created_at);
 CREATE INDEX IF NOT EXISTS orders_contact_phone_idx ON orders (contact_phone);
+
+
+-- ------------------------------------------------------------
+-- Откуда деталь в заказе
+-- ------------------------------------------------------------
+-- cart — оформлена из корзины, customer — покупатель добавил в кабинете,
+-- manager — добавил менеджер. Видно и покупателю, и в карточке заказа
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'cart';
+
+-- Добавленные раньше — по ленте заказа: там записано, кто что добавил
+UPDATE order_items oi SET source = 'customer'
+ WHERE oi.source = 'cart' AND EXISTS (
+       SELECT 1 FROM order_events e JOIN parts p ON p.id = oi.part_id
+        WHERE e.order_id = oi.order_id AND e.kind = 'edit'
+          AND e.text LIKE 'Покупатель изменил заказ:%Добавлено: ' || p.sku || '%');
+UPDATE order_items oi SET source = 'manager'
+ WHERE oi.source = 'cart' AND EXISTS (
+       SELECT 1 FROM order_events e JOIN parts p ON p.id = oi.part_id
+        WHERE e.order_id = oi.order_id AND e.kind = 'item'
+          AND e.text LIKE 'Добавлено: ' || p.sku || '%');

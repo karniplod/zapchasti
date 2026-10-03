@@ -203,10 +203,22 @@ if (wait){
   function addPart(p){
     const a = {part_id: p.id, sku: p.sku, name: p.name, price: p.price, qty: 1};
     D.added.push(a);
+    // В группу своего филиала; такого ещё нет — новая группа: оттуда
+    // заказ поедет ещё одной посылкой
+    const branch = [p.city, p.branch_name].filter(Boolean).join(', ');
+    let group = [...form.querySelectorAll('.oe-group')].find(g => g.dataset.branch === branch);
+    if (!group){
+      group = document.createElement('div');
+      group.className = 'oe-group is-new';
+      group.dataset.branch = branch;
+      group.innerHTML = `<p class="oe-city-h"><b>${esc(p.city || 'Склад не указан')}</b><small>${esc(p.branch_name || '')}`
+        + (form.dataset.method === 'shipping' ? ' · новая посылка' : '') + '</small></p>';
+      form.querySelector('.oe-items').append(group);
+    }
     const row = document.createElement('div');
     row.className = 'oe-item is-new';
     row.dataset.sku = p.sku;
-    row.innerHTML = `<span class="nm">${esc(p.name)}<small class="mono">${esc(p.sku)}${p.city ? ' · ' + esc(p.city) : ''} · добавлена</small></span>
+    row.innerHTML = `<span class="nm">${esc(p.name)}<small class="mono">${esc(p.sku)} · <span class="src">будет добавлена</span></small></span>
       <div class="qty qty-sm" data-max="${Math.max(1, +p.quantity || 1)}">
         <button type="button" class="qty-btn" data-d="-1" aria-label="Меньше">−</button>
         <input class="qty-in" type="number" inputmode="numeric" min="1" value="1" aria-label="Количество">
@@ -214,11 +226,12 @@ if (wait){
       </div>
       <span class="pr">${rub(p.price)} / шт</span>
       <button type="button" class="linkish oe-drop">Убрать</button>`;
-    form.querySelector('.oe-items').append(row);
+    group.append(row);
     qtyStepper(row.querySelector('.qty'), n => { a.qty = n; changed(); });
     row.querySelector('.oe-drop').onclick = () => {
       D.added.splice(D.added.indexOf(a), 1);
       row.remove();
+      if (group.classList.contains('is-new') && !group.querySelector('.oe-item')) group.remove();
       changed();
     };
     changed();
