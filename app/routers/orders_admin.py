@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import address as addr
 from .. import delivery as ship_services
-from .. import loyalty, order_log, payments
+from .. import loyalty, notify, order_log, payments
 from ..auth import current_user, require_role
 from ..database import get_session
 from ..templating import templates
@@ -588,6 +588,8 @@ async def set_order_status(session: AsyncSession, order_id: int, status: str) ->
         )
     # Баллы: выдан — начислить, отменён — вернуть списанные
     await loyalty.on_status(session, order_id, status)
+    # Письмо покупателю — уйдёт после commit (app/notify.py)
+    await notify.order_status(session, order_id, status)
 
 
 async def return_stock(session: AsyncSession, part_id: int, qty: int) -> None:
@@ -934,6 +936,8 @@ async def patch_shipment(
     if what:
         await order_log.log(session, row.order_id, "shipment",
                             f"Посылка {frm}: " + ", ".join(what), user)
+    if payload.status == "sent" and row.status != "sent":
+        await notify.shipment_sent(session, shipment_id)
 
     # Заказ следует за посылками — только вперёд: вернуть посылку в
     # «собирается» не откатывает заказ, это решает менеджер

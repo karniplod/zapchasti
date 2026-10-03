@@ -30,7 +30,7 @@ import httpx
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from . import order_log
+from . import notify, order_log
 from .config import settings
 
 log = logging.getLogger("razbor.payments")
@@ -241,9 +241,11 @@ async def settle(session: AsyncSession, payment_id: int, status: str) -> None:
          WHERE id = :id AND (status = 'pending' OR (status = 'cancelled' AND :st = 'paid'))
         RETURNING order_id, amount"""), {"st": status, "id": payment_id})).first()
     if row and status == "paid":
-        await session.execute(text("""
+        moved = (await session.execute(text("""
             UPDATE orders SET status = 'paid', paid_at = now()
-             WHERE id = :o AND status IN ('new', 'confirmed')"""), {"o": row.order_id})
+             WHERE id = :o AND status IN ('new', 'confirmed')"""), {"o": row.order_id})).rowcount
+        if moved:
+            await notify.order_status(session, row.order_id, "paid")
     if row and before == "cancelled":
         await order_log.log(session, row.order_id, "payment",
                             f"Пришла оплата {row.amount:.0f} ₽ по аннулированной ссылке — "

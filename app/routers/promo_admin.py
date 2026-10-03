@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .. import loyalty
+from .. import loyalty, notify
 from ..auth import current_user, require_role
 from ..database import get_session
 from ..templating import templates
@@ -146,8 +146,12 @@ async def customer_loyalty_patch(customer_id: int, payload: CustomerLoyalty,
         raise HTTPException(404, "Покупатель не найден")
     if payload.personal_discount is not None:
         require(rules.check_personal(payload.personal_discount))
-        await session.execute(text("UPDATE customers SET personal_discount = :d WHERE id = :c"),
-                              {"d": payload.personal_discount, "c": customer_id})
+        was = (await session.execute(text("""
+            UPDATE customers SET personal_discount = :d WHERE id = :c
+            RETURNING (SELECT personal_discount FROM customers WHERE id = :c)"""),
+            {"d": payload.personal_discount, "c": customer_id})).scalar()
+        if payload.personal_discount and payload.personal_discount != was:
+            await notify.personal_discount(session, customer_id, payload.personal_discount)
     if payload.bonus_add:
         comment = (payload.comment or "").strip()
         if len(comment) < 3:
@@ -155,5 +159,7 @@ async def customer_loyalty_patch(customer_id: int, payload: CustomerLoyalty,
         if payload.bonus_add < 0 and await loyalty.balance(session, customer_id) + payload.bonus_add < 0:
             raise HTTPException(409, "Столько баллов на счету нет")
         await loyalty.move(session, customer_id, payload.bonus_add, "manual", comment, user=user)
+        await notify.bonus(session, customer_id, payload.bonus_add, comment,
+                           await loyalty.balance(session, customer_id))
     await session.commit()
     return {"ok": True, "balance": await loyalty.balance(session, customer_id)}
