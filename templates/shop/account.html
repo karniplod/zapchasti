@@ -3,7 +3,7 @@
 {% block description %}Текущие и прошлые заказы, статусы и доставка.{% endblock %}
 {% set section = 'orders' %}
 {% macro rub(v) %}{{ "{:,.0f}".format(v).replace(",", " ") }} ₽{% endmacro %}
-{% set SHIP = {'assembling': 'собирается', 'sent': 'в пути', 'delivered': 'доставлена', 'cancelled': 'отменена'} %}
+{% set SHIP = {'assembling': 'собирается', 'sent': 'в пути', 'delivered': 'выдана', 'cancelled': 'отменена'} %}
 
 {% block account %}
   {% if request.query_params.get('verified') %}

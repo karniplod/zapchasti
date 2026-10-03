@@ -12,7 +12,7 @@
 {% set SRC = {'cart': 'из корзины', 'customer': 'добавлена вами', 'manager': 'добавил менеджер'} %}
 {% macro rub(v) %}{{ "{:,.0f}".format(v).replace(",", " ") }} ₽{% endmacro %}
 
-{% macro line(i) %}
+{% macro line(i, st) %}
       <li>
         <a class="pic" href="/p/{{ i.sku }}">
           {% if i.photo %}<img src="{{ i.photo }}" alt="" loading="lazy">
@@ -21,7 +21,8 @@
         <span class="nm"><a href="/p/{{ i.sku }}">{{ i.name }}</a>
           <small class="mono">{{ i.sku }}</small>
           {% if i.branch %}<small>{{ i.branch }}</small>{% endif %}
-          {%- if i.source and i.source != 'cart' %}<small class="src">{{ SRC[i.source] }}</small>{% endif %}</span>
+          {%- if i.source and i.source != 'cart' %}<small class="src">{{ SRC[i.source] }}</small>{% endif %}
+          {%- if st == 'completed' %}<small class="got">выдан</small>{% endif %}</span>
         <span class="cond">{{ i.condition }}</span>
         <span class="sum">{{ rub(i.sum) }}
           {%- if i.qty > 1 %}<small>{{ i.qty }} шт × {{ rub(i.price) }}</small>{% endif %}</span>
@@ -203,11 +204,11 @@
         {%- if sh.days %}, {{ sh.days }}{% endif %}
         {%- if sh.price %} · доставка {{ rub(sh.price) }}{% endif %}
         {%- if sh.track_number %} · номер для отслеживания {{ track(sh) }}{% endif %}</p>
-      <ul class="items">{% for i in sh.lines %}{{ line(i) }}{% endfor %}</ul>
+      <ul class="items">{% for i in sh.lines %}{{ line(i, order.status) }}{% endfor %}</ul>
     </div>
     {% endfor %}
     {% else %}
-    <ul class="items">{% for i in order.lines %}{{ line(i) }}{% endfor %}</ul>
+    <ul class="items">{% for i in order.lines %}{{ line(i, order.status) }}{% endfor %}</ul>
     {% endif %}
 
     {% if order.discount_amount | float %}
@@ -237,10 +238,10 @@
 
   {# Получение — карточкой, как остальные блоки: сверху способ, ниже
      адрес, получатель и оплата плитками, потом посылки — у каждой шкала
-     «собирается → отправлена → доставлена» и номер для отслеживания #}
+     «собирается → отправлена → выдана» и номер для отслеживания #}
   {% set many = order.shipments | length > 1 %}
   {% set ship = order.delivery_method == 'shipping' %}
-  {% set STEPS = [('assembling', 'Собирается'), ('sent', 'Отправлена'), ('delivered', 'Доставлена')] %}
+  {% set STEPS = [('assembling', 'Собирается'), ('sent', 'Отправлена'), ('delivered', 'Выдана')] %}
   {% set STEP_N = {'assembling': 0, 'sent': 1, 'delivered': 2} %}
   <section class="block">
     <h2>Получение</h2>

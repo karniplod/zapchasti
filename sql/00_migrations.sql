@@ -860,3 +860,8 @@ UPDATE order_shipments s
    SET status = 'delivered', sent_at = coalesce(s.sent_at, now()), delivered_at = coalesce(s.delivered_at, now())
  WHERE s.status IN ('assembling', 'sent')
    AND EXISTS (SELECT 1 FROM orders o WHERE o.id = s.order_id AND o.status = 'completed');
+
+-- Посылки выданного заказа называются «выдана», а не «доставлена» —
+-- и в ленте заказов, записанной до переименования
+UPDATE order_events SET text = replace(text, 'отмечены доставленными', 'отмечены выданными')
+ WHERE text LIKE '%отмечены доставленными%';

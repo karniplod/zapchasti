@@ -740,7 +740,7 @@ async def set_order_status(session: AsyncSession, order_id: int, status: str) ->
             {"ids": parts},
         )
     # Посылки следуют за заказом — как заказ за посылками (patch_shipment):
-    # «выдан» — все посылки доставлены; «отправлен» — собранные в пути.
+    # «выдан» — все посылки выданы; «отправлен» — собранные в пути.
     # Раньше заказ мог стать выданным, а посылки — так и «собираться»
     if status == "completed":
         moved = (await session.execute(text("""
@@ -751,7 +751,7 @@ async def set_order_status(session: AsyncSession, order_id: int, status: str) ->
             {"id": order_id})).all()
         if moved:
             await order_log.log(session, order_id, "shipment",
-                                f"Посылки ({len(moved)}) отмечены доставленными — заказ выдан")
+                                f"Посылки ({len(moved)}) отмечены выданными — заказ выдан")
     elif status == "shipped":
         moved = (await session.execute(text("""
             UPDATE order_shipments SET status = 'sent', sent_at = coalesce(sent_at, now())

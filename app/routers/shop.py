@@ -954,7 +954,7 @@ async def next_order_number(session: AsyncSession) -> int:
 # ------------------------------------------------------------------
 
 SHIPMENT_LABELS = {"assembling": "собирается", "sent": "отправлена",
-                   "delivered": "доставлена", "cancelled": "отменена"}
+                   "delivered": "выдана", "cancelled": "отменена"}
 
 
 async def shipments_of(session: AsyncSession, order_ids: list[int]) -> list[dict]:

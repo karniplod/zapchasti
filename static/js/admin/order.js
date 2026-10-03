@@ -16,7 +16,7 @@ const STAGES = [['new', 'Новый'], ['confirmed', 'Подтверждён'], 
                 ['shipped', 'Отправлен'], ['completed', 'Выдан']];
 const CARRIER = {cdek: 'СДЭК', yandex: 'Яндекс Доставка', pochta: 'Почта России'};
 const MODE = {pvz: 'до пункта выдачи', door: 'курьером до двери', post: 'до отделения'};
-const SHIP_ST = {assembling: 'собирается', sent: 'отправлена', delivered: 'доставлена',
+const SHIP_ST = {assembling: 'собирается', sent: 'отправлена', delivered: 'выдана',
                  cancelled: 'отменена'};
 // Откуда деталь в заказе: оформлена из корзины или добавлена потом
 const SOURCE = {cart: 'из корзины', customer: 'добавил покупатель', manager: 'добавил менеджер'};
@@ -33,17 +33,19 @@ const plural = (n, one, few, many) => {
 };
 const parcelsN = n => plural(n, 'посылка', 'посылки', 'посылок');
 
-// Что с деталью на складе. Деталь «продана», когда штук не осталось;
-// если остаток есть, штуки заказа уже списаны, а деталь продаётся дальше
+// Что с товаром. Продан — когда заказ оплачен, отправлен или выдан (у
+// штучного товара без остатка и на складе статус «продан»); выдан — когда
+// выдан заказ. Остаток есть — штуки заказа списаны, товар продаётся дальше
 function stockTag(i, o){
   if (o.status === 'cancelled')
-    return i.status === 'in_stock' ? '<span class="pst">вернулась на склад</span>' : '';
-  if (i.status === 'sold') return '<span class="pst ok">продана</span>';
-  if (i.status === 'reserved') return '<span class="pst">в резерве за заказом</span>';
-  if (i.status === 'written_off') return '<span class="pst bad">списана</span>';
-  if (i.status === 'draft') return '<span class="pst bad">снята с витрины</span>';
-  const done = ['paid', 'shipped', 'completed'].includes(o.status);
-  return `<span class="pst ${done ? 'ok' : ''}">${done ? 'продано' : 'отложено'} ${i.qty} шт · на складе ещё ${i.stock} шт</span>`;
+    return i.status === 'in_stock' ? '<span class="pst">вернулся на склад</span>' : '';
+  if (i.status === 'written_off') return '<span class="pst bad">списан</span>';
+  if (i.status === 'draft') return '<span class="pst bad">снят с витрины</span>';
+  const sold = ['paid', 'shipped', 'completed'].includes(o.status);
+  const left = i.status === 'in_stock' && i.stock ? ` · на складе ещё ${i.stock} шт` : '';
+  if (o.status === 'completed') return `<span class="pst ok">продан, выдан${left}</span>`;
+  if (sold) return `<span class="pst ok">продан${left}</span>`;
+  return `<span class="pst">в резерве за заказом${left}</span>`;
 }
 const date = s => s ? new Date(s).toLocaleDateString('ru') : '';
 const dt = s => s ? new Date(s).toLocaleString('ru', {day: '2-digit', month: '2-digit',

@@ -32,13 +32,14 @@
           <span class="nm"><a href="/p/{{ i.sku }}">{{ i.name }}</a>
             <small><span class="mono">{{ i.sku }}</span>{% if i.car %} · {{ i.car }}{% endif %}</small>
             <small>{{ i.created_at.strftime('%d.%m.%Y') }} · <a href="/account/orders/{{ i.number }}">заказ № {{ i.number }}</a>
-              · {{ i.qty }} шт × {{ rub(i.price) }}</small></span>
+              · {{ i.qty }} шт × {{ rub(i.price) }}
+              · {{ 'выдан' if i.order_status == 'completed' else 'в пути' if i.order_status == 'shipped' else 'оплачен, собираем' }}</small></span>
           <span class="pur-act">
             {% if i.available %}
               <small class="ok">в наличии {{ i.quantity }} шт · {{ rub(i.price_now) }}</small>
               <button type="button" class="btn btn-primary btn-sm buy" data-sku="{{ i.sku }}">В корзину</button>
             {% else %}
-              <small>уже продана</small>
+              <small>больше нет в наличии</small>
               <a class="btn btn-ghost btn-sm" href="/catalog?q={{ i.name | urlencode }}">Похожие</a>
             {% endif %}
           </span>
