@@ -235,40 +235,86 @@
     {% endif %}
   </article>
 
+  {# Получение — карточкой, как остальные блоки: сверху способ, ниже
+     адрес, получатель и оплата плитками, потом посылки — у каждой шкала
+     «собирается → отправлена → доставлена» и номер для отслеживания #}
+  {% set many = order.shipments | length > 1 %}
+  {% set ship = order.delivery_method == 'shipping' %}
+  {% set STEPS = [('assembling', 'Собирается'), ('sent', 'Отправлена'), ('delivered', 'Доставлена')] %}
+  {% set STEP_N = {'assembling': 0, 'sent': 1, 'delivered': 2} %}
   <section class="block">
     <h2>Получение</h2>
-    <dl class="facts">
-      <dt>Способ</dt>
-      {% set many = order.shipments | length > 1 %}
-      <dd>{% if order.delivery_carrier %}{{ CN.get(order.delivery_carrier) }} — {{ MN.get(order.delivery_mode) }}
-            {%- if many %}, {{ order.shipments | length }} {{ order.shipments | length | plural('посылка', 'посылки', 'посылок') }} — придут в разные дни
-            {%- elif order.delivery_days %}, {{ order.delivery_days }}{% endif %}
-          {% elif order.delivery_method == 'shipping' %}Доставка транспортной компанией
-          {% else %}Самовывоз{% if order.pickup_branch %} — {{ order.pickup_branch }}{% endif %}{% endif %}</dd>
-      {% if order.delivery_address %}<dt>Адрес</dt><dd>{{ order.delivery_address }}</dd>{% endif %}
-      {% if many %}
-      {# Посылки и здесь, рядом со способом и адресом: откуда, когда, где сейчас #}
-      <dt>Посылки</dt>
-      <dd><ol class="parcel-list">
+    <div class="recv">
+      <div class="recv-head">
+        <span class="recv-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          {%- if ship -%}<path d="M3 7h11v9H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>
+          {%- else -%}<path d="M3.5 10.5L12 4l8.5 6.5"/><path d="M5.5 9v11h13V9"/><path d="M10 20v-6h4v6"/>{%- endif -%}
+        </svg></span>
+        <div>
+          <b>{% if order.delivery_carrier %}{{ CN.get(order.delivery_carrier) }} — {{ MN.get(order.delivery_mode) }}
+             {%- elif ship %}Доставка транспортной компанией
+             {%- else %}Самовывоз{% endif %}</b>
+          <small>{% if many %}{{ order.shipments | length }} {{ order.shipments | length | plural('посылка', 'посылки', 'посылок') }} — придут в разные дни
+            {%- elif order.delivery_days %}Срок {{ order.delivery_days }}
+            {%- elif not ship %}Бесплатно — деталь можно осмотреть до оплаты{% endif %}</small>
+        </div>
+      </div>
+
+      <div class="recv-facts">
+        {% if order.delivery_address or order.pickup_branch %}
+        <div class="rf">
+          <span class="rf-l">{{ 'Адрес доставки' if ship else 'Где забрать' }}</span>
+          <span class="rf-v">{{ order.delivery_address or order.pickup_branch }}</span>
+        </div>
+        {% endif %}
+        {% if order.contact_name %}
+        <div class="rf">
+          <span class="rf-l">Получатель</span>
+          <span class="rf-v">{{ order.contact_name }}
+            {%- if order.contact_phone %}<small>{{ order.contact_phone | phone }}</small>{% endif %}</span>
+        </div>
+        {% endif %}
+        {% if payment_label %}
+        <div class="rf">
+          <span class="rf-l">Оплата</span>
+          <span class="rf-v">{{ payment_label[:1] | upper }}{{ payment_label[1:] }}
+            {%- if order.paid_at %}<small class="ok">оплачен {{ order.paid_at.strftime('%d.%m.%Y') }}</small>{% endif %}</span>
+        </div>
+        {% endif %}
+      </div>
+
+      {% if order.shipments %}
+      <ul class="recv-parcels">
         {% for sh in order.shipments %}
-        <li><b>{{ sh.from_city[:1] | upper }}{{ sh.from_city[1:] }}</b>
-          — {{ sh.lines | sum(attribute='qty') }} шт.
-          {%- if sh.days %}, {{ sh.days }}{% endif %}
-          {%- if sh.price %}, {{ rub(sh.price) }}{% endif %}
-          <span class="st st-ship-{{ sh.status }}">{{ sh.label }}</span>
-          {%- if sh.track_number %}<br><small>номер для отслеживания {{ track(sh) }}</small>{% endif %}</li>
+        {% set k = STEP_N.get(sh.status, -1) %}
+        <li class="rp {{ 'is-cancelled' if sh.status == 'cancelled' }}">
+          <div class="rp-top">
+            <span class="rp-name"><b>{% if many %}Посылка {{ loop.index }} · {% endif %}{{ sh.from_city }}</b>
+              <small>{{ sh.lines | sum(attribute='qty') }} шт
+                {%- if sh.days %} · {{ sh.days }}{% endif %}
+                {%- if sh.price %} · {{ rub(sh.price) }}{% endif %}</small></span>
+            <span class="st st-ship-{{ sh.status }}">{{ sh.label }}</span>
+          </div>
+          {% if sh.status != 'cancelled' %}
+          <ol class="rp-steps" aria-label="Где посылка">
+            {% for key, title in STEPS %}
+            <li class="{{ 'done' if loop.index0 < k or k == 2 }}{{ ' on' if loop.index0 == k }}"><span>{{ title }}</span></li>
+            {% endfor %}
+          </ol>
+          {% endif %}
+          {% if sh.track_number %}
+          <p class="rp-track">Номер для отслеживания: {{ track(sh) }}</p>
+          {% endif %}
+        </li>
         {% endfor %}
-      </ol></dd>
-      {% elif order.shipments | length == 1 %}{% set sh = order.shipments[0] %}
-      <dt>Посылка</dt>
-      <dd><span class="st st-ship-{{ sh.status }}">{{ sh.label }}</span>
-        {%- if sh.track_number %} · номер для отслеживания {{ track(sh) }}{% endif %}</dd>
+      </ul>
       {% endif %}
-      {% if order.contact_name %}<dt>Получатель</dt>
-      <dd>{{ order.contact_name }}{% if order.contact_phone %}, {{ order.contact_phone | phone }}{% endif %}</dd>{% endif %}
-      {% if payment_label %}<dt>Оплата</dt><dd>{{ payment_label }}</dd>{% endif %}
-      {% if order.comment %}<dt>Комментарий</dt><dd>{{ order.comment }}</dd>{% endif %}
-    </dl>
+
+      {% if order.comment %}
+      <p class="recv-cmt"><span class="rf-l">Комментарий</span>{{ order.comment }}</p>
+      {% endif %}
+    </div>
   </section>
 
   <section class="block">
