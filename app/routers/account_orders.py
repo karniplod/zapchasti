@@ -380,6 +380,8 @@ async def receipt_context(session: AsyncSession, order_id: int) -> dict:
         "order": dict(o._mapping), "lines": lines, "total": sum(i["sum"] for i in lines),
         "paid_at": pay.paid_at if pay else o.paid_at, "how": how,
         "payment_id": pay.external_id if pay else None, "fiscal": fiscal,
+        # Скидка и баллы уже внутри цен позиций — пишем, сколько это
+        "discount": o.discount_amount or 0, "bonus": o.bonus_spent,
         "vat": VAT_LABELS.get(settings.yookassa_vat_code, "без НДС"),
         "seller": {"name": settings.seller_name, "inn": settings.seller_inn,
                    "ogrn": settings.seller_ogrn, "address": settings.seller_address},

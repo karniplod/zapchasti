@@ -202,3 +202,16 @@
 /* «Нет отчества» под полем ФИО */
 .no-pat{display:inline-flex;align-items:center;gap:8px;margin:8px 0 0;font-size:13px;color:var(--muted);cursor:pointer}
 .no-pat input{width:auto;margin:0;accent-color:var(--amber)}
+
+/* Скидка, баллы и персональная скидка покупателя */
+.totals dd.minus{color:var(--ok)}
+.acct.loyal{margin-top:4px;color:var(--muted)}
+.acct.loyal b{color:var(--ink)}
+.acct.loyal .lnk{margin-left:8px}
+.loyal-box{margin-top:12px;padding:12px 14px;border:1px dashed var(--line);border-radius:10px}
+.loyal-box[hidden]{display:none}
+.loyal-hist{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:6px;font-size:13px}
+.loyal-hist li{display:grid;grid-template-columns:70px 1fr auto;gap:10px;align-items:baseline}
+.loyal-hist .plus{color:var(--ok);font-weight:600}
+.loyal-hist .minus{color:var(--err);font-weight:600}
+.loyal-hist small{color:var(--dim)}

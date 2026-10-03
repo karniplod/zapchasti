@@ -512,3 +512,26 @@ button.tile{width:100%;padding:0;border:0;background:none;font:inherit;text-alig
 .no-pat{display:inline-flex;align-items:center;gap:8px;margin:8px 0 0;font-size:var(--t-sm);
   font-weight:400;color:var(--muted);cursor:pointer}
 .no-pat input{width:16px;height:16px;margin:0;accent-color:var(--accent)}
+
+/* Промокод и баллы в итогах оформления */
+.co-loyal{display:grid;gap:8px;margin:0 0 14px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.promo-row{display:flex;gap:8px}
+.co-sum .promo-row .field{flex:1 1 0;width:auto;min-width:0;height:40px;text-transform:uppercase;
+  font-family:var(--mono);font-size:var(--t-sm)}
+/* В итогах кнопки во всю ширину — эта рядом с полем */
+.co-sum .promo-row .btn{flex:0 0 auto;width:auto;margin:0}
+.promo-ok{margin:0;font-size:var(--t-xs);color:var(--ok)}
+.promo-ok[hidden],.bonus-row[hidden]{display:none}
+.bonus-row{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 10px;align-items:center}
+.co-loyal{min-width:0}
+.co-loyal .field{min-width:0;width:100%}
+.bonus-row .no-pat{margin:0}
+.bonus-row .field{height:36px;font-size:var(--t-sm)}
+.bonus-row small{grid-column:1/-1;font-size:var(--t-xs);color:var(--muted)}
+.sum-lines dd.minus{color:var(--ok)}
+.sum-lines [hidden]{display:none}
+.order-minus b{color:var(--ok)}
+.bonus-got{margin:8px 0 0;color:var(--ok)}
+/* Колонка — сетка: без min-width поля промокода и баллов распирали блок */
+.co-side > *{min-width:0}
+.co-loyal > *{min-width:0}

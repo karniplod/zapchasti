@@ -210,6 +210,16 @@
     <ul class="items">{% for i in order.lines %}{{ line(i) }}{% endfor %}</ul>
     {% endif %}
 
+    {% if order.discount_amount | float %}
+    <div class="order-sum order-ship order-minus">
+      <span>{{ 'Скидка по промокоду ' ~ order.promo_code if order.discount_source == 'promo' else 'Персональная скидка' }}
+        {%- if order.discount_kind == 'percent' %}, {{ order.discount_value | int }}%{% endif %}</span>
+      <b>−{{ rub(order.discount_amount) }}</b>
+    </div>
+    {% endif %}
+    {% if order.bonus_spent %}
+    <div class="order-sum order-ship order-minus"><span>Оплачено баллами</span><b>−{{ rub(order.bonus_spent) }}</b></div>
+    {% endif %}
     {% if order.delivery_price %}
     <div class="order-sum order-ship">
       <span>Доставка{% if order.shipments | length > 1 %}, {{ order.shipments | length }} посылки{% endif %}</span>
@@ -220,6 +230,9 @@
       <span>Итого</span>
       <b>{{ "{:,.0f}".format(order.total).replace(",", " ") }} ₽</b>
     </div>
+    {% if order.bonus_accrued %}
+    <p class="hint bonus-got">За этот заказ начислено {{ order.bonus_accrued }} баллов</p>
+    {% endif %}
   </article>
 
   <section class="block">

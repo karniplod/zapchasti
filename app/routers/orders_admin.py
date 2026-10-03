@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import address as addr
 from .. import delivery as ship_services
-from .. import order_log, payments
+from .. import loyalty, order_log, payments
 from ..auth import current_user, require_role
 from ..database import get_session
 from ..templating import templates
@@ -222,6 +222,9 @@ async def order_card(order_id: int, session: AsyncSession = Depends(get_session)
     order["pickup_branch"] = (await session.execute(text("""
         SELECT city || ', ' || name FROM branches WHERE id = :b"""),
         {"b": o.pickup_branch_id})).scalar() if o.pickup_branch_id else None
+    order["promo_code"] = (await session.execute(text(
+        "SELECT code FROM promo_codes WHERE id = :p"), {"p": o.promo_code_id})).scalar() \
+        if o.promo_code_id else None
 
     customer = None
     if o.customer_id:
@@ -229,7 +232,9 @@ async def order_card(order_id: int, session: AsyncSession = Depends(get_session)
             SELECT c.id, c.name, c.phone, c.email, c.created_at,
                    (SELECT count(*) FROM orders x WHERE x.customer_id = c.id) AS orders,
                    (SELECT coalesce(sum(total), 0) FROM orders x WHERE x.customer_id = c.id
-                       AND x.status IN ('paid', 'shipped', 'completed')) AS spent
+                       AND x.status IN ('paid', 'shipped', 'completed')) AS spent,
+                   c.personal_discount,
+                   (SELECT coalesce(sum(amount), 0) FROM bonus_ledger b WHERE b.customer_id = c.id) AS bonus
               FROM customers c WHERE c.id = :c"""), {"c": o.customer_id})).first()
         customer = dict(c._mapping) if c else None
 
@@ -511,8 +516,10 @@ async def patch_order(
 
 
 async def sync_totals(session: AsyncSession, order_id: int) -> None:
-    """Сумма заказа = товары + доставка. Есть посылки — доставка равна
-    сумме их цен: у заказа нет своей цены доставки отдельно от посылок."""
+    """Сумма заказа = товары − скидка − баллы + доставка. Есть посылки —
+    доставка равна сумме их цен. Скидка в процентах пересчитывается от
+    нынешнего состава; баллов стало больше 30% товаров — лишние
+    возвращаются на счёт покупателя (app/loyalty.py)."""
     await session.execute(text("""
         UPDATE orders o
            SET delivery_price = CASE
@@ -522,12 +529,23 @@ async def sync_totals(session: AsyncSession, order_id: int) -> None:
                         WHERE s.order_id = o.id AND s.status <> 'cancelled')
                  ELSE o.delivery_price END
          WHERE o.id = :o"""), {"o": order_id})
+    o = (await session.execute(text("""
+        SELECT id, number, customer_id, discount_kind, discount_value, bonus_spent,
+               coalesce(delivery_price, 0) AS delivery,
+               (SELECT coalesce(sum(price * qty), 0) FROM order_items WHERE order_id = orders.id) AS goods
+          FROM orders WHERE id = :o"""), {"o": order_id})).first()
+    goods = Decimal(o.goods)
+    discount = loyalty.discount_of(goods, o.discount_kind, o.discount_value)
+    bonus = o.bonus_spent
+    cap = loyalty.bonus_cap(goods - discount)
+    if bonus > cap and o.customer_id:
+        await loyalty.move(session, o.customer_id, bonus - cap, "refund",
+                           f"Состав заказа № {o.number} изменился — часть баллов вернулась", o.id)
+        bonus = cap
     await session.execute(text("""
-        UPDATE orders o
-           SET total = (SELECT coalesce(sum(price * qty), 0) FROM order_items WHERE order_id = o.id)
-                       + coalesce(o.delivery_price, 0),
-               updated_at = now()
-         WHERE o.id = :o"""), {"o": order_id})
+        UPDATE orders SET discount_amount = :d, bonus_spent = :b, total = :t, updated_at = now()
+         WHERE id = :o"""),
+        {"d": discount, "b": bonus, "t": goods - discount - bonus + Decimal(o.delivery), "o": order_id})
 
 
 async def set_order_status(session: AsyncSession, order_id: int, status: str) -> None:
@@ -568,6 +586,8 @@ async def set_order_status(session: AsyncSession, order_id: int, status: str) ->
         """),
             {"ids": parts},
         )
+    # Баллы: выдан — начислить, отменён — вернуть списанные
+    await loyalty.on_status(session, order_id, status)
 
 
 async def return_stock(session: AsyncSession, part_id: int, qty: int) -> None:

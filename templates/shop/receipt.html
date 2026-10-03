@@ -45,6 +45,10 @@
 
     <dl class="rc-total">
       <dt>Итого</dt><dd>{{ rub(total) }}</dd>
+      {% if discount | float or bonus %}
+      <dt>Учтено в ценах</dt><dd>{% if discount | float %}скидка {{ rub(discount) }}{% endif %}
+        {%- if discount | float and bonus %}, {% endif %}{% if bonus %}баллами {{ rub(bonus) }}{% endif %}</dd>
+      {% endif %}
       <dt>В том числе НДС</dt><dd>{{ vat }}</dd>
       <dt>Способ оплаты</dt><dd>{{ how }}</dd>
       {% if payment_id %}<dt>Номер платежа</dt><dd class="mono">{{ payment_id }}</dd>{% endif %}

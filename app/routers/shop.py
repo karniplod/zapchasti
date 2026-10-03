@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .. import address as addr
 from .. import customer_auth as ca
 from .. import delivery as ship_services
-from .. import mailer, order_log, payments
+from .. import loyalty, mailer, order_log, payments
 from ..validation import address as addr_rules
 from ..validation import people, require
 from ..config import settings
@@ -515,6 +515,10 @@ class OrderIn(BaseModel):
     contact_name: str = Field(min_length=1, max_length=80)
     # «Нет отчества» в форме: тогда в ФИО достаточно фамилии и имени
     no_patronymic: bool = False
+    # Скидка и баллы: промокод и сколько баллов списать — сервер проверит
+    # и пересчитает сам (app/loyalty.py)
+    promo_code: str | None = Field(default=None, max_length=40)
+    bonus: int = Field(default=0, ge=0, le=10_000_000)
     contact_phone: str = Field(min_length=10, max_length=40)
     delivery_method: str = Field(default="pickup", max_length=32)
     pickup_branch_id: int | None = None
@@ -614,7 +618,19 @@ async def create_order(
         raise HTTPException(409, f"Столько нет на складе: {', '.join(short)}. "
                                  "Уменьшите количество в корзине.")
 
-    total = sum(i["price"] * i["qty"] for i in items) + (ship["price"] if ship else 0)
+    goods = sum((i["price"] * i["qty"] for i in items), Decimal(0))
+    # Скидка: из персональной и промокода — бо́льшая; баллы — до 30% товаров
+    # после скидки и не больше, чем на счету
+    disc = await loyalty.best_discount(session, customer, goods, payload.promo_code)
+    if disc["promo_error"]:
+        raise HTTPException(422, "Промокод: " + disc["promo_error"][0].lower() + disc["promo_error"][1:])
+    bonus = payload.bonus
+    if bonus:
+        can = min(loyalty.bonus_cap(goods - disc["amount"]),
+                  await loyalty.balance(session, customer["id"]))
+        if bonus > can:
+            raise HTTPException(422, f"Баллами можно оплатить не больше {can}")
+    total = goods - disc["amount"] - bonus + (ship["price"] if ship else 0)
     number = f"{date.today().year}-{await next_order_number(session):06d}"
 
     order_id = (
@@ -627,11 +643,14 @@ async def create_order(
                             delivery_tariff, delivery_price, delivery_days,
                             delivery_city, delivery_point, delivery_point_address,
                             delivery_postcode, delivery_cdek_code, delivery_country,
-                            delivery_street, delivery_house, delivery_block, delivery_flat)
+                            delivery_street, delivery_house, delivery_block, delivery_flat,
+                            discount_source, discount_kind, discount_value, discount_amount,
+                            promo_code_id, bonus_spent)
         VALUES (:n, :c, 'new', 'site', :total, :dm, :da, :cm,
                 :cn, :cp, :br, :pm, :pw, :dc, :dmode, :dt, :dp, :dd,
                 :dcity, :dpt, :dpta, :dpost, :dcode, :dcountry,
-                :dstreet, :dhouse, :dblock, :dflat)
+                :dstreet, :dhouse, :dblock, :dflat,
+                :dsrc, :dkind, :dval, :damt, :promo, :bonus)
         RETURNING id
     """),
             {
@@ -646,6 +665,8 @@ async def create_order(
                 "br": branch,
                 "pm": payload.payment_method,
                 "pw": payload.pay_with if payload.payment_method == "online" else None,
+                "dsrc": disc["source"], "dkind": disc["kind"], "dval": disc["value"],
+                "damt": disc["amount"], "promo": disc["promo_id"], "bonus": bonus,
                 "dc": ship and ship["carrier"], "dmode": ship and ship["mode"],
                 "dt": ship and ship["tariff"], "dp": ship and ship["price"],
                 "dd": ship and ship["days"], "dcity": ship and ship["city"],
@@ -699,8 +720,15 @@ async def create_order(
             raise HTTPException(409, f"{i['sku']}: столько штук уже нет — "
                                      "обновите корзину.")
 
-    await order_log.log(session, order_id, "created", "Заказ оформлен на сайте",
+    await order_log.log(session, order_id, "created", "Заказ оформлен на сайте"
+                        + (f"; скидка {disc['amount']} ₽" + (" по промокоду" if disc["source"] == "promo"
+                                                             else " персональная")
+                           if disc["amount"] else "")
+                        + (f"; баллами {bonus}" if bonus else ""),
                         data={"total": total})
+    if bonus:
+        await loyalty.move(session, customer["id"], -bonus, "spend", f"Оплата заказа № {number}",
+                           order_id)
 
     # Из корзины — только у этого покупателя: остаток мог остаться, и
     # у других та же деталь лежит законно
@@ -844,11 +872,13 @@ async def receipt_of(session: AsyncSession, order_id: int) -> dict:
     contact = (await session.execute(text("""
         SELECT coalesce(o.contact_email, c.email) AS email,
                coalesce(o.contact_phone, c.phone) AS phone,
-               o.delivery_price, o.delivery_carrier
+               o.delivery_price, o.delivery_carrier, o.discount_amount, o.bonus_spent
           FROM orders o LEFT JOIN customers c ON c.id = o.customer_id
          WHERE o.id = :o"""), {"o": order_id})).first()
     if not contact:
         return out
+    # Скидка и баллы — внутри цен товаров: так требует кассовый чек
+    items[:] = loyalty.spread(items, Decimal(contact.discount_amount or 0) + contact.bonus_spent)
     out.update(email=contact.email, phone=contact.phone)
     # Доставка входит в сумму заказа — значит, и в чек: иначе сумма
     # позиций не сойдётся с платежом, и ЮKassa его отклонит. Строка
@@ -907,6 +937,9 @@ async def orders_of(session: AsyncSession, customer_id: int, number: str | None 
         SELECT o.id, o.number, o.status::text AS status, o.total, o.created_at,
                o.paid_at, o.delivery_method, o.delivery_address, o.comment,
                o.contact_name, o.contact_phone, o.payment_method, o.pay_with,
+               o.discount_amount, o.discount_source, o.discount_kind, o.discount_value,
+               o.bonus_spent, o.bonus_accrued,
+               (SELECT pc.code FROM promo_codes pc WHERE pc.id = o.promo_code_id) AS promo_code,
                o.delivery_carrier, o.delivery_mode, o.delivery_price, o.delivery_days,
                o.delivery_city, o.delivery_point_address, o.delivery_postcode,
                o.delivery_point, o.delivery_cdek_code, o.delivery_country, o.delivery_street,

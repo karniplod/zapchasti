@@ -136,8 +136,47 @@ function contact(o){
         ${email ? `<span class="mail"><a href="mailto:${esc(email)}">${esc(email)}</a>${copyBtn(email, 'Скопировать email')}</span>` : ''}
       </div>
       ${c ? `<p class="acct">Аккаунт на сайте: ${esc([phoneFmt(c.phone), c.email].filter(Boolean).join(', ') || c.name || '—')}
-          · с ${date(c.created_at)} · заказов ${c.orders}${+c.spent ? ', оплачено на ' + money(c.spent) : ''}</p>` : ''}
+          · с ${date(c.created_at)} · заказов ${c.orders}${+c.spent ? ', оплачено на ' + money(c.spent) : ''}</p>
+        <p class="acct loyal">Баллов: <b>${c.bonus}</b> · персональная скидка: <b>${+c.personal_discount ? Math.round(+c.personal_discount * 10) / 10 + '%' : 'нет'}</b>
+          ${D.can_edit ? '<button type="button" class="lnk" id="loyalOpen">Баллы и скидка</button>' : ''}</p>
+        <div class="loyal-box" id="loyalBox" hidden></div>` : ''}
     </section>`;
+}
+
+// Баллы и персональная скидка покупателя — app/routers/promo_admin.py
+async function openLoyalty(){
+  const c = D.customer;
+  const r = await fetch(`/api/manage/customers/${c.id}/loyalty`);
+  if (!r.ok){ toast('Не получилось загрузить', 'err'); return; }
+  const L = await r.json();
+  const kinds = {accrual: 'начислено за заказ', spend: 'оплата заказа', refund: 'возврат', revoke: 'снято', manual: 'вручную'};
+  $('loyalBox').innerHTML = `<div class="f3">
+      <div><label for="lDisc">Персональная скидка, %</label>
+        <input id="lDisc" type="number" min="0" max="50" step="0.5" value="${+L.personal_discount}"></div>
+      <div><label for="lAdd">Начислить (−списать) баллов</label>
+        <input id="lAdd" type="number" step="1" placeholder="например 500"></div>
+      <div><label for="lWhy">За что</label><input id="lWhy" maxlength="300" placeholder="Компенсация за задержку"></div>
+    </div>
+    <div class="actions-row"><button type="button" class="btn btn-accent" id="lSave">Сохранить</button>
+      <button type="button" class="btn" id="lClose">Закрыть</button></div>
+    ${L.history.length ? `<ul class="loyal-hist">${L.history.map(h => `<li>
+        <span class="${h.amount > 0 ? 'plus' : 'minus'}">${h.amount > 0 ? '+' : ''}${h.amount}</span>
+        <span>${esc(h.comment || kinds[h.kind] || h.kind)}</span>
+        <small>${dt(h.created_at)}${h.who ? ' · ' + esc(h.who) : ''}</small></li>`).join('')}</ul>` : '<p class="muted">Движений баллов не было</p>'}`;
+  $('loyalBox').hidden = false;
+  const rules = [
+    [$('lDisc'), v => Check.number(v, {min: 0, max: 50, what: 'Скидка'})],
+    [$('lAdd'), v => !v || Number.isInteger(+v) ? '' : 'Целое число'],
+    [$('lWhy'), v => $('lAdd').value && +$('lAdd').value !== 0 && v.trim().length < 3 ? 'Напишите, за что' : ''],
+  ];
+  live(rules);
+  $('lClose').onclick = () => { $('loyalBox').hidden = true; };
+  $('lSave').onclick = async () => {
+    if (!validate(rules)) return;
+    const body = {personal_discount: +$('lDisc').value || 0};
+    if (+$('lAdd').value) Object.assign(body, {bonus_add: +$('lAdd').value, comment: $('lWhy').value.trim()});
+    if (await api('PATCH', `/api/manage/customers/${c.id}/loyalty`, body)){ toast('Сохранено', 'ok'); load(); }
+  };
 }
 
 function setupContact(){
@@ -418,8 +457,13 @@ function goods(o){
           <button type="button" class="btn" id="addItem">Добавить</button></div>` : ''}
       <dl class="totals">
         <dt>Товары</dt><dd>${money(D.goods)}</dd>
+        ${+o.discount_amount ? `<dt>Скидка ${o.discount_source === 'promo' ? 'по промокоду ' + esc(o.promo_code || '')
+            : 'персональная'}${o.discount_kind === 'percent' ? ', ' + Math.round(+o.discount_value) + '%' : ''}</dt>
+          <dd class="minus">−${money(o.discount_amount)}</dd>` : ''}
+        ${o.bonus_spent ? `<dt>Баллами</dt><dd class="minus">−${money(o.bonus_spent)}</dd>` : ''}
         <dt>Доставка${n > 1 ? `, ${n} посылки` : ''}</dt><dd>${money(o.delivery_price)}</dd>
         <dt class="t">Итого</dt><dd class="t">${money(o.total)}</dd>
+        ${o.bonus_accrued ? `<dt>Начислено баллов</dt><dd>+${o.bonus_accrued}</dd>` : ''}
       </dl>
     </section>`;
 }
@@ -549,6 +593,7 @@ $('card').addEventListener('click', async e => {
     return;
   }
   if (t.id === 'recalcBtn'){ runRecalc(false); return; }
+  if (t.id === 'loyalOpen'){ openLoyalty(); return; }
   if (t.id === 'recalcApply'){ runRecalc(true); return; }
   if (t.id === 'recalcHide'){ recalc = null; render(); return; }
   if (t.classList.contains('del')){

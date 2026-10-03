@@ -101,6 +101,8 @@ button{font-family:inherit}
   white-space:nowrap}
 .btn:hover{border-color:var(--dim)}
 .btn:disabled{opacity:.5;cursor:not-allowed}
+/* display у .btn иначе перебивает атрибут hidden */
+.btn[hidden]{display:none}
 .btn-accent{background:var(--amber);border-color:var(--amber);color:#1a1408;
   font-weight:600}
 .btn-accent:hover{filter:brightness(1.06);border-color:var(--amber)}

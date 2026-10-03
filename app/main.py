@@ -27,6 +27,7 @@ from .validation.errors import translate
 from .routers import (
     account_orders,
     admin,
+    cabinet,
     cars,
     catalog,
     delivery,
@@ -36,6 +37,7 @@ from .routers import (
     oauth,
     orders_admin,
     pages,
+    promo_admin,
     reference,
     shelves,
     shop,
@@ -87,6 +89,7 @@ app.include_router(cars.router)
 app.include_router(pages.router)
 app.include_router(shop.router)
 app.include_router(account_orders.router)
+app.include_router(cabinet.router)
 app.include_router(oauth.router)
 app.include_router(delivery.router)
 app.include_router(intake.router)
@@ -95,6 +98,7 @@ app.include_router(reference.router)
 app.include_router(admin.router)
 app.include_router(manage.router)
 app.include_router(orders_admin.router)
+app.include_router(promo_admin.router)
 app.include_router(stock.router)
 app.include_router(staff_app.router)
 app.include_router(shelves.router)

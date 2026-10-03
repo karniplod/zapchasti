@@ -82,6 +82,8 @@ if (form && $('cname')){
   const postcode = () => $('dPost').value.length === 6 ? $('dPost').value : null;
 
   // Сводка справа повторяет выбор — его видно рядом с итогом и кнопкой
+  // Скидка и баллы: discount — сколько рублей, bonus — сколько списываем
+  const L = {discount: 0, bonus: 0, source: null, code: null, max: 0, balance: 0};
   const sync = () => {
     const ship = val('dm') === 'shipping';
     const o = ship && hasCarriers ? opt() : null;
@@ -103,7 +105,14 @@ if (form && $('cname')){
     $('shipLine').textContent = !ship ? 'бесплатно'
       : o ? (o.from && !D.point ? 'от ' : '') + rub(o.price) : hasCarriers ? '—' : 'по тарифу ТК';
     const goods = +$('grandTotal').dataset.goods;
-    $('grandTotal').textContent = rub(goods + (o ? +o.price : 0));
+    // Скидка и баллы — товары дешевле, доставка та же
+    const off = L.discount + L.bonus;
+    $('discL').hidden = $('discLine').hidden = !L.discount;
+    $('discLine').textContent = '−' + rub(L.discount);
+    $('discL').textContent = L.source === 'promo' ? 'Скидка по промокоду' : 'Персональная скидка';
+    $('bonusL').hidden = $('bonusLine').hidden = !L.bonus;
+    $('bonusLine').textContent = '−' + rub(L.bonus);
+    $('grandTotal').textContent = rub(goods - off + (o ? +o.price : 0));
     $('sumPay').textContent = picked('pm') ? picked('pm').dataset.label : '';
     $('place').textContent = val('pm') && val('pm') !== 'on_receipt'
       ? 'Оформить и оплатить' : 'Оформить заказ';
@@ -430,6 +439,57 @@ if (form && $('cname')){
   }
   sync();
 
+  // ── Скидка и баллы ──────────────────────────────────────────
+  // Сервер считает скидку по корзине (/api/cart/promo): с промокодом
+  // или без — персональная скидка есть и без него. Баллы — до 30%
+  // товаров после скидки и не больше, чем на счету
+  async function loyalty(code){
+    try {
+      const r = await fetch('/api/cart/promo', {method: 'POST',
+        headers: {'Content-Type': 'application/json'}, body: JSON.stringify({code: code || ''})});
+      const d = await r.json();
+      if (code && d.error){ fieldError($('promoCode'), d.error); }
+      else fieldError($('promoCode'), '');
+      L.discount = +d.discount; L.source = d.source; L.code = d.code;
+      L.balance = d.bonus_balance; L.max = d.bonus_max;
+      $('promoOk').hidden = !(d.source || d.note);
+      $('promoOk').textContent = d.note ? d.note
+        : d.source === 'promo' ? `Промокод ${d.code}: скидка ${d.kind === 'percent' ? Math.round(+d.value) + '%' : rub(d.value)}`
+        : d.source === 'personal' ? `Ваша персональная скидка ${Math.round(+d.value * 10) / 10}%` : '';
+      $('bonusRow').hidden = !L.balance;
+      $('bonusHint').textContent = L.balance
+        ? `На счету ${L.balance}, можно списать до ${L.max} — это до 30% товаров` : '';
+      $('bonusAmt').max = L.max;
+      if (L.bonus > L.max){ L.bonus = L.max; $('bonusAmt').value = L.max || ''; }
+      sync();
+    } catch {}
+  }
+  $('promoGo').onclick = () => {
+    const code = $('promoCode').value.trim();
+    if (!code){ fieldError($('promoCode'), 'Введите промокод'); return; }
+    loyalty(code);
+  };
+  $('promoCode').addEventListener('keydown', e => {
+    if (e.key === 'Enter'){ e.preventDefault(); $('promoGo').click(); }
+  });
+  $('promoCode').addEventListener('input', () => {
+    $('promoCode').value = $('promoCode').value.toUpperCase().replace(/\s/g, '');
+    // Промокод стёрли — скидка снова без него
+    if (!$('promoCode').value && L.code) loyalty('');
+  });
+  $('bonusOn').onchange = () => {
+    $('bonusAmt').disabled = !$('bonusOn').checked;
+    L.bonus = $('bonusOn').checked ? L.max : 0;
+    $('bonusAmt').value = L.bonus || '';
+    sync();
+  };
+  $('bonusAmt').addEventListener('input', () => {
+    const n = Math.max(0, Math.min(L.max, Math.floor(+$('bonusAmt').value || 0)));
+    L.bonus = n; sync();
+  });
+  $('bonusAmt').addEventListener('change', () => { $('bonusAmt').value = L.bonus || ''; });
+  loyalty('');
+
   phoneMask($('cphone'));
   if ($('cphone').value) $('cphone').dispatchEvent(new Event('input'));
 
@@ -500,6 +560,8 @@ if (form && $('cname')){
           delivery_block: addr ? $('aBlock').value.trim() || null : null,
           delivery_flat: addr ? $('aFlat').value.trim() || null : null,
           delivery_postcode: ship ? postcode() : null,
+          promo_code: L.code,
+          bonus: L.bonus,
           payment_method: pm === 'on_receipt' ? 'on_receipt' : 'online',
           pay_with: pm === 'on_receipt' ? null : pm,
           comment: $('cmt').value.trim() || null,

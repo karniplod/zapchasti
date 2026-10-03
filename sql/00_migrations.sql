@@ -712,3 +712,74 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS pay_with text;
 UPDATE orders o SET pay_with = (SELECT p.method FROM payments p WHERE p.order_id = o.id
                                  ORDER BY p.id DESC LIMIT 1)
  WHERE o.pay_with IS NULL AND o.payment_method = 'online';
+
+
+-- ------------------------------------------------------------
+-- Личный кабинет: бонусы, промокоды, скидки, адреса, уведомления
+-- ------------------------------------------------------------
+-- Правила лояльности — в app/loyalty.py. Баланс баллов — сумма строк
+-- bonus_ledger: каждое начисление и списание видно в истории.
+
+-- Персональная скидка — ставит менеджер; уведомления — выбирает покупатель.
+-- «Баллы и промокоды» — реклама: без согласия не включаем
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS personal_discount numeric(5,2) NOT NULL DEFAULT 0;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS notify_orders boolean NOT NULL DEFAULT true;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS notify_promo boolean NOT NULL DEFAULT false;
+
+CREATE TABLE IF NOT EXISTS promo_codes (
+    id            bigserial PRIMARY KEY,
+    code          text NOT NULL UNIQUE,          -- заглавными: VESNA10
+    kind          text NOT NULL,                 -- percent / amount
+    value         numeric(12,2) NOT NULL,        -- 10 (%) или 500 (₽)
+    min_total     numeric(12,2) NOT NULL DEFAULT 0,
+    starts_at     date,
+    ends_at       date,
+    max_uses      int,                           -- всего заказов; NULL — без ограничения
+    once_per_customer boolean NOT NULL DEFAULT true,
+    active        boolean NOT NULL DEFAULT true,
+    comment       text,
+    created_by    int REFERENCES users(id) ON DELETE SET NULL,
+    created_at    timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS bonus_ledger (
+    id           bigserial PRIMARY KEY,
+    customer_id  bigint NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    order_id     bigint REFERENCES orders(id) ON DELETE SET NULL,
+    amount       int NOT NULL,                   -- + начислено, − списано
+    -- accrual — за выданный заказ, spend — оплата заказа, refund — возврат
+    -- списанных при отмене, revoke — снятие начисленных, manual — менеджер
+    kind         text NOT NULL,
+    comment      text,
+    user_id      int REFERENCES users(id) ON DELETE SET NULL,
+    created_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS bonus_ledger_customer_idx ON bonus_ledger (customer_id, created_at);
+
+-- Скидка заказа: откуда (personal / promo), какая (percent / amount) и
+-- сколько это в рублях. Процент пересчитывается, если состав меняется
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_source text;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_kind   text;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_value  numeric(12,2);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_amount numeric(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS promo_code_id   bigint REFERENCES promo_codes(id) ON DELETE SET NULL;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS bonus_spent     int NOT NULL DEFAULT 0;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS bonus_accrued   int NOT NULL DEFAULT 0;
+
+-- Сохранённые адреса доставки — подставляются при оформлении
+CREATE TABLE IF NOT EXISTS customer_addresses (
+    id           bigserial PRIMARY KEY,
+    customer_id  bigint NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    title        text,                           -- Дом, Работа
+    country      text NOT NULL DEFAULT 'RU',
+    city         text NOT NULL,
+    cdek_code    int,
+    postcode     text,
+    street       text NOT NULL,
+    house        text NOT NULL,
+    block        text,
+    flat         text,
+    is_default   boolean NOT NULL DEFAULT false,
+    created_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS customer_addresses_customer_idx ON customer_addresses (customer_id);

@@ -289,8 +289,29 @@
           <dt>Оплата:</dt><dd id="sumPay">{{ methods[0].title if methods else 'При получении' }}</dd>
         </dl>
         {% endif %}
+        {% if customer %}
+        {# Скидка и баллы (app/loyalty.py): промокод проверяет сервер,
+           баллами — до 30% товаров после скидки #}
+        <div class="co-loyal" id="loyalBox">
+          <div class="promo-row">
+            <input class="field" id="promoCode" maxlength="30" autocomplete="off"
+                   placeholder="Промокод" aria-label="Промокод">
+            <button type="button" class="btn btn-ghost btn-sm" id="promoGo">Применить</button>
+          </div>
+          <p class="fld-err" id="promoCodeErr" hidden></p>
+          <p class="promo-ok" id="promoOk" hidden></p>
+          <div class="bonus-row" id="bonusRow" hidden>
+            <label class="no-pat"><input type="checkbox" id="bonusOn"> Списать баллы</label>
+            <input class="field" id="bonusAmt" type="number" min="0" step="1" inputmode="numeric"
+                   aria-label="Сколько баллов списать" disabled>
+            <small id="bonusHint"></small>
+          </div>
+        </div>
+        {% endif %}
         <dl class="sum-lines">
           <dt>Товары, {{ units }} шт</dt><dd>{{ rub(total) }}</dd>
+          <dt id="discL" hidden>Скидка</dt><dd id="discLine" class="minus" hidden></dd>
+          <dt id="bonusL" hidden>Баллами</dt><dd id="bonusLine" class="minus" hidden></dd>
           <dt>Доставка</dt><dd id="shipLine">бесплатно</dd>
         </dl>
         <div class="sum">

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ru"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Промокоды</title>
+<link rel="stylesheet" href="/static/admin.css?v={{ admin_css_version() }}">
+<link rel="stylesheet" href="{{ asset('css/admin/promo.css') }}"></head><body>
+
+{% include "admin/_nav.html" %}
+
+{#
+  Промокоды (app/routers/promo_admin.py). Скидки не суммируются: из
+  промокода и персональной скидки покупателя работает бо́льшая
+  (app/loyalty.py). Персональная скидка и баллы — в карточке заказа.
+#}
+<div class="wrap wrap-wide">
+  <section class="panel" id="formBox">
+    <h2 id="formTitle">Новый промокод</h2>
+    <form id="promoForm" novalidate>
+      <div class="pf-grid">
+        <div class="pf-code"><label for="pCode">Код</label>
+          <div class="row"><input id="pCode" maxlength="30" autocomplete="off" placeholder="VESNA10">
+            <button type="button" class="btn" id="pGen" title="Придумать код">Придумать</button></div></div>
+        <div><label for="pKind">Скидка</label>
+          <select id="pKind"><option value="percent">в процентах</option><option value="amount">в рублях</option></select></div>
+        <div><label for="pValue">Размер</label><input id="pValue" type="number" min="1" step="1" placeholder="10"></div>
+        <div><label for="pMin">Заказ от, ₽</label><input id="pMin" type="number" min="0" step="1" placeholder="0"></div>
+        <div><label for="pStart">Действует с</label><input id="pStart" type="date"></div>
+        <div><label for="pEnd">по</label><input id="pEnd" type="date"></div>
+        <div><label for="pMax">Всего заказов</label><input id="pMax" type="number" min="1" step="1" placeholder="без ограничения"></div>
+        <div class="pf-wide"><label for="pComment">Для кого и зачем</label>
+          <input id="pComment" maxlength="500" placeholder="Например: рассылка постоянным покупателям"></div>
+      </div>
+      <div class="pf-flags">
+        <label class="chk"><input type="checkbox" id="pOnce" checked> Один раз на покупателя</label>
+        <label class="chk"><input type="checkbox" id="pActive" checked> Включён</label>
+      </div>
+      <div class="actions-row">
+        <button type="submit" class="btn btn-accent" id="pSave">Создать промокод</button>
+        <button type="button" class="btn" id="pCancel" hidden>Отмена</button>
+      </div>
+    </form>
+  </section>
+
+  <div id="list"><p class="blank">Загружаю…</p></div>
+</div>
+
+<div class="toast" id="toast"></div>
+{% include "_validation.html" %}
+<script src="{{ asset('js/admin/promo.js') }}"></script>
+</body></html>
