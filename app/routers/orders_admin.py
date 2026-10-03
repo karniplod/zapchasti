@@ -310,6 +310,78 @@ ADDRESS_FIELDS = ("delivery_city", "delivery_cdek_code", "delivery_postcode", "d
                   "delivery_point")
 
 
+async def shipping_address(session: AsyncSession, o, payload, sent: set) -> tuple[dict, list, bool]:
+    """Новый адрес доставки из правки — менеджера или покупателя: проверка
+    полей, пункт выдачи из списка службы, адрес одной строкой. Ещё не
+    отправленные посылки едут по новому адресу.
+    → (поля заказа для записи, «было → стало» для ленты, нужен ли пересчёт)."""
+    upd: dict = {}
+    changes: list[str] = []
+    city = " ".join((payload.delivery_city if "delivery_city" in sent
+                     else o.delivery_city or "").split())
+    if len(city) < 2:
+        raise HTTPException(422, "Укажите город доставки")
+    post = payload.delivery_postcode if "delivery_postcode" in sent else o.delivery_postcode
+    post = (post or "").strip() or None
+    if post and not re.fullmatch(r"\d{6}", post):
+        raise HTTPException(422, "Индекс — шесть цифр")
+    if o.delivery_mode == "post" and not post:
+        raise HTTPException(422, "Для Почты России нужен индекс")
+    code = payload.delivery_cdek_code if "delivery_cdek_code" in sent else o.delivery_cdek_code
+    if city != (o.delivery_city or "") and "delivery_cdek_code" not in sent:
+        code = None              # город другой — прежний код СДЭК к нему не относится
+    upd.update(delivery_method="shipping", delivery_city=city, delivery_postcode=post,
+               delivery_cdek_code=code, pickup_branch_id=None)
+    if o.delivery_mode == "pvz":
+        point = payload.delivery_point if "delivery_point" in sent else o.delivery_point
+        if not point:
+            raise HTTPException(422, "Выберите пункт выдачи")
+        if point != o.delivery_point or city != (o.delivery_city or ""):
+            code = await cdek_code_of(city, code)
+            upd["delivery_cdek_code"] = code
+            pts = await ship_services.points(o.delivery_carrier, {"city": city, "cdek_code": code})
+            hit = next((p for p in pts if p["code"] == point), None)
+            if not hit:
+                raise HTTPException(422, "Пункт выдачи не найден — выберите из списка")
+            full = f"{hit['address']} (пункт {hit['code']})"
+            upd.update(delivery_point=point, delivery_point_address=full, delivery_address=full)
+    else:
+        vals = {f: (getattr(payload, f) if f in sent else getattr(o, f))
+                for f in ("delivery_country", "delivery_street", "delivery_house",
+                          "delivery_block", "delivery_flat")}
+        if vals["delivery_street"] or vals["delivery_house"]:
+            full, err = addr.compose(vals["delivery_country"] or "RU", post, city,
+                                     vals["delivery_street"] or "", vals["delivery_house"] or "",
+                                     vals["delivery_block"], vals["delivery_flat"])
+            if err:
+                raise HTTPException(422, err)
+            upd.update({f: (v or "").strip() or None for f, v in vals.items()},
+                       delivery_country=vals["delivery_country"] or "RU", delivery_address=full)
+        elif o.delivery_method != "shipping" or not o.delivery_address:
+            raise HTTPException(422, "Укажите улицу и дом")
+    if o.delivery_method == "pickup":
+        changes.append("Получение: самовывоз → доставка")
+    new_addr = upd.get("delivery_address", o.delivery_address)
+    if (new_addr or None) != (o.delivery_address or None):
+        changes.append(f"Адрес: {o.delivery_address or '—'} → {new_addr}")
+    elif city != (o.delivery_city or ""):
+        changes.append(f"Город: {o.delivery_city or '—'} → {city}")
+    if post != o.delivery_postcode and "Адрес:" not in " ".join(changes):
+        changes.append(f"Индекс: {o.delivery_postcode or '—'} → {post or '—'}")
+    # Куда везти поменялось — у службы другая цена. Пересчёт — отдельной
+    # кнопкой: менеджер видит новую цену до того, как она войдёт в сумму
+    need_recalc = bool(o.delivery_carrier) and (
+        city != (o.delivery_city or "") or post != o.delivery_postcode
+        or upd.get("delivery_point", o.delivery_point) != o.delivery_point)
+    # Ещё не отправленные посылки едут по новому адресу
+    await session.execute(text("""
+        UPDATE order_shipments SET address = :a, point = :p
+         WHERE order_id = :o AND status = 'assembling'"""),
+        {"a": upd.get("delivery_address", o.delivery_address),
+         "p": upd.get("delivery_point", o.delivery_point), "o": o.id})
+    return upd, changes, need_recalc
+
+
 @router.patch("/api/manage/orders/{order_id}")
 async def patch_order(
     order_id: int,
@@ -388,68 +460,9 @@ async def patch_order(
         upd["pickup_branch_id"] = branch.id
 
     if method == "shipping" and (sent & {"delivery_method", *ADDRESS_FIELDS}):
-        city = " ".join((payload.delivery_city if "delivery_city" in sent
-                         else o.delivery_city or "").split())
-        if len(city) < 2:
-            raise HTTPException(422, "Укажите город доставки")
-        post = payload.delivery_postcode if "delivery_postcode" in sent else o.delivery_postcode
-        post = (post or "").strip() or None
-        if post and not re.fullmatch(r"\d{6}", post):
-            raise HTTPException(422, "Индекс — шесть цифр")
-        if o.delivery_mode == "post" and not post:
-            raise HTTPException(422, "Для Почты России нужен индекс")
-        code = payload.delivery_cdek_code if "delivery_cdek_code" in sent else o.delivery_cdek_code
-        if city != (o.delivery_city or "") and "delivery_cdek_code" not in sent:
-            code = None              # город другой — прежний код СДЭК к нему не относится
-        upd.update(delivery_method="shipping", delivery_city=city, delivery_postcode=post,
-                   delivery_cdek_code=code, pickup_branch_id=None)
-        if o.delivery_mode == "pvz":
-            point = payload.delivery_point if "delivery_point" in sent else o.delivery_point
-            if not point:
-                raise HTTPException(422, "Выберите пункт выдачи")
-            if point != o.delivery_point or city != (o.delivery_city or ""):
-                code = await cdek_code_of(city, code)
-                upd["delivery_cdek_code"] = code
-                pts = await ship_services.points(o.delivery_carrier, {"city": city, "cdek_code": code})
-                hit = next((p for p in pts if p["code"] == point), None)
-                if not hit:
-                    raise HTTPException(422, "Пункт выдачи не найден — выберите из списка")
-                full = f"{hit['address']} (пункт {hit['code']})"
-                upd.update(delivery_point=point, delivery_point_address=full, delivery_address=full)
-        else:
-            vals = {f: (getattr(payload, f) if f in sent else getattr(o, f))
-                    for f in ("delivery_country", "delivery_street", "delivery_house",
-                              "delivery_block", "delivery_flat")}
-            if vals["delivery_street"] or vals["delivery_house"]:
-                full, err = addr.compose(vals["delivery_country"] or "RU", post, city,
-                                         vals["delivery_street"] or "", vals["delivery_house"] or "",
-                                         vals["delivery_block"], vals["delivery_flat"])
-                if err:
-                    raise HTTPException(422, err)
-                upd.update({f: (v or "").strip() or None for f, v in vals.items()},
-                           delivery_country=vals["delivery_country"] or "RU", delivery_address=full)
-            elif o.delivery_method != "shipping" or not o.delivery_address:
-                raise HTTPException(422, "Укажите улицу и дом")
-        if o.delivery_method == "pickup":
-            changes.append("Получение: самовывоз → доставка")
-        new_addr = upd.get("delivery_address", o.delivery_address)
-        if (new_addr or None) != (o.delivery_address or None):
-            changes.append(f"Адрес: {o.delivery_address or '—'} → {new_addr}")
-        elif city != (o.delivery_city or ""):
-            changes.append(f"Город: {o.delivery_city or '—'} → {city}")
-        if post != o.delivery_postcode and "Адрес:" not in " ".join(changes):
-            changes.append(f"Индекс: {o.delivery_postcode or '—'} → {post or '—'}")
-        # Куда везти поменялось — у службы другая цена. Пересчёт — отдельной
-        # кнопкой: менеджер видит новую цену до того, как она войдёт в сумму
-        need_recalc = bool(o.delivery_carrier) and (
-            city != (o.delivery_city or "") or post != o.delivery_postcode
-            or upd.get("delivery_point", o.delivery_point) != o.delivery_point)
-        # Ещё не отправленные посылки едут по новому адресу
-        await session.execute(text("""
-            UPDATE order_shipments SET address = :a, point = :p
-             WHERE order_id = :o AND status = 'assembling'"""),
-            {"a": upd.get("delivery_address", o.delivery_address),
-             "p": upd.get("delivery_point", o.delivery_point), "o": order_id})
+        a_upd, a_changes, need_recalc = await shipping_address(session, o, payload, sent)
+        upd.update(a_upd)
+        changes += a_changes
 
     if "delivery_price" in sent:
         if ships:
@@ -710,30 +723,23 @@ class Recalc(BaseModel):
     apply: bool = False
 
 
-@router.post("/api/manage/orders/{order_id}/recalc")
-async def recalc_delivery(order_id: int, payload: Recalc,
-                          session: AsyncSession = Depends(get_session),
-                          user=Depends(require_role("manager"))):
-    """Цена доставки заново — той же службой и тем же способом, но по
-    нынешнему составу и адресу. Без apply — только показать, с apply —
-    записать в посылки и сумму."""
-    o = await _order(session, order_id)
-    if not o.delivery_carrier:
-        raise HTTPException(422, "У заказа нет службы доставки — цену ставят вручную")
-    if payload.apply and (why := money_locked(o)):
-        raise HTTPException(409, why)
+async def quote_order(session: AsyncSession, o, why_suffix: str = "") -> tuple[dict, list, int | None]:
+    """Цена доставки заказа той же службой и тем же способом — по составу
+    и адресу, какие они сейчас в базе (в том числе ещё не записанные в
+    этой транзакции). → (вариант службы, посылки, код города СДЭК).
+    Служба не везёт — 409 с причиной."""
     ships = (await session.execute(text("""
         SELECT s.id, s.price, b.id AS bid, b.city, b.name, b.postcode, b.cdek_city_code,
                b.yandex_station_id
           FROM order_shipments s JOIN branches b ON b.id = s.branch_id
          WHERE s.order_id = :o AND s.status <> 'cancelled' ORDER BY s.id"""),
-        {"o": order_id})).all()
+        {"o": o.id})).all()
     if not ships:
         raise HTTPException(422, "У заказа нет посылок")
     items = (await session.execute(text("""
         SELECT oi.shipment_id, oi.part_id, oi.qty, oi.price, p.size_class, p.weight_kg
           FROM order_items oi JOIN parts p ON p.id = oi.part_id WHERE oi.order_id = :o"""),
-        {"o": order_id})).all()
+        {"o": o.id})).all()
     labels = ship_services.parcel_labels([{"city": s.city, "name": s.name} for s in ships])
     parcels = []
     for s, label in zip(ships, labels):
@@ -751,24 +757,46 @@ async def recalc_delivery(order_id: int, payload: Recalc,
                 if x["carrier"] == o.delivery_carrier and x["mode"] == o.delivery_mode), None)
     if not opt:
         raise HTTPException(409, (got["issues"].get(o.delivery_carrier) or
-                                  "Служба не посчитала доставку по этому адресу") +
-                            " — поменяйте адрес или поставьте цену у посылок вручную")
+                                  "Служба не посчитала доставку по этому адресу") + why_suffix)
+    return opt, ships, code
+
+
+async def apply_quote(session: AsyncSession, order_id: int, opt: dict, ships: list,
+                      code: int | None) -> None:
+    """Записать посчитанную доставку в посылки и заказ, пересчитать сумму."""
+    for s, x in zip(ships, opt["parcels"]):
+        await session.execute(text("""
+            UPDATE order_shipments SET price = :p, tariff = :t, days_min = :a, days_max = :b,
+                   weight_g = :w WHERE id = :id"""),
+            {"p": x["price"], "t": x["tariff"], "a": x["days_min"], "b": x["days_max"],
+             "w": x["weight_g"], "id": s.id})
+    await session.execute(text("""
+        UPDATE orders SET delivery_days = :d, delivery_tariff = :t, delivery_cdek_code = :c
+         WHERE id = :o"""), {"d": opt["days"], "t": opt["tariff"], "c": code, "o": order_id})
+    await sync_totals(session, order_id)
+
+
+@router.post("/api/manage/orders/{order_id}/recalc")
+async def recalc_delivery(order_id: int, payload: Recalc,
+                          session: AsyncSession = Depends(get_session),
+                          user=Depends(require_role("manager"))):
+    """Цена доставки заново — той же службой и тем же способом, но по
+    нынешнему составу и адресу. Без apply — только показать, с apply —
+    записать в посылки и сумму."""
+    o = await _order(session, order_id)
+    if not o.delivery_carrier:
+        raise HTTPException(422, "У заказа нет службы доставки — цену ставят вручную")
+    if payload.apply and (why := money_locked(o)):
+        raise HTTPException(409, why)
+    opt, ships, code = await quote_order(
+        session, o, " — поменяйте адрес или поставьте цену у посылок вручную")
     old = sum((s.price or 0 for s in ships), Decimal(0))
     out = {"old": str(old), "new": str(opt["price"]), "days": opt["days"],
            "parcels": [{"id": s.id, "from_city": x["from_city"], "old": str(s.price or 0),
                         "new": str(x["price"]), "days": x["days"]}
                        for s, x in zip(ships, opt["parcels"])]}
     if payload.apply:
-        for s, x in zip(ships, opt["parcels"]):
-            await session.execute(text("""
-                UPDATE order_shipments SET price = :p, tariff = :t, days_min = :a, days_max = :b,
-                       weight_g = :w WHERE id = :id"""),
-                {"p": x["price"], "t": x["tariff"], "a": x["days_min"], "b": x["days_max"],
-                 "w": x["weight_g"], "id": s.id})
-        await session.execute(text("""
-            UPDATE orders SET delivery_days = :d, delivery_tariff = :t, delivery_cdek_code = :c
-             WHERE id = :o"""), {"d": opt["days"], "t": opt["tariff"], "c": code, "o": order_id})
-        await sync_totals(session, order_id)
+        await apply_quote(session, order_id, opt, ships, code)
         if old != opt["price"]:
             await order_log.log(session, order_id, "delivery",
                                 f"Доставка пересчитана: {money(old)} → {money(opt['price'])}", user)

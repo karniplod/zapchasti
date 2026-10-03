@@ -391,3 +391,44 @@ button.tile{width:100%;padding:0;border:0;background:none;font:inherit;text-alig
 .auth.sent h2{margin:0;font-size:var(--t-lg)}
 .auth.sent p{margin:0}
 .auth .linkish{justify-self:start;font-size:var(--t-sm)}
+
+/* Правка заказа покупателем (кабинет, заказ «новый») */
+.edit-bar{display:flex;align-items:center;justify-content:space-between;gap:12px 20px;
+  flex-wrap:wrap;margin-top:18px}
+.edit-bar[hidden],.order-edit[hidden]{display:none}
+.edit-bar-btns{display:flex;gap:10px;flex-wrap:wrap}
+.order-edit{margin-top:18px;padding:22px 24px;background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--r)}
+.order-edit h2{margin:0 0 6px}
+.order-edit section{padding-top:16px;margin-top:16px;border-top:1px solid var(--line)}
+.order-edit h2 + section{border-top:0;margin-top:4px;padding-top:6px}
+.order-edit h3{margin:0 0 10px;font-family:var(--display);font-size:var(--t-xs);letter-spacing:.16em;
+  text-transform:uppercase;color:var(--dim)}
+.oe-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px}
+.oe-way{margin:0 0 10px}
+.oe-city{max-width:420px;margin-bottom:12px}
+.oe-addr{margin-top:4px}
+.oe-points .points{margin-top:8px}
+.oe-items{display:grid}
+.oe-item{display:flex;align-items:center;gap:14px;padding:10px 0;border-top:1px solid var(--line)}
+.oe-item:first-child{border-top:0}
+.oe-item .nm{flex:1;min-width:0;font-size:var(--t-sm)}
+.oe-item .nm small{display:block;color:var(--dim);font-size:var(--t-xs)}
+.oe-item .pr{min-width:96px;text-align:right;font-size:var(--t-sm);color:var(--muted);
+  font-variant-numeric:tabular-nums}
+.oe-item .oe-drop{min-width:64px;text-align:right;font-size:var(--t-sm)}
+.oe-item.is-gone .nm,.oe-item.is-gone .pr{text-decoration:line-through;color:var(--dim)}
+.oe-item.is-gone .qty{opacity:.4}
+.oe-sum{margin-top:18px;padding:14px 16px;border-radius:var(--r);background:var(--surface-2);
+  font-size:var(--t-md)}
+.oe-sum b{font-family:var(--display);font-size:18px}
+.oe-sum small{display:block;margin-top:2px;font-size:var(--t-sm);color:var(--muted)}
+.oe-sum.is-err{background:#FBECEC;color:var(--err)}
+.oe-btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+@media(max-width:640px){
+  .order-edit{padding:18px 16px}
+  .oe-grid{grid-template-columns:1fr}
+  .oe-item{flex-wrap:wrap}
+  .oe-item .nm{flex-basis:100%}
+  .oe-item .pr{margin-left:auto}
+}

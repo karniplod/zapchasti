@@ -43,6 +43,123 @@
     <span class="st st-{{ order.status }}">{{ order.label }}</span>
   </div>
 
+  {% if editable %}
+  {# Пока менеджер не взял заказ в работу, покупатель правит его сам
+     (static/js/shop/order.js, app/routers/account_orders.py) #}
+  <div class="notice notice-accent edit-bar" id="editBar">
+    <div><b>Заказ ещё не в работе.</b> Его можно изменить — получателя, адрес,
+      количество деталей, комментарий — или отменить.</div>
+    <div class="edit-bar-btns">
+      <button type="button" class="btn btn-primary btn-sm" id="editOpen">Изменить заказ</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="orderCancel">Отменить заказ</button>
+    </div>
+  </div>
+
+  <form class="order-edit" id="editForm" hidden novalidate
+        data-number="{{ order.number }}" data-method="{{ order.delivery_method or '' }}"
+        data-carrier="{{ order.delivery_carrier or '' }}" data-mode="{{ order.delivery_mode or '' }}"
+        data-cdek="{{ order.delivery_cdek_code or '' }}" data-point="{{ order.delivery_point or '' }}"
+        data-country="{{ order.delivery_country or 'RU' }}">
+    <h2>Изменить заказ</h2>
+
+    <section>
+      <h3>Получатель</h3>
+      <div class="oe-grid">
+        <div><label for="oeName">Имя и фамилия</label>
+          <input class="field" id="oeName" maxlength="80" autocomplete="name"
+                 value="{{ order.contact_name or '' }}"></div>
+        <div><label for="oePhone">Телефон</label>
+          <input class="field" id="oePhone" type="tel" autocomplete="tel"
+                 value="{{ order.contact_phone | phone if order.contact_phone else '' }}"></div>
+      </div>
+    </section>
+
+    <section>
+      <h3>Получение</h3>
+      {% if order.delivery_method == 'pickup' %}
+        <label for="oeBranch">Филиал самовывоза</label>
+        <select class="field" id="oeBranch">
+          {% for b in branches %}
+          <option value="{{ b.id }}" {% if b.id == order.pickup_branch_id %}selected{% endif %}>{{ b.label }}</option>
+          {% endfor %}
+        </select>
+      {% else %}
+        <p class="hint oe-way">{{ CN.get(order.delivery_carrier) or 'Доставка транспортной компанией' }}
+          {%- if order.delivery_mode %} — {{ MN.get(order.delivery_mode) }}{% endif %}.
+          Службу и способ доставки здесь не поменять — для этого напишите нам.</p>
+        <div class="city-fld oe-city">
+          <label for="oeCity">Город</label>
+          <input class="field" id="oeCity" autocomplete="off" maxlength="120"
+                 value="{{ order.delivery_city or '' }}">
+          <div class="suggest" id="oeCityList" role="listbox" hidden></div>
+        </div>
+        {% if order.delivery_mode == 'pvz' %}
+          <div class="fld oe-points">
+            <label for="oePointQ">Пункт выдачи</label>
+            <input class="field" id="oePointQ" placeholder="Поиск по улице или коду пункта" autocomplete="off">
+            <div class="points" id="oePoints"><p class="hint">Загружаем пункты…</p></div>
+            <p class="fld-err" id="oePointErr" hidden></p>
+          </div>
+        {% else %}
+          {% if order.delivery_address and not order.delivery_street %}
+          <p class="hint">Сейчас: {{ order.delivery_address }}. Чтобы поменять адрес,
+            заполните улицу и дом.</p>
+          {% endif %}
+          <div class="addr-grid oe-addr">
+            <div class="a-street"><label for="oeStreet">Улица</label>
+              <input class="field" id="oeStreet" maxlength="120" value="{{ order.delivery_street or '' }}"></div>
+            <div><label for="oeHouse">Дом</label>
+              <input class="field" id="oeHouse" maxlength="20" value="{{ order.delivery_house or '' }}"></div>
+            <div><label for="oeBlock">Корпус</label>
+              <input class="field" id="oeBlock" maxlength="20" value="{{ order.delivery_block or '' }}"></div>
+            <div><label for="oeFlat">Кв. / офис</label>
+              <input class="field" id="oeFlat" maxlength="20" value="{{ order.delivery_flat or '' }}"></div>
+            <div><label for="oePost">Индекс</label>
+              <input class="field" id="oePost" inputmode="numeric" maxlength="6"
+                     value="{{ order.delivery_postcode or '' }}"></div>
+          </div>
+        {% endif %}
+      {% endif %}
+    </section>
+
+    <section>
+      <h3>Детали</h3>
+      <div class="oe-items">
+        {% for i in order.lines %}
+        {% set more = i.stock if i.status == 'in_stock' and i.stock else 0 %}
+        <div class="oe-item" data-item="{{ i.item_id }}" data-qty="{{ i.qty }}">
+          <span class="nm">{{ i.name }}<small class="mono">{{ i.sku }}</small></span>
+          <div class="qty qty-sm" data-max="{{ i.qty + more }}">
+            <button type="button" class="qty-btn" data-d="-1" aria-label="Меньше">−</button>
+            <input class="qty-in" type="number" inputmode="numeric" min="1" max="{{ i.qty + more }}"
+                   value="{{ i.qty }}" aria-label="Количество">
+            <button type="button" class="qty-btn" data-d="1" aria-label="Больше">+</button>
+          </div>
+          <span class="pr">{{ rub(i.price) }} / шт</span>
+          <button type="button" class="linkish oe-drop">Убрать</button>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section>
+      <h3>Комментарий</h3>
+      <textarea class="field" id="oeComment" maxlength="1000" rows="3"
+                placeholder="Удобное время, что проверить перед отправкой">{{ order.comment or '' }}</textarea>
+    </section>
+
+    <div class="oe-sum" id="oeSum" aria-live="polite">Изменений пока нет</div>
+    {% if order.payment_method == 'online' %}
+    <p class="hint">Если сумма изменится, прежняя ссылка на оплату перестанет действовать —
+      оплатите заказ заново на этой странице.</p>
+    {% endif %}
+    <div class="oe-btns">
+      <button type="submit" class="btn btn-primary" id="oeSave" disabled>Сохранить изменения</button>
+      <button type="button" class="btn btn-ghost" id="oeClose">Не менять</button>
+    </div>
+  </form>
+  {% endif %}
+
   <article class="order">
     {% if order.shipments | length > 1 %}
     {# Детали из разных филиалов едут отдельными посылками — у каждой
@@ -172,5 +289,6 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ asset('js/validate.js') }}"></script>
 <script src="{{ asset('js/shop/order.js') }}"></script>
 {% endblock %}

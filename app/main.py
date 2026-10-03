@@ -25,6 +25,7 @@ from .config import settings
 from .database import check_connection, dispose, get_session
 from .errors import translate
 from .routers import (
+    account_orders,
     admin,
     cars,
     catalog,
@@ -85,6 +86,7 @@ app.include_router(catalog.router)
 app.include_router(cars.router)
 app.include_router(pages.router)
 app.include_router(shop.router)
+app.include_router(account_orders.router)
 app.include_router(oauth.router)
 app.include_router(delivery.router)
 app.include_router(intake.router)

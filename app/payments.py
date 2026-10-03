@@ -225,19 +225,31 @@ async def create(order: dict, code: str, return_url: str, payment_id: int) -> tu
 
 async def settle(session: AsyncSession, payment_id: int, status: str) -> None:
     """Записать исход платежа. Оплачен — заказ тоже оплачен.
-    Повторный вызов ничего не портит: статус меняется только с pending."""
+    Повторный вызов ничего не портит: статус меняется только с pending.
+
+    cancelled — ссылку мы аннулировали сами: покупатель изменил заказ,
+    и сумма стала другой. Если деньги по старой ссылке всё же пришли,
+    их не теряем: платёж записываем оплаченным, а менеджеру — пометку
+    в ленте заказа сверить сумму."""
     if status not in ("paid", "failed"):
         return
+    before = (await session.execute(text("SELECT status FROM payments WHERE id = :id"),
+                                    {"id": payment_id})).scalar()
     row = (await session.execute(text("""
         UPDATE payments SET status = :st,
                paid_at = CASE WHEN :st = 'paid' THEN now() END
-         WHERE id = :id AND status = 'pending'
-        RETURNING order_id"""), {"st": status, "id": payment_id})).first()
+         WHERE id = :id AND (status = 'pending' OR (status = 'cancelled' AND :st = 'paid'))
+        RETURNING order_id, amount"""), {"st": status, "id": payment_id})).first()
     if row and status == "paid":
         await session.execute(text("""
             UPDATE orders SET status = 'paid', paid_at = now()
              WHERE id = :o AND status IN ('new', 'confirmed')"""), {"o": row.order_id})
-    if row:
+    if row and before == "cancelled":
+        await order_log.log(session, row.order_id, "payment",
+                            f"Пришла оплата {row.amount:.0f} ₽ по аннулированной ссылке — "
+                            "сумма заказа с тех пор менялась, сверьте и при необходимости "
+                            "верните разницу")
+    elif row:
         await order_log.log(session, row.order_id, "payment",
                             "Оплачен онлайн" if status == "paid" else "Онлайн-оплата не прошла")
     await session.commit()

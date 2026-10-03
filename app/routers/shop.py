@@ -35,7 +35,8 @@ NAME_RE = ca.NAME_RE
 # пуст, и заказ оплачивается при получении, а менеджер отмечает оплату
 # в бэкенде
 PAYMENT_LABELS = {"online": "онлайн", "on_receipt": "при получении"}
-PAYMENT_STATUS = {"pending": "ожидает оплаты", "paid": "оплачен", "failed": "не прошёл"}
+PAYMENT_STATUS = {"pending": "ожидает оплаты", "paid": "оплачен", "failed": "не прошёл",
+                  "cancelled": "аннулирован — сумма заказа изменилась"}
 
 ORDER_LABELS = {
     "new": "новый",
@@ -891,6 +892,8 @@ async def orders_of(session: AsyncSession, customer_id: int, number: str | None 
                o.contact_name, o.contact_phone, o.payment_method,
                o.delivery_carrier, o.delivery_mode, o.delivery_price, o.delivery_days,
                o.delivery_city, o.delivery_point_address, o.delivery_postcode,
+               o.delivery_point, o.delivery_cdek_code, o.delivery_country, o.delivery_street,
+               o.delivery_house, o.delivery_block, o.delivery_flat, o.pickup_branch_id,
                (SELECT br.city || ', ' || br.name FROM branches br
                  WHERE br.id = o.pickup_branch_id) AS pickup_branch
           FROM orders o
@@ -906,7 +909,8 @@ async def orders_of(session: AsyncSession, customer_id: int, number: str | None 
 
     items = await session.execute(
         text("""
-        SELECT oi.order_id, oi.price, oi.qty, oi.price * oi.qty AS sum, oi.shipment_id,
+        SELECT oi.id AS item_id, oi.order_id, oi.price, oi.qty, oi.price * oi.qty AS sum,
+               oi.shipment_id, p.quantity AS stock,
                p.sku, p.name, p.status::text AS status,
                p.condition::text AS condition,
                (SELECT coalesce(ph.thumb, ph.path) FROM part_photos ph
@@ -1060,6 +1064,13 @@ async def order_page(
             "returned": request.query_params.get("paid") == "1",
             # Платить есть смысл, пока заказ не оплачен и не отменён
             "payable": order["status"] in ("new", "confirmed"),
+            # Править заказ сам покупатель может, пока он новый и не оплачен
+            # (app/routers/account_orders.py)
+            "editable": order["status"] == "new" and not order["paid_at"],
+            "branches": [dict(r._mapping) for r in await session.execute(text("""
+                SELECT id, city || ', ' || name AS label FROM branches
+                 WHERE is_active ORDER BY sort_order, city, name"""))]
+                        if order["delivery_method"] == "pickup" else [],
         },
     )
 
