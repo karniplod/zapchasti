@@ -853,3 +853,10 @@ UPDATE parts p SET status = 'sold', updated_at = now()
  WHERE p.status = 'reserved' AND p.quantity = 0
    AND EXISTS (SELECT 1 FROM order_items oi JOIN orders o ON o.id = oi.order_id
                 WHERE oi.part_id = p.id AND o.status IN ('paid', 'shipped', 'completed'));
+
+-- Заказ выдан, а посылки «собираются»: смена статуса заказа не трогала
+-- посылки. Исправлено в set_order_status; здесь — уже выданные заказы
+UPDATE order_shipments s
+   SET status = 'delivered', sent_at = coalesce(s.sent_at, now()), delivered_at = coalesce(s.delivered_at, now())
+ WHERE s.status IN ('assembling', 'sent')
+   AND EXISTS (SELECT 1 FROM orders o WHERE o.id = s.order_id AND o.status = 'completed');

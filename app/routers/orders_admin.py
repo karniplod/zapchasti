@@ -739,6 +739,32 @@ async def set_order_status(session: AsyncSession, order_id: int, status: str) ->
         """),
             {"ids": parts},
         )
+    # Посылки следуют за заказом — как заказ за посылками (patch_shipment):
+    # «выдан» — все посылки доставлены; «отправлен» — собранные в пути.
+    # Раньше заказ мог стать выданным, а посылки — так и «собираться»
+    if status == "completed":
+        moved = (await session.execute(text("""
+            UPDATE order_shipments
+               SET status = 'delivered', sent_at = coalesce(sent_at, now()),
+                   delivered_at = coalesce(delivered_at, now())
+             WHERE order_id = :id AND status IN ('assembling', 'sent') RETURNING id"""),
+            {"id": order_id})).all()
+        if moved:
+            await order_log.log(session, order_id, "shipment",
+                                f"Посылки ({len(moved)}) отмечены доставленными — заказ выдан")
+    elif status == "shipped":
+        moved = (await session.execute(text("""
+            UPDATE order_shipments SET status = 'sent', sent_at = coalesce(sent_at, now())
+             WHERE order_id = :id AND status = 'assembling' RETURNING id, track_number"""),
+            {"id": order_id})).all()
+        for r in moved:
+            await notify.shipment_sent(session, r.id)
+        if moved:
+            no_track = sum(1 for r in moved if not r.track_number)
+            await order_log.log(session, order_id, "shipment",
+                                f"Посылки ({len(moved)}) отмечены отправленными — заказ отправлен"
+                                + (f"; без номера отслеживания: {no_track} — впишите его у посылки"
+                                   if no_track else ""))
     # Баллы: выдан — начислить, отменён — вернуть списанные
     await loyalty.on_status(session, order_id, status)
     # Письмо покупателю — уйдёт после commit (app/notify.py)
