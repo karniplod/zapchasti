@@ -67,3 +67,21 @@ $('pwForm').onsubmit = async e => {
     else $(id).checked = !$(id).checked;
   };
 });
+
+// Входы: время — в часовом поясе покупателя
+document.querySelectorAll('.lg-time').forEach(t => {
+  const d = new Date(t.getAttribute('datetime'));
+  t.textContent = d.toLocaleString('ru', {day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'});
+});
+// «Выйти на других устройствах»: этот браузер остаётся в кабинете
+document.getElementById('logoutOthers').onclick = async e => {
+  if (!await askConfirm('Кабинет закроется на всех других телефонах и компьютерах. Здесь вы останетесь.',
+                        {title: 'Выйти на других устройствах?', ok: 'Выйти'})) return;
+  e.target.disabled = true;
+  try {
+    const r = await fetch('/api/account/logout-others', {method: 'POST'});
+    if (r.ok){ e.target.textContent = 'Готово — другие устройства вышли'; return; }
+  } catch {}
+  e.target.disabled = false;
+  alert('Не получилось — попробуйте ещё раз');
+};

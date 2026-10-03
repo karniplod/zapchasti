@@ -69,17 +69,16 @@ function acctPop(link){
   const close = () => { box.hidden = true; link.setAttribute('aria-expanded', 'false'); };
   const draw = d => {
     const initial = (d.name || d.contact || '?').trim()[0].toUpperCase();
-    const last = d.previous || d.current;
     box.innerHTML = `
       <div class="ap-head"><span class="ap-ava" aria-hidden="true">${esc(initial)}</span>
         <span class="ap-who"><b>${esc(d.name || 'Покупатель')}</b>${d.contact ? `<small>${esc(d.contact)}</small>` : ''}</span>
         <button type="button" class="mc-x" aria-label="Закрыть">×</button></div>
       <a class="ap-bonus" href="/account/bonus"><span>Баллы</span><b>${(+d.balance).toLocaleString('ru')}</b></a>
       <dl class="ap-facts">
-        ${last ? `<dt>${d.previous ? 'Последний вход' : 'Вход'}</dt>
-          <dd>${esc(when(last.at))}<small>${esc(last.device)}</small></dd>` : ''}
-        ${d.previous && d.current ? `<dt>Сейчас</dt>
-          <dd>${esc(d.current.device)}<small>вход ${esc(when(d.current.at))}</small></dd>` : ''}
+        ${d.previous ? `<dt>Прошлый вход</dt>
+          <dd>${esc(when(d.previous.at))}<small>${esc(d.previous.device)}</small></dd>` : ''}
+        ${d.current ? `<dt>Сейчас</dt>
+          <dd>${esc(d.current.device)}${d.current.at ? `<small>вход ${esc(when(d.current.at))}</small>` : ''}</dd>` : ''}
       </dl>
       ${d.previous ? '<p class="ap-note">Не узнаёте вход? Смените пароль в профиле.</p>' : ''}
       <a class="btn btn-primary" href="/account/profile">Перейти в профиль</a>

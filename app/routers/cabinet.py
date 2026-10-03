@@ -44,27 +44,56 @@ async def account_loyalty(session: AsyncSession = Depends(get_session),
             "spend_limit_percent": loyalty.SPEND_LIMIT_PERCENT}
 
 
+async def logins_of(session: AsyncSession, customer: dict, request: Request, limit: int = 10) -> dict:
+    """Входы покупателя: этот и прошлые — когда и с какого устройства.
+
+    Вошёл до появления журнала (кука без lid) — записи об этом входе нет:
+    тогда «этот вход» — устройство из запроса и время последнего входа
+    из карточки, а прошлых нет."""
+    rows = (await session.execute(text("""
+        SELECT id, method, user_agent, at FROM customer_logins
+         WHERE customer_id = :c ORDER BY at DESC, id DESC LIMIT :n"""),
+        {"c": customer["id"], "n": limit})).all()
+    lid = customer.get("login_id")
+    item = lambda r: {"id": r.id, "at": r.at.isoformat(), "device": useragent.device(r.user_agent),  # noqa: E731
+                      "method": r.method}
+    cur = next((r for r in rows if r.id == lid), None) if lid else None
+    if cur:
+        current = item(cur)
+    else:
+        last = (await session.execute(text("SELECT last_login_at FROM customers WHERE id = :c"),
+                                      {"c": customer["id"]})).scalar()
+        current = {"id": None, "at": last.isoformat() if last else None,
+                   "device": useragent.device(request.headers.get("user-agent")), "method": None}
+    others = [item(r) for r in rows if r is not cur]
+    return {"current": current, "others": others}
+
+
+@router.post("/api/account/logout-others")
+async def logout_others(request: Request, response: Response, session: AsyncSession = Depends(get_session),
+                        customer: dict = Depends(ca.current_customer)):
+    """«Выйти на других устройствах»: номер сеансов растёт — все куки
+    недействительны, а этому браузеру тут же выдаём новую."""
+    v = (await session.execute(text("""
+        UPDATE customers SET session_version = session_version + 1 WHERE id = :c
+        RETURNING session_version"""), {"c": customer["id"]})).scalar_one()
+    await session.commit()
+    ca.issue(response, customer["id"], customer.get("login_id"), v)
+    return {"ok": True}
+
+
 @router.get("/api/account/brief")
-async def account_brief(session: AsyncSession = Depends(get_session),
+async def account_brief(request: Request, session: AsyncSession = Depends(get_session),
                         customer: dict = Depends(ca.current_customer)):
     """Окно под именем в шапке: кто вошёл, баллы, этот вход и прошлый —
     когда и с какого устройства. Чужой вход в прошлом — повод сменить пароль."""
-    rows = (await session.execute(text("""
-        SELECT id, method, user_agent, at FROM customer_logins
-         WHERE customer_id = :c ORDER BY at DESC, id DESC LIMIT 2"""),
-        {"c": customer["id"]})).all()
-    lid = customer.get("login_id")
-    # Кука старше журнала (lid нет) — текущим считаем самый свежий вход
-    cur = next((r for r in rows if r.id == lid), None) if lid else (rows[0] if rows else None)
-    prev = next((r for r in rows if r is not cur), None)
-    item = lambda r: {"at": r.at.isoformat(), "device": useragent.device(r.user_agent),  # noqa: E731
-                      "method": r.method} if r else None
+    log = await logins_of(session, customer, request, limit=3)
     return {
         "name": customer["name"],
         "contact": phone_fmt(customer["phone"]) if customer["phone"] else customer["email"],
         "balance": await loyalty.balance(session, customer["id"]),
-        "current": item(cur),
-        "previous": item(prev),
+        "current": log["current"],
+        "previous": log["others"][0] if log["others"] else None,
     }
 
 
@@ -380,7 +409,8 @@ async def profile_page(request: Request, session: AsyncSession = Depends(get_ses
                        customer: dict = Depends(ca.current_customer)):
     return page(request, "shop/account_profile.html", customer, "profile",
                 await loyalty.balance(session, customer["id"]),
-                profile=await profile_of(session, customer["id"]))
+                profile=await profile_of(session, customer["id"]),
+                logins=await logins_of(session, customer, request))
 
 
 class ProfileIn(BaseModel):
