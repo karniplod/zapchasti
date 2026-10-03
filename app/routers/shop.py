@@ -9,6 +9,7 @@
 
 import secrets
 from datetime import date
+from decimal import Decimal
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -279,12 +280,23 @@ async def me(
 @router.get("/api/cart")
 async def cart_count(
     request: Request,
+    full: bool = False,
     session: AsyncSession = Depends(get_session),
     customer: dict | None = Depends(ca.optional_customer),
 ):
-    """Счётчик для шапки."""
+    """Счётчик для шапки; full=1 — и состав: для выпадающей корзины под
+    значком (static/js/chrome.js)."""
     items = await cart_rows(session, cart_token(request), customer)
-    return {"count": sum(i["take"] for i in items)}
+    out = {"count": sum(i["take"] for i in items)}
+    if full:
+        out["total"] = str(sum((i["sum"] for i in items), Decimal(0)))
+        out["items"] = [{
+            "part_id": i["part_id"], "sku": i["sku"], "name": i["name"], "photo": i["photo"],
+            "price": str(i["price"]) if i["price"] is not None else None,
+            "qty": i["take"] or i["qty"], "available": bool(i["take"]), "short": i["short"],
+            "branch": i["branch"],
+        } for i in items]
+    return out
 
 
 # ------------------------------------------------------------------

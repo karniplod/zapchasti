@@ -46,6 +46,112 @@ fetch('/api/me').then(r => r.json()).then(d => {
                      a.href = '/account'; a.textContent = d.name || 'Кабинет'; }
 }).catch(() => {});
 
+// Краткая корзина под значком: что лежит, сколько стоит, «Оформить заказ».
+// Состав — с сервера при каждом открытии (/api/cart?full=1): корзина
+// меняется и на других вкладках. Ctrl/⌘+клик и средняя кнопка открывают
+// /cart как обычная ссылка; на самой странице корзины значок — ссылка
+(function(){
+  const link = document.querySelector('.cart-link');
+  const box = document.getElementById('miniCart');
+  if (!link || !box || location.pathname === '/cart') return;
+  const SHOW = 4;
+  const rub = v => Math.round(+v).toLocaleString('ru') + ' ₽';
+  const esc = s => String(s ?? '').replace(/[&<>"]/g,
+    c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  const plural = (n, a, b, c) => {
+    const x = n % 10, y = n % 100;
+    return x === 1 && y !== 11 ? a : x >= 2 && x <= 4 && (y < 12 || y > 14) ? b : c;
+  };
+  const badge = n => {
+    const el = document.getElementById('cartN');
+    el.textContent = n; el.hidden = !n;
+  };
+
+  const open = () => !box.hidden;
+  function close(){
+    box.hidden = true;
+    link.setAttribute('aria-expanded', 'false');
+  }
+
+  async function load(){
+    box.innerHTML = '<p class="mc-empty">Загружаем корзину…</p>';
+    try {
+      const d = await (await fetch('/api/cart?full=1')).json();
+      draw(d);
+    } catch {
+      box.innerHTML = '<p class="mc-empty">Нет связи с сервером</p>';
+    }
+  }
+
+  function draw(d){
+    badge(d.count);
+    const items = d.items || [];
+    if (!items.length){
+      box.innerHTML = `<div class="mc-empty">
+          <b>В корзине пока пусто</b>
+          <span>Найдите деталь по названию, номеру или VIN</span>
+          <a class="btn btn-ghost btn-sm" href="/catalog">Перейти в каталог</a>
+        </div>`;
+      return;
+    }
+    const gone = items.filter(i => !i.available).length;
+    box.innerHTML = `
+      <div class="mc-head"><b>Корзина</b>
+        <span>${d.count} ${plural(d.count, 'деталь', 'детали', 'деталей')}</span>
+        <button type="button" class="mc-x" aria-label="Закрыть">×</button></div>
+      <ul class="mc-list">${items.slice(0, SHOW).map(i => `
+        <li class="${i.available ? '' : 'is-gone'}">
+          <a class="mc-pic" href="/p/${encodeURIComponent(i.sku)}">${i.photo ? `<img src="${esc(i.photo)}" alt="" loading="lazy">` : ''}</a>
+          <span class="mc-nm"><a href="/p/${encodeURIComponent(i.sku)}">${esc(i.name)}</a>
+            <small>${i.available
+              ? `${i.qty > 1 ? i.qty + ' шт × ' : ''}${i.price ? rub(i.price) : 'цена по запросу'}${i.short ? ' · осталось меньше' : ''}`
+              : 'нет в наличии'}</small></span>
+          <b class="mc-sum">${i.available && i.price ? rub(i.price * i.qty) : ''}</b>
+          <button type="button" class="mc-drop" data-id="${i.part_id}" aria-label="Убрать ${esc(i.name)}">×</button>
+        </li>`).join('')}</ul>
+      ${items.length > SHOW ? `<a class="mc-more" href="/cart">и ещё ${items.length - SHOW} ${plural(items.length - SHOW, 'деталь', 'детали', 'деталей')} →</a>` : ''}
+      ${gone ? `<p class="mc-note">${gone} ${plural(gone, 'деталь', 'детали', 'деталей')} уже нет в наличии — уберите из корзины</p>` : ''}
+      <div class="mc-total"><span>Товары</span><b>${rub(d.total)}</b></div>
+      <p class="mc-hint">Доставку посчитаем при оформлении</p>
+      <div class="mc-btns">
+        <a class="btn btn-primary" href="/cart">Оформить заказ</a>
+        <button type="button" class="btn btn-ghost mc-close">Продолжить покупки</button>
+      </div>`;
+  }
+
+  link.addEventListener('click', e => {
+    // Ctrl/⌘/Shift+клик — обычная ссылка: открыть корзину в новой вкладке
+    if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    if (open()){ close(); return; }
+    box.hidden = false;
+    // На телефоне панель — во всю ширину сразу под шапкой: шапка то
+    // прилипает к верху, то нет, поэтому место считаем при открытии
+    box.style.top = innerWidth <= 640 ? Math.round(link.getBoundingClientRect().bottom + 10) + 'px' : '';
+    link.setAttribute('aria-expanded', 'true');
+    load();
+  });
+
+  box.addEventListener('click', async e => {
+    if (e.target.closest('.mc-x, .mc-close')){ close(); link.focus(); return; }
+    const drop = e.target.closest('.mc-drop');
+    if (!drop) return;
+    drop.disabled = true;
+    try {
+      const r = await fetch('/api/cart/' + drop.dataset.id, {method: 'DELETE'});
+      if (r.ok){ load(); return; }
+    } catch {}
+    drop.disabled = false;
+  });
+
+  document.addEventListener('click', e => {
+    if (open() && !e.target.closest('.cart-wrap')) close();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && open()){ close(); link.focus(); }
+  });
+})();
+
 // Логотип необязателен: файла нет — убираем картинку, остаётся надпись.
 // Раньше это делал onerror="this.remove()" прямо в разметке. Картинка
 // могла сломаться ещё до этого скрипта — тогда её ловит проверка

@@ -103,7 +103,12 @@
       <button class="btn btn-primary" type="submit">Найти</button>
     </form>
 
-    <a class="cart-link" href="/cart" aria-label="Корзина">
+    {# Значок открывает краткую корзину под собой (static/js/chrome.js);
+       без скрипта, по Ctrl+клику и на самой странице корзины — обычная
+       ссылка на /cart #}
+    <div class="cart-wrap">
+    <a class="cart-link" href="/cart" aria-label="Корзина" aria-haspopup="dialog"
+       aria-expanded="false" aria-controls="miniCart">
       <span class="cart-ico">
         <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true"
              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
@@ -114,6 +119,8 @@
         <span class="cart-n" id="cartN" hidden>0</span>
       </span>
     </a>
+    <div class="mini-cart" id="miniCart" role="dialog" aria-label="Корзина" hidden></div>
+    </div>
   </div>
   {# Вне .wrap: панель шире колонки и висит под рядом, поэтому её
      положение считается от самой шапки #}
