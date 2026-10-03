@@ -80,12 +80,27 @@
     <h2>Получение</h2>
     <dl class="facts">
       <dt>Способ</dt>
+      {% set many = order.shipments | length > 1 %}
       <dd>{% if order.delivery_carrier %}{{ CN.get(order.delivery_carrier) }} — {{ MN.get(order.delivery_mode) }}
-            {%- if order.delivery_days %}, {{ order.delivery_days }}{% endif %}
+            {%- if many %}, {{ order.shipments | length }} посылки — придут в разные дни
+            {%- elif order.delivery_days %}, {{ order.delivery_days }}{% endif %}
           {% elif order.delivery_method == 'shipping' %}Доставка транспортной компанией
           {% else %}Самовывоз{% if order.pickup_branch %} — {{ order.pickup_branch }}{% endif %}{% endif %}</dd>
       {% if order.delivery_address %}<dt>Адрес</dt><dd>{{ order.delivery_address }}</dd>{% endif %}
-      {% if order.shipments | length == 1 %}{% set sh = order.shipments[0] %}
+      {% if many %}
+      {# Посылки и здесь, рядом со способом и адресом: откуда, когда, где сейчас #}
+      <dt>Посылки</dt>
+      <dd><ol class="parcel-list">
+        {% for sh in order.shipments %}
+        <li><b>{{ sh.from_city[:1] | upper }}{{ sh.from_city[1:] }}</b>
+          — {{ sh.lines | sum(attribute='qty') }} шт.
+          {%- if sh.days %}, {{ sh.days }}{% endif %}
+          {%- if sh.price %}, {{ rub(sh.price) }}{% endif %}
+          <span class="st st-ship-{{ sh.status }}">{{ sh.label }}</span>
+          {%- if sh.track_number %}<br><small>номер для отслеживания {{ track(sh) }}</small>{% endif %}</li>
+        {% endfor %}
+      </ol></dd>
+      {% elif order.shipments | length == 1 %}{% set sh = order.shipments[0] %}
       <dt>Посылка</dt>
       <dd><span class="st st-ship-{{ sh.status }}">{{ sh.label }}</span>
         {%- if sh.track_number %} · номер для отслеживания {{ track(sh) }}{% endif %}</dd>

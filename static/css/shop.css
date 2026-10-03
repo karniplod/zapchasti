@@ -325,6 +325,9 @@ button.tile{width:100%;padding:0;border:0;background:none;font:inherit;text-alig
 .parcel-h{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .parcel-h b{font-size:var(--t-sm)}
 .parcel-meta{margin:4px 0 0;font-size:var(--t-xs);color:var(--muted)}
+.parcel-list{margin:0;padding-left:18px;display:grid;gap:8px}
+.parcel-list .st{margin-left:6px;vertical-align:1px}
+.parcel-list small{color:var(--muted);font-size:var(--t-xs)}
 .st-ship-sent{background:var(--accent-bg);color:var(--accent-dk);border-color:transparent}
 .st-ship-delivered{background:#E6F4ED;color:var(--ok);border-color:#BFE3D2}
 .st-ship-cancelled{background:#FBECEC;color:var(--err);border-color:#F0CFCF}
