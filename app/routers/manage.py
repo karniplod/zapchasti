@@ -4,7 +4,6 @@
 место, публикация. Без этого экрана любая опечатка остаётся навсегда.
 """
 
-import re
 import shutil
 from datetime import date
 from decimal import Decimal
@@ -16,7 +15,6 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .. import delivery as ship_services
 from ..auth import current_user, require_role
 from ..config import settings
 from ..database import get_session
@@ -25,7 +23,6 @@ from ..services.images import save_images
 from ..templating import templates
 from ..vin_decoder import normalize
 from .dismantle import ORIGINS
-from .shop import shipments_of
 
 router = APIRouter(tags=["manage"])
 
@@ -675,246 +672,6 @@ async def delete_donor_photo(
         rel = row.path.removeprefix("/media/")
         f = settings.media_root / Path(rel).with_stem(Path(rel).stem + suffix)
         f.unlink(missing_ok=True)
-
-
-# ------------------------------------------------------------------
-# Заказы с витрины
-# ------------------------------------------------------------------
-
-
-@router.get("/orders", response_class=HTMLResponse)
-async def orders_page(request: Request, user=Depends(current_user)):
-    return templates.TemplateResponse("admin/orders.html", {"request": request, "user": user})
-
-
-@router.get("/api/manage/orders")
-async def orders_list(
-    status: str | None = None,
-    mine: bool = False,
-    session: AsyncSession = Depends(get_session),
-    user=Depends(current_user),
-):
-    """mine — заказы, где есть работа у филиала сотрудника: посылка из
-    его филиала или самовывоз из него."""
-    if mine and not user.get("branch_id"):
-        raise HTTPException(422, "У вашей учётной записи не указан филиал")
-    rows = await session.execute(
-        text("""
-        SELECT o.id, o.number, o.status::text AS status, o.total, o.created_at,
-               o.paid_at, o.delivery_method, o.delivery_address, o.comment,
-               -- Получатель из формы заказа важнее карточки покупателя:
-               -- заказывать мог один человек, а забирать — другой
-               coalesce(o.contact_phone, c.phone) AS phone,
-               coalesce(o.contact_name, c.name) AS customer_name,
-               o.payment_method, o.delivery_carrier, o.delivery_mode, o.delivery_price,
-               o.delivery_postcode,
-               (SELECT br.city || ', ' || br.name FROM branches br
-                 WHERE br.id = o.pickup_branch_id) AS pickup_branch,
-               (SELECT count(*) FROM order_items oi WHERE oi.order_id = o.id) AS items
-          FROM orders o
-          LEFT JOIN customers c ON c.id = o.customer_id
-         WHERE (CAST(:st AS text) IS NULL OR o.status::text = CAST(:st AS text))
-           AND (CAST(:br AS int) IS NULL
-                OR o.pickup_branch_id = CAST(:br AS int)
-                OR EXISTS (SELECT 1 FROM order_shipments s
-                            WHERE s.order_id = o.id AND s.branch_id = CAST(:br AS int)))
-         ORDER BY o.created_at DESC
-         LIMIT 200
-    """),
-        {"st": status, "br": user["branch_id"] if mine else None},
-    )
-    orders = [dict(r._mapping) for r in rows]
-    if not orders:
-        return []
-
-    items = await session.execute(
-        text("""
-        SELECT oi.order_id, oi.price, oi.qty, oi.shipment_id,
-               p.sku, p.name, p.status::text AS status,
-               (SELECT br.city || ', ' || br.name FROM branches br
-                 WHERE br.id = p.branch_id) AS branch
-          FROM order_items oi
-          JOIN parts p ON p.id = oi.part_id
-         WHERE oi.order_id = ANY(:ids)
-         ORDER BY oi.id
-    """),
-        {"ids": [o["id"] for o in orders]},
-    )
-    by_order: dict[int, list] = {}
-    for r in items:
-        by_order.setdefault(r.order_id, []).append(dict(r._mapping))
-    ships: dict[int, list] = {}
-    for r in await shipments_of(session, [o["id"] for o in orders]):
-        ships.setdefault(r["order_id"], []).append(r)
-    for o in orders:
-        o["items"] = by_order.get(o["id"], [])
-        o["shipments"] = ships.get(o["id"], [])
-    return orders
-
-
-
-class OrderPatch(BaseModel):
-    status: str
-
-
-# Куда можно перевести заказ. Список, а не свободный переход: «отменён»
-# возвращает детали на витрину, и случайный клик из «выдан» в «новый»
-# выложил бы проданное обратно
-ORDER_FLOW = {"new", "confirmed", "paid", "shipped", "completed", "cancelled"}
-
-
-@router.patch("/api/manage/orders/{order_id}")
-async def patch_order(
-    order_id: int,
-    payload: OrderPatch,
-    session: AsyncSession = Depends(get_session),
-    user=Depends(require_role("manager")),
-):
-    """Статус заказа ведёт менеджер: онлайн-оплаты нет, оплату он
-    отмечает руками после того, как деньги получены."""
-    if payload.status not in ORDER_FLOW:
-        raise HTTPException(422, "Неизвестный статус")
-
-    order = (
-        await session.execute(
-            text("SELECT id, status::text AS status FROM orders WHERE id = :id"),
-            {"id": order_id},
-        )
-    ).first()
-    if not order:
-        raise HTTPException(404, "Заказ не найден")
-    if order.status == payload.status:
-        return {"ok": True}
-    # Отмена вернула штуки на склад — их уже могли купить другие.
-    # Оживлять такой заказ нельзя: оформляется новый
-    if order.status == "cancelled":
-        raise HTTPException(409, "Отменённый заказ не восстановить — оформите новый")
-
-    await set_order_status(session, order_id, payload.status)
-    await session.commit()
-    return {"ok": True}
-
-
-async def set_order_status(session: AsyncSession, order_id: int, status: str) -> None:
-    """Новый статус и всё, что из него следует для деталей и посылок.
-    Без commit — его делает вызывающий."""
-    await session.execute(
-        text("""
-        UPDATE orders
-           SET status = CAST(:st AS order_status),
-               paid_at = CASE WHEN :st IN ('paid', 'shipped', 'completed')
-                              THEN coalesce(paid_at, now()) ELSE paid_at END
-         WHERE id = :id
-    """),
-        {"st": status, "id": order_id},
-    )
-
-    lines = (await session.execute(
-        text("SELECT part_id, qty FROM order_items WHERE order_id = :id"), {"id": order_id}
-    )).all()
-    parts = [r.part_id for r in lines]
-
-    if status == "cancelled":
-        # Посылки заказа больше не собирают и не везут
-        await session.execute(text("""
-            UPDATE order_shipments SET status = 'cancelled'
-             WHERE order_id = :id AND status <> 'delivered'"""), {"id": order_id})
-        # Штуки возвращаются на склад, деталь — на витрину. Только если
-        # её не продали и не списали руками: тогда возвращать некуда
-        for r in lines:
-            await session.execute(text("""
-                UPDATE parts SET quantity = quantity + :q,
-                       status = CASE WHEN status = 'reserved'
-                                     THEN 'in_stock'::part_status ELSE status END,
-                       updated_at = now()
-                 WHERE id = :p AND status IN ('reserved', 'in_stock')"""),
-                {"q": r.qty, "p": r.part_id})
-    elif status in ("paid", "shipped", "completed"):
-        # Проданной считается деталь, у которой не осталось штук; если
-        # остаток есть, она продолжает продаваться
-        await session.execute(
-            text("""
-            UPDATE parts SET status = 'sold', updated_at = now()
-             WHERE id = ANY(:ids) AND status = 'reserved' AND quantity = 0
-        """),
-            {"ids": parts},
-        )
-
-
-# ------------------------------------------------------------------
-# Посылки заказа
-# ------------------------------------------------------------------
-# Каждый филиал собирает и отправляет свою посылку сам: вписывает номер
-# отслеживания и отмечает, что отправил. Ушли все посылки — заказ
-# «отправлен», доставлены все — «выдан».
-
-SHIPMENT_FLOW = {"assembling", "sent", "delivered"}
-TRACK_RE = r"^[A-Za-z0-9-]{4,40}$"
-
-
-class ShipmentPatch(BaseModel):
-    status: str | None = None
-    track_number: str | None = Field(default=None, max_length=40)
-
-
-@router.patch("/api/manage/shipments/{shipment_id}")
-async def patch_shipment(
-    shipment_id: int,
-    payload: ShipmentPatch,
-    session: AsyncSession = Depends(get_session),
-    user=Depends(require_role("manager")),
-):
-    row = (await session.execute(text("""
-        SELECT s.id, s.order_id, s.status, s.carrier, s.track_number,
-               o.status::text AS order_status
-          FROM order_shipments s JOIN orders o ON o.id = s.order_id
-         WHERE s.id = :id"""), {"id": shipment_id})).first()
-    if not row:
-        raise HTTPException(404, "Посылка не найдена")
-    if row.order_status == "cancelled" or row.status == "cancelled":
-        raise HTTPException(409, "Заказ отменён — посылку не отправляют")
-    if payload.status is not None and payload.status not in SHIPMENT_FLOW:
-        raise HTTPException(422, "Неизвестный статус посылки")
-    track = None
-    if payload.track_number is not None:
-        track = payload.track_number.strip().replace(" ", "")
-        if track and not re.match(TRACK_RE, track):
-            raise HTTPException(422, "Номер отслеживания: латиница, цифры и дефис, 4–40 знаков")
-    # СДЭК и Почта дают номер при приёме посылки — без него покупатель
-    # её не найдёт. Яндекс присылает отслеживание получателю сам
-    if (payload.status in ("sent", "delivered") and row.carrier in ("cdek", "pochta")
-            and not (track if payload.track_number is not None else row.track_number)):
-        raise HTTPException(422, "Впишите номер отслеживания — без него покупатель "
-                                 "не найдёт посылку")
-
-    await session.execute(text("""
-        UPDATE order_shipments
-           SET track_number = CASE WHEN CAST(:t AS text) IS NULL THEN track_number
-                                   ELSE nullif(CAST(:t AS text), '') END,
-               status = coalesce(CAST(:st AS text), status),
-               sent_at = CASE WHEN coalesce(CAST(:st AS text), status) IN ('sent', 'delivered')
-                              THEN coalesce(sent_at, now()) ELSE NULL END,
-               delivered_at = CASE WHEN coalesce(CAST(:st AS text), status) = 'delivered'
-                                   THEN coalesce(delivered_at, now()) ELSE NULL END
-         WHERE id = :id"""),
-        {"t": track, "st": payload.status, "id": shipment_id})
-
-    # Заказ следует за посылками — только вперёд: вернуть посылку в
-    # «собирается» не откатывает заказ, это решает менеджер
-    left = (await session.execute(text("""
-        SELECT count(*) FILTER (WHERE status = 'assembling') AS assembling,
-               count(*) FILTER (WHERE status = 'sent') AS sent
-          FROM order_shipments WHERE order_id = :o AND status <> 'cancelled'"""),
-        {"o": row.order_id})).first()
-    nxt = None
-    if not left.assembling and not left.sent and row.order_status != "completed":
-        nxt = "completed"
-    elif not left.assembling and row.order_status in ("new", "confirmed", "paid"):
-        nxt = "shipped"
-    if nxt:
-        await set_order_status(session, row.order_id, nxt)
-    await session.commit()
-    return {"ok": True, "order_status": nxt or row.order_status}
 
 
 # ------------------------------------------------------------------

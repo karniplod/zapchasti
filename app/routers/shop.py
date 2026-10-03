@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .. import address as addr
 from .. import customer_auth as ca
 from .. import delivery as ship_services
-from .. import mailer, payments
+from .. import mailer, order_log, payments
 from ..config import settings
 from ..database import get_session
 from ..templating import templates
@@ -616,10 +616,12 @@ async def create_order(
                             payment_method, delivery_carrier, delivery_mode,
                             delivery_tariff, delivery_price, delivery_days,
                             delivery_city, delivery_point, delivery_point_address,
-                            delivery_postcode)
+                            delivery_postcode, delivery_cdek_code, delivery_country,
+                            delivery_street, delivery_house, delivery_block, delivery_flat)
         VALUES (:n, :c, 'new', 'site', :total, :dm, :da, :cm,
                 :cn, :cp, :br, :pm, :dc, :dmode, :dt, :dp, :dd,
-                :dcity, :dpt, :dpta, :dpost)
+                :dcity, :dpt, :dpta, :dpost, :dcode, :dcountry,
+                :dstreet, :dhouse, :dblock, :dflat)
         RETURNING id
     """),
             {
@@ -638,6 +640,12 @@ async def create_order(
                 "dd": ship and ship["days"], "dcity": ship and ship["city"],
                 "dpt": ship and ship["point"], "dpta": ship and ship["point_address"],
                 "dpost": ship and ship["postcode"],
+                "dcode": payload.delivery_cdek_code if ship else None,
+                # Адрес и по полям — менеджер поправит улицу, не трогая остальное
+                **{f"d{k}": (getattr(payload, f"delivery_{k}") or "").strip() or None
+                   if payload.delivery_method == "shipping" and payload.delivery_street is not None
+                   and payload.delivery_mode != "pvz" else None
+                   for k in ("country", "street", "house", "block", "flat")},
             },
         )
     ).scalar_one()
@@ -679,6 +687,9 @@ async def create_order(
             await session.rollback()
             raise HTTPException(409, f"{i['sku']}: столько штук уже нет — "
                                      "обновите корзину.")
+
+    await order_log.log(session, order_id, "created", "Заказ оформлен на сайте",
+                        data={"total": total})
 
     # Из корзины — только у этого покупателя: остаток мог остаться, и
     # у других та же деталь лежит законно
@@ -791,7 +802,8 @@ async def start_payment(session: AsyncSession, order: dict, method: str,
         SELECT p.name, p.sku, oi.price, oi.qty FROM order_items oi JOIN parts p ON p.id = oi.part_id
          WHERE oi.order_id = :o ORDER BY oi.id"""), {"o": order["id"]})]}
     contact = (await session.execute(text("""
-        SELECT c.email, coalesce(o.contact_phone, c.phone) AS phone,
+        SELECT coalesce(o.contact_email, c.email) AS email,
+               coalesce(o.contact_phone, c.phone) AS phone,
                o.delivery_price, o.delivery_carrier
           FROM orders o LEFT JOIN customers c ON c.id = o.customer_id
          WHERE o.id = :o"""), {"o": order["id"]})).first()
@@ -851,7 +863,7 @@ async def shipments_of(session: AsyncSession, order_ids: list[int]) -> list[dict
     rows = await session.execute(text("""
         SELECT s.id, s.order_id, s.branch_id, b.city, b.name AS branch_name,
                s.carrier, s.mode, s.tariff, s.price, s.days_min, s.days_max, s.weight_g,
-               s.track_number, s.status, s.sent_at, s.delivered_at
+               s.track_number, s.status, s.sent_at, s.delivered_at, s.point, s.address
           FROM order_shipments s LEFT JOIN branches b ON b.id = s.branch_id
          WHERE s.order_id = ANY(:ids) ORDER BY s.id"""), {"ids": order_ids})
     out = [{**dict(r._mapping), "track_url": ship_services.track_url(r.carrier, r.track_number),

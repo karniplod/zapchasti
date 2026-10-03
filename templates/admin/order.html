@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ru"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Заказ № {{ number }}</title>
+<link rel="stylesheet" href="/static/admin.css?v={{ admin_css_version() }}">
+<link rel="stylesheet" href="{{ asset('css/admin/order.css') }}"></head><body>
+
+{% include "admin/_nav.html" %}
+
+{#
+  Карточка заказа — как заказ в CRM: сверху этапы, слева данные блоками,
+  справа лента событий. Всё рисует static/js/admin/order.js по
+  /api/manage/orders/<id>: после каждой правки карточка перечитывается
+  целиком, чтобы сумма, посылки и лента не расходились.
+#}
+<div class="wrap wrap-wide">
+  <a class="back" href="/orders">← Все заказы</a>
+  <div id="card" data-id="{{ order_id }}"><p class="blank">Загружаю…</p></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="{{ asset('js/validate.js') }}"></script>
+<script src="{{ asset('js/admin/order.js') }}"></script>
+</body></html>

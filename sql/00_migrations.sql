@@ -649,3 +649,35 @@ BEGIN
         UPDATE order_items SET shipment_id = sid WHERE order_id = o.id;
     END LOOP;
 END $$;
+
+
+-- ------------------------------------------------------------
+-- Карточка заказа в бэкенде: правка данных и лента событий
+-- ------------------------------------------------------------
+-- Покупатель ошибся в имени, телефоне или адресе — менеджер правит
+-- заказ сам. Адрес храним и по полям: строку целиком не поправить
+-- без риска сломать формат для службы доставки.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS contact_email      text;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS manager_note       text;   -- видно только сотрудникам
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS updated_at         timestamptz;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_country   text;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_street    text;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_house     text;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_block     text;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_flat      text;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_cdek_code int;    -- город у СДЭК, для пересчёта
+
+-- Лента заказа: что происходило и кто это сделал. user_id пуст —
+-- сделал покупатель или сам сайт (оформление, онлайн-оплата)
+CREATE TABLE IF NOT EXISTS order_events (
+    id          bigserial PRIMARY KEY,
+    order_id    bigint NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    user_id     int REFERENCES users(id) ON DELETE SET NULL,
+    -- created, status, edit, item, shipment, delivery, payment, note
+    kind        text NOT NULL,
+    text        text NOT NULL,
+    data        jsonb,
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS order_events_order_idx ON order_events (order_id, created_at);
+CREATE INDEX IF NOT EXISTS orders_contact_phone_idx ON orders (contact_phone);

@@ -1,0 +1,198 @@
+/* Стили шаблона templates/admin/order.html — карточка заказа.
+   Общее (поля, кнопки, панели, тосты) — в static/admin.css */
+
+.wrap-wide{max-width:1240px}
+.back{display:inline-block;color:var(--muted);font-size:13.5px;margin-bottom:12px}
+.back:hover{color:var(--ink)}
+.muted{color:var(--muted);font-size:13px}
+.ok{color:var(--ok)}
+.mono{font-family:var(--mono)}
+.mt{margin-top:12px}
+.hint{font-size:12.5px;color:var(--muted);margin:6px 0 10px}
+
+/* ── Шапка ─────────────────────────────────────────────── */
+.c-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.c-head h1{margin:0;font-size:26px;font-weight:650;letter-spacing:-.01em}
+.c-head .sub{margin:4px 0 0;color:var(--muted);font-size:13.5px}
+.c-total{text-align:right}
+.c-total b{display:block;font-size:28px;font-weight:650;font-variant-numeric:tabular-nums}
+.c-total small{display:block;font-size:12.5px;color:var(--muted)}
+.c-total small.ok{color:var(--ok)}
+
+/* Этапы — как воронка в CRM: пройденные залиты, текущий ярче */
+.stages{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:16px 0 18px}
+.stage-bar{display:flex;flex:1;min-width:0;border-radius:10px;overflow:hidden;
+  border:1px solid var(--line)}
+.stage{flex:1;min-width:0;padding:10px 6px;border:0;border-left:1px solid var(--line);
+  background:var(--panel);color:var(--muted);font:inherit;font-size:13px;cursor:pointer;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stage:first-child{border-left:0}
+.stage:hover:not(:disabled){background:var(--panel-2);color:var(--ink)}
+.stage.done{background:rgba(255,194,51,.12);color:var(--amber)}
+.stage.on{background:var(--amber);color:#1a1408;font-weight:650}
+.stage:disabled{cursor:default}
+.cancelled-bar{flex:1;padding:10px 14px;border-radius:10px;background:rgba(255,95,86,.12);
+  color:var(--err);font-weight:600;font-size:14px}
+
+/* ── Колонки ───────────────────────────────────────────── */
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start}
+.side{position:sticky;top:12px}
+@media(max-width:980px){
+  .grid{grid-template-columns:1fr}
+  .side{position:static}
+}
+
+.blk{padding:16px 18px}
+.blk-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:10px}
+.blk-h h2,.feed h2{margin:0;font-size:12px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--dim);font-weight:600}
+.lnk{background:none;border:0;padding:0;color:var(--amber);font:inherit;font-size:13.5px;cursor:pointer}
+.lnk:hover{text-decoration:underline}
+
+/* Покупатель и получение — главное в заказе: крупно и с отметкой слева */
+.blk.hl{border-left:3px solid var(--amber)}
+.big{margin:0;font-size:21px;font-weight:600;line-height:1.3;display:flex;align-items:center;
+  gap:8px;flex-wrap:wrap}
+.big.addr{font-size:18px;font-weight:550}
+.kind{margin:0 0 4px;font-size:13px;color:var(--amber);font-weight:600}
+.contacts{display:flex;gap:8px 22px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.big-phone{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);
+  font-size:18px;font-weight:600}
+.big-phone a:hover,.mail a:hover{text-decoration:underline}
+.mail{display:inline-flex;align-items:center;gap:6px;font-size:15px}
+.acct{margin:10px 0 0;font-size:12.5px;color:var(--dim)}
+.copy{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;
+  padding:0;border:1px solid var(--line);border-radius:7px;background:var(--panel-2);
+  color:var(--muted);cursor:pointer;flex:0 0 auto}
+.copy:hover{color:var(--ink);border-color:var(--dim)}
+.copy svg{width:15px;height:15px}
+
+/* Формы правки */
+.f3{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:12px}
+.addr{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 12px;margin-top:10px}
+.addr .wide{grid-column:span 3}
+@media(max-width:640px){
+  .f3{grid-template-columns:1fr}
+  .addr{grid-template-columns:1fr 1fr}
+  .addr .wide{grid-column:1/-1}
+}
+.seg{display:flex;gap:8px;margin-bottom:12px}
+.seg label{display:flex;align-items:center;gap:8px;margin:0;padding:9px 14px;border:1px solid var(--line);
+  border-radius:9px;color:var(--ink);font-size:14px;cursor:pointer}
+.seg input{width:auto}
+.seg label:has(input:checked){border-color:var(--amber);background:rgba(255,194,51,.08)}
+#ePickup[hidden],#eShip[hidden]{display:none}
+.price1{margin-top:12px;max-width:200px}
+.sug{position:relative}
+.suggest{position:absolute;left:0;right:0;top:100%;z-index:20;margin-top:4px;background:var(--panel);
+  border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 24px rgba(0,0,0,.4);
+  max-height:260px;overflow:auto}
+.suggest[hidden]{display:none}
+.suggest button{display:block;width:100%;text-align:left;padding:9px 12px;border:0;background:none;
+  color:var(--ink);font:inherit;font-size:13.5px;cursor:pointer}
+.suggest button:hover{background:var(--panel-2)}
+#ePointQ{margin-bottom:8px}
+.points{max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:10px}
+.pt{display:flex;gap:10px;align-items:flex-start;position:relative;margin:0;padding:10px 12px;
+  border-top:1px solid var(--line);cursor:pointer;color:var(--ink);font-size:13.5px}
+.pt:first-child{border-top:0}
+.pt input{width:auto;margin-top:3px}
+.pt b{display:block;font-weight:550}
+.pt small{display:block;color:var(--muted);font-size:12px}
+.pt:has(input:checked){background:rgba(255,194,51,.08)}
+
+/* Пересчёт доставки */
+.recalc{margin-top:12px;padding:12px 14px;border:1px dashed var(--amber);border-radius:10px;
+  font-size:14px}
+.recalc p{margin:0}
+.recalc ul{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:4px;font-size:13px}
+.recalc li{display:flex;justify-content:space-between;gap:12px;color:var(--muted)}
+
+/* ── Состав ────────────────────────────────────────────── */
+.lock{margin:0 0 10px;padding:8px 12px;border-radius:8px;background:var(--panel-2);
+  font-size:13px;color:var(--muted)}
+.items{display:grid}
+.it{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.it:first-child{border-top:0}
+.it .pic{width:48px;height:48px;flex:0 0 48px;border-radius:8px;overflow:hidden;background:var(--panel-2)}
+.it .pic img{width:100%;height:100%;object-fit:cover}
+.it .nm{flex:1;min-width:0}
+.it .nm a{font-size:14.5px;font-weight:550}
+.it .nm a:hover{text-decoration:underline}
+.it .nm small{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+.shelf{color:var(--amber);font-weight:600}
+.it .q{font-size:13px;color:var(--muted);white-space:nowrap}
+.it .sum{min-width:90px;text-align:right;font-variant-numeric:tabular-nums}
+.mini{display:flex;flex-direction:column;gap:3px;margin:0;font-size:11px;color:var(--dim)}
+.mini input,.mini select{padding:7px 9px;font-size:13.5px}
+.it .mini input.i-qty{width:64px}
+.it .mini input.i-price{width:100px}
+.del{width:30px;height:30px;border:1px solid var(--line);border-radius:7px;background:none;
+  color:var(--muted);font-size:18px;line-height:1;cursor:pointer;flex:0 0 auto}
+.del:hover{color:var(--err);border-color:var(--err)}
+.add{display:flex;gap:8px;margin-top:12px}
+.add #addSku{flex:1}
+.add #addQty{width:72px}
+.totals{display:grid;grid-template-columns:1fr auto;gap:4px 16px;margin:14px 0 0;padding-top:12px;
+  border-top:1px solid var(--line);font-size:14px}
+.totals dt{color:var(--muted)}
+.totals dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+.totals .t{font-size:18px;font-weight:650;color:var(--ink)}
+@media(max-width:640px){
+  .it{flex-wrap:wrap}
+  .it .nm{flex-basis:calc(100% - 60px)}
+  .it .mini{margin-left:60px}
+  .it .mini + .mini{margin-left:0}
+  .it .sum{margin-left:auto}
+}
+
+/* ── Посылки ───────────────────────────────────────────── */
+.ship{padding:12px 0;border-top:1px solid var(--line)}
+.ship:first-of-type{border-top:0;padding-top:0}
+.ship .sh{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;font-size:14px}
+.ship-items{margin:6px 0 0;font-size:13px;color:var(--muted)}
+.ship-edit{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-top:10px}
+.ship-edit .grow{flex:1;min-width:180px}
+.ship-edit .grow input{font-family:var(--mono)}
+.ship-edit .f-sprice{width:100px}
+.ship-edit .lnk{align-self:center}
+.st{display:inline-block;font-size:11.5px;padding:3px 9px;border-radius:5px;
+  background:var(--panel-2);color:var(--muted)}
+.st.sent{background:rgba(255,194,51,.15);color:var(--amber)}
+.st.delivered{background:rgba(76,195,138,.15);color:var(--ok)}
+.st.cancelled{color:var(--err)}
+
+/* ── Оплата ────────────────────────────────────────────── */
+.facts{display:grid;grid-template-columns:110px 1fr;gap:6px 12px;margin:0;font-size:14px}
+.facts dt{color:var(--muted)}
+.facts dd{margin:0}
+.pays{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:6px;font-size:13px}
+.pays li{display:flex;gap:12px;justify-content:space-between;color:var(--muted)}
+.pay-paid{color:var(--ok)}
+.pay-failed{color:var(--err)}
+
+/* ── Лента ─────────────────────────────────────────────── */
+.feed{padding:16px}
+.feed h2{margin-bottom:10px}
+.feed textarea{min-height:70px;font-size:13.5px}
+.feed #addNote{margin-top:8px}
+.ev{list-style:none;margin:16px 0 0;padding:0;display:grid;gap:12px;max-height:70vh;overflow:auto}
+.ev li{position:relative;padding:0 0 0 14px;border-left:2px solid var(--line);font-size:13.5px}
+.ev .ev-h{display:flex;justify-content:space-between;gap:8px;font-size:12px}
+.ev .ev-h b{color:var(--ink);font-weight:600}
+.ev time{color:var(--dim)}
+.ev p{margin:3px 0 2px;line-height:1.45;word-break:break-word}
+.ev small{color:var(--dim);font-size:12px}
+.ev .k-note{border-left-color:var(--amber)}
+.ev .k-status{border-left-color:#8fb4ff}
+.ev .k-payment{border-left-color:var(--ok)}
+.ev .k-edit,.ev .k-item,.ev .k-delivery{border-left-color:var(--warn)}
+
+/* На телефоне пять этапов в ширину не влезают — лента прокручивается,
+   названия целиком; отмена — отдельной строкой */
+@media(max-width:640px){
+  .stage-bar{flex-basis:100%;overflow-x:auto;scrollbar-width:none}
+  .stage{flex:0 0 auto;min-width:104px;padding:10px 12px}
+  .c-head{align-items:flex-start}
+  .c-total{text-align:left}
+}

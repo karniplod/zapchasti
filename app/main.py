@@ -33,6 +33,7 @@ from .routers import (
     intake,
     manage,
     oauth,
+    orders_admin,
     pages,
     reference,
     shelves,
@@ -91,6 +92,7 @@ app.include_router(dismantle.router)
 app.include_router(reference.router)
 app.include_router(admin.router)
 app.include_router(manage.router)
+app.include_router(orders_admin.router)
 app.include_router(stock.router)
 app.include_router(staff_app.router)
 app.include_router(shelves.router)

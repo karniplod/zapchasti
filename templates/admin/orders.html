@@ -3,31 +3,36 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Заказы</title>
 <link rel="stylesheet" href="/static/admin.css?v={{ admin_css_version() }}">
-{# Длинные списки (марки, модели, категории) получают поиск;
-   без скрипта остаются обычными системными списками #}
-<link rel="stylesheet" href="{{ asset('css/combo.css') }}">
-<script defer src="{{ asset('js/combo.js') }}"></script>
 <link rel="stylesheet" href="{{ asset('css/admin/orders.css') }}"></head><body>
 
 {% include "admin/_nav.html" %}
 
-<div class="wrap">
+<div class="wrap wrap-wide">
   <div class="tabs" id="mode">
     <button class="on" data-m="orders">Заказы</button>
     <button data-m="leads">Заявки</button>
   </div>
 
-  <div class="tabs" id="tabs">
-    <button class="on" data-s="">Все</button>
-    <button data-s="new">Новые</button>
-    <button data-s="confirmed">Подтверждённые</button>
-    <button data-s="paid">Оплаченные</button>
-    <button data-s="completed">Выданные</button>
+  <div id="ordersBox">
+    {# Поиск одной строкой, как в CRM: номер, ФИО, телефон, адрес,
+       артикул или номер отслеживания #}
+    <div class="o-search">
+      <input id="q" type="search" autocomplete="off"
+             placeholder="Номер, ФИО, телефон, адрес, артикул или номер отслеживания">
+      {% if user.branch_id %}
+      <label class="mine-only"><input type="checkbox" id="mine"> Мой филиал</label>
+      {% endif %}
+    </div>
+    <div class="tabs" id="tabs">
+      <button class="on" data-s="">Все <i></i></button>
+      <button data-s="new">Новые <i></i></button>
+      <button data-s="confirmed">Подтверждённые <i></i></button>
+      <button data-s="paid">Оплаченные <i></i></button>
+      <button data-s="shipped">Отправленные <i></i></button>
+      <button data-s="completed">Выданные <i></i></button>
+      <button data-s="cancelled">Отменённые <i></i></button>
+    </div>
   </div>
-  {# Филиал собирает свои посылки — ему нужны только заказы, где они есть #}
-  {% if user.branch_id %}
-  <label class="mine-only"><input type="checkbox" id="mine"> Только заказы с посылками моего филиала</label>
-  {% endif %}
   <div id="list" data-branch="{{ user.branch_id or '' }}"><p class="blank">Загружаю…</p></div>
 </div>
 

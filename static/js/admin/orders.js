@@ -1,4 +1,6 @@
 // Скрипт шаблона templates/admin/orders.html.
+// Список заказов — таблицей, как в CRM: кто, куда, что, сколько, статус.
+// Работа с заказом — в его карточке /orders/<номер> (static/js/admin/order.js).
 
 const $ = id => document.getElementById(id);
 let status = '';
@@ -13,24 +15,26 @@ const CAN_REMOVE = {accepted: '(ждёт разбора — можно снят�
 
 const STATUSES = {new:'новый', confirmed:'подтверждён', paid:'оплачен',
                   shipped:'отправлен', completed:'выдан', cancelled:'отменён'};
+const CARRIERS = {cdek: 'СДЭК', yandex: 'Яндекс', pochta: 'Почта'};
+const MODES = {pvz: 'до пункта', door: 'до двери', post: 'до отделения'};
 
-const money = v => v ? Number(v).toLocaleString('ru') + ' ₽' : '—';
+const money = v => Math.round(+v || 0).toLocaleString('ru') + ' ₽';
 const esc = s => String(s ?? '').replace(/[&<>"]/g,
   c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
-
-// Посылка: собирает и отправляет её филиал, где лежат детали
-const SHIP_ST = {assembling: 'собирается', sent: 'отправлена', delivered: 'доставлена',
-                 cancelled: 'отменена'};
-const CARRIERS = {cdek: 'СДЭК', yandex: 'Яндекс Доставка', pochta: 'Почта России'};
-const MY_BRANCH = +($('list').dataset.branch || 0);
 const when = s => new Date(s).toLocaleDateString('ru');
+const time = s => new Date(s).toLocaleTimeString('ru', {hour: '2-digit', minute: '2-digit'});
+// +79125554433 → +7 912 555-44-33
+const phone = p => {
+  const d = String(p || '').replace(/\D/g, '');
+  return d.length === 11 ? `+7 ${d.slice(1, 4)} ${d.slice(4, 7)}-${d.slice(7, 9)}-${d.slice(9)}` : (p || '');
+};
 
 $('mode').onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
   mode = b.dataset.m;
   [...$('mode').children].forEach(x => x.classList.toggle('on', x === b));
-  // Фильтр по статусу относится к заказам, у заявок его нет
-  $('tabs').hidden = mode === 'leads';
+  // Поиск и статусы относятся к заказам, у заявок их нет
+  $('ordersBox').hidden = mode === 'leads';
   load();
 };
 
@@ -41,137 +45,59 @@ $('tabs').onclick = e => {
   load();
 };
 
+let qt;
+$('q').addEventListener('input', () => { clearTimeout(qt); qt = setTimeout(load, 300); });
+
+async function counts(){
+  const q = $('mine') && $('mine').checked ? '?mine=1' : '';
+  const r = await fetch('/api/manage/orders/counts' + q);
+  if (!r.ok) return;
+  const n = await r.json();
+  [...$('tabs').children].forEach(b => { b.querySelector('i').textContent = n[b.dataset.s] || ''; });
+}
+
+let seq = 0;
 async function load(){
   if (mode === 'leads') return loadLeads();
+  const my = ++seq;
   const q = new URLSearchParams();
   if (status) q.set('status', status);
   if ($('mine') && $('mine').checked) q.set('mine', '1');
+  if ($('q').value.trim()) q.set('q', $('q').value.trim());
   const res = await fetch('/api/manage/orders?' + q);
   const rows = await res.json();
+  if (my !== seq) return;
   if (!res.ok){ $('list').innerHTML = `<p class="blank">${esc(rows.detail || 'Не получилось загрузить')}</p>`; return; }
-  if (!rows.length){ $('list').innerHTML = '<p class="blank">Заказов нет</p>'; return; }
-
-  $('list').innerHTML = rows.map(o => `
-    <div class="ord" data-id="${o.id}">
-      <div class="h">
-        <span class="num">№ ${o.number}</span>
-        <span class="who">${o.customer_name || 'без имени'}
-          <small>${o.phone || ''}</small></span>
-        <span class="st ${o.status}">${STATUSES[o.status] || o.status}</span>
-        <span class="total">${money(o.total)}</span>
-      </div>
-      <div class="meta">${when(o.created_at)} ·
-        ${o.delivery_method === 'shipping'
-          ? (o.delivery_carrier
-              ? ({cdek: 'СДЭК', yandex: 'Яндекс Доставка', pochta: 'Почта России'}[o.delivery_carrier] || o.delivery_carrier)
-                + ' ' + ({pvz: 'до ПВЗ', door: 'до двери', post: 'до отделения'}[o.delivery_mode] || '')
-                + (o.delivery_price ? ' — ' + money(o.delivery_price) : '')
-                + (o.delivery_postcode ? ', индекс ' + o.delivery_postcode : '')
-              : 'доставка')
-            + (o.delivery_address ? ': ' + o.delivery_address : '')
-          : 'самовывоз' + (o.pickup_branch ? ': ' + o.pickup_branch : '')}
-        ${o.payment_method ? ' · оплата ' + (o.payment_method === 'online' ? 'онлайн' : 'при получении') : ''}${o.paid_at ? ' · оплачен ' + when(o.paid_at) : ''}
-        ${o.comment ? ' · ' + o.comment : ''}</div>
-
-      ${o.shipments.length ? o.shipments.map((sh, n) => shipment(o, sh, n)).join('')
-        : lines(o.items)}
-
-      <div class="actions-row order-status">
-        <span class="lbl">Статус заказа</span>
-        <select class="f-status">
-          ${Object.entries(STATUSES).map(([k, v]) =>
-            `<option value="${k}" ${k === o.status ? 'selected' : ''}>${v}</option>`).join('')}
-        </select>
-        <button class="btn btn-accent save">Сохранить</button>
-      </div>
-    </div>`).join('');
-
-  document.querySelectorAll('.ord').forEach(el => {
-    el.querySelector('.save').onclick = () => save(el);
-  });
-  document.querySelectorAll('.ship-edit').forEach(el => {
-    el.querySelector('.ship-save').onclick = () => saveShip(el);
-  });
-}
-
-const lines = items => `<ul class="lines">
-  ${items.map(i => `<li>
-    <span class="sku">${i.sku}</span>
-    <span class="nm">${i.name}</span>
-    <span class="where">${i.branch || ''}</span>
-    <span class="pr">${i.qty > 1 ? `${i.qty} шт × ${money(i.price)} = ` : ''}${money(i.price * i.qty)}</span>
-  </li>`).join('')}
-</ul>`;
-
-// Посылка: откуда, чем, за сколько, номер для отслеживания и статус.
-// Своя посылка филиала подсвечена — её собирать здесь
-function shipment(o, sh, n){
-  const live = sh.status !== 'cancelled' && o.status !== 'cancelled';
-  const days = sh.days_min ? (sh.days_min === sh.days_max ? `${sh.days_min} дн.`
-                                                          : `${sh.days_min}–${sh.days_max} дн.`) : '';
-  return `<div class="ship ${MY_BRANCH && sh.branch_id === MY_BRANCH ? 'my' : ''}">
-    <div class="sh">
-      <b>${o.shipments.length > 1 ? `Посылка ${n + 1} ` : 'Посылка '}${esc(sh.from_city)}</b>
-      <span class="st ${sh.status}">${SHIP_ST[sh.status] || sh.status}</span>
-      <span class="sm">${CARRIERS[sh.carrier] || ''}${sh.tariff ? ', тариф ' + esc(sh.tariff) : ''}${days ? ', ' + days : ''}
-        ${sh.price ? ' · ' + money(sh.price) : ''}${sh.weight_g ? ' · ' + (sh.weight_g / 1000).toLocaleString('ru') + ' кг' : ''}</span>
-    </div>
-    ${lines(o.items.filter(i => i.shipment_id === sh.id))}
-    ${live ? `<div class="ship-edit" data-id="${sh.id}">
-      <span class="lbl">Статус посылки</span>
-      <select class="f-ship">
-        ${['assembling', 'sent', 'delivered'].map(k =>
-          `<option value="${k}" ${k === sh.status ? 'selected' : ''}>${SHIP_ST[k]}</option>`).join('')}
-      </select>
-      <input class="f-track" placeholder="Номер для отслеживания" maxlength="40"
-             value="${esc(sh.track_number || '')}">
-      <button class="btn btn-accent ship-save">Сохранить</button>
-      ${sh.track_url ? `<a href="${esc(sh.track_url)}" target="_blank" rel="noopener">где посылка →</a>` : ''}
-    </div>` : (sh.track_number ? `<div class="meta">номер ${esc(sh.track_number)}</div>` : '')}
-  </div>`;
-}
-
-// Статус и номер — у каждой посылки свои: посылки из разных филиалов
-// уходят в разные дни. Ушли все — сервер сам переводит заказ
-// в «отправлен», доставлены все — в «выдан»
-async function saveShip(el){
-  el.querySelectorAll('button').forEach(b => b.disabled = true);
-  const body = {track_number: el.querySelector('.f-track').value.trim(),
-                status: el.querySelector('.f-ship').value};
-  try {
-    const r = await fetch(`/api/manage/shipments/${el.dataset.id}`, {
-      method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok){
-      toast(typeof d.detail === 'string' ? d.detail : 'Не удалось сохранить', 'err');
-      el.querySelectorAll('button').forEach(b => b.disabled = false);
-      return;
-    }
-    toast('Сохранено', 'ok');
-    load();
-  } catch {
-    toast('Нет связи с сервером', 'err');
-    el.querySelectorAll('button').forEach(b => b.disabled = false);
+  if (!rows.length){
+    $('list').innerHTML = `<p class="blank">${$('q').value.trim() ? 'Ничего не нашлось' : 'Заказов нет'}</p>`;
+    return;
   }
-}
 
-// Оплату отмечает менеджер: онлайн-оплаты нет, деньги приходят
-// при получении. Отмена возвращает детали на витрину — это делает сервер
-async function save(el){
-  const btn = el.querySelector('.save');
-  btn.disabled = true;
-  try {
-    const r = await fetch(`/api/manage/orders/${el.dataset.id}`, {
-      method: 'PATCH', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({status: el.querySelector('.f-status').value})});
-    if (!r.ok){
-      const d = await r.json().catch(() => ({}));
-      toast(d.detail || 'Не удалось сохранить', 'err');
-      btn.disabled = false; return;
-    }
-    toast('Сохранено', 'ok');
-    load();
-  } catch { toast('Нет связи с сервером', 'err'); btn.disabled = false; }
+  // Строка — ссылка на карточку. Главное крупно: кто, телефон, куда
+  $('list').innerHTML = `<div class="o-table">
+    <div class="o-row o-hd"><span>Заказ</span><span>Покупатель</span><span>Получение</span>
+      <span class="r">Сумма</span><span>Статус</span></div>
+    ${rows.map(o => {
+      const ship = o.delivery_method === 'shipping';
+      const n = o.shipments.length;
+      const qty = o.items.reduce((s, i) => s + i.qty, 0);
+      const paid = o.paid_at || ['paid', 'shipped', 'completed'].includes(o.status);
+      return `<a class="o-row" href="/orders/${encodeURIComponent(o.number)}">
+        <span class="o-num"><b>№ ${esc(o.number)}</b>
+          <small>${when(o.created_at)}, ${time(o.created_at)}</small></span>
+        <span class="o-who"><b>${esc(o.customer_name || 'без имени')}</b>
+          <small class="o-phone">${esc(phone(o.phone))}</small></span>
+        <span class="o-where">${ship
+          ? `<b>${esc(o.delivery_address || o.delivery_city || 'адрес не указан')}</b>
+             <small>${o.delivery_carrier ? CARRIERS[o.delivery_carrier] + ' ' + (MODES[o.delivery_mode] || '') : 'доставка ТК'}${n > 1 ? ` · ${n} посылки` : ''}</small>`
+          : `<b>Самовывоз</b><small>${esc(o.pickup_branch || '')}</small>`}</span>
+        <span class="o-sum r"><b>${money(o.total)}</b>
+          <small class="${paid ? 'ok' : ''}">${paid ? 'оплачен' : o.payment_method === 'online' ? 'ждём оплату' : 'при получении'} · ${qty} шт</small></span>
+        <span class="o-st"><span class="st ${o.status}">${STATUSES[o.status] || o.status}</span>
+          ${o.manager_note ? `<small class="o-note" title="${esc(o.manager_note)}">✎ ${esc(o.manager_note)}</small>` : ''}</span>
+      </a>`;
+    }).join('')}
+  </div>`;
 }
 
 // Заявка — это телефон и вопрос. Всё, что с ней делают: позвонить
@@ -225,7 +151,8 @@ if (startStatus){
   [...$('tabs').children].forEach(x => x.classList.toggle('on', x.dataset.s === status));
 }
 [...$('mode').children].forEach(x => x.classList.toggle('on', x.dataset.m === mode));
-$('tabs').hidden = mode === 'leads';
-if ($('mine')) $('mine').onchange = load;
+$('ordersBox').hidden = mode === 'leads';
+if ($('mine')) $('mine').onchange = () => { counts(); load(); };
 
+counts();
 load();

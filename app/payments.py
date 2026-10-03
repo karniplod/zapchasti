@@ -30,6 +30,7 @@ import httpx
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from . import order_log
 from .config import settings
 
 log = logging.getLogger("razbor.payments")
@@ -236,6 +237,9 @@ async def settle(session: AsyncSession, payment_id: int, status: str) -> None:
         await session.execute(text("""
             UPDATE orders SET status = 'paid', paid_at = now()
              WHERE id = :o AND status IN ('new', 'confirmed')"""), {"o": row.order_id})
+    if row:
+        await order_log.log(session, row.order_id, "payment",
+                            "Оплачен онлайн" if status == "paid" else "Онлайн-оплата не прошла")
     await session.commit()
 
 
