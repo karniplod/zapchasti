@@ -39,5 +39,9 @@
 .ship .st.cancelled{color:var(--err)}
 .ship .lines{margin-top:6px}
 .ship-edit{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.ship-edit select{width:auto;min-width:150px}
+.ship-edit .lbl,.order-status .lbl{font-size:12.5px;color:var(--dim)}
+.order-status{align-items:center}
+.order-status select{width:auto;min-width:180px}
 .ship-edit input{padding:8px 10px;font-size:13.5px;width:220px;font-family:var(--mono)}
 .ship-edit a{font-size:12.5px}

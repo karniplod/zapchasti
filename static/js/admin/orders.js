@@ -76,7 +76,8 @@ async function load(){
       ${o.shipments.length ? o.shipments.map((sh, n) => shipment(o, sh, n)).join('')
         : lines(o.items)}
 
-      <div class="actions-row">
+      <div class="actions-row order-status">
+        <span class="lbl">Статус заказа</span>
         <select class="f-status">
           ${Object.entries(STATUSES).map(([k, v]) =>
             `<option value="${k}" ${k === o.status ? 'selected' : ''}>${v}</option>`).join('')}
@@ -89,7 +90,7 @@ async function load(){
     el.querySelector('.save').onclick = () => save(el);
   });
   document.querySelectorAll('.ship-edit').forEach(el => {
-    el.querySelectorAll('[data-to]').forEach(b => b.onclick = () => saveShip(el, b.dataset.to));
+    el.querySelector('.ship-save').onclick = () => saveShip(el);
   });
 }
 
@@ -108,7 +109,6 @@ function shipment(o, sh, n){
   const live = sh.status !== 'cancelled' && o.status !== 'cancelled';
   const days = sh.days_min ? (sh.days_min === sh.days_max ? `${sh.days_min} дн.`
                                                           : `${sh.days_min}–${sh.days_max} дн.`) : '';
-  const next = {assembling: ['sent', 'Отправлена'], sent: ['delivered', 'Доставлена']}[sh.status];
   return `<div class="ship ${MY_BRANCH && sh.branch_id === MY_BRANCH ? 'my' : ''}">
     <div class="sh">
       <b>${o.shipments.length > 1 ? `Посылка ${n + 1} ` : 'Посылка '}${esc(sh.from_city)}</b>
@@ -118,22 +118,26 @@ function shipment(o, sh, n){
     </div>
     ${lines(o.items.filter(i => i.shipment_id === sh.id))}
     ${live ? `<div class="ship-edit" data-id="${sh.id}">
+      <span class="lbl">Статус посылки</span>
+      <select class="f-ship">
+        ${['assembling', 'sent', 'delivered'].map(k =>
+          `<option value="${k}" ${k === sh.status ? 'selected' : ''}>${SHIP_ST[k]}</option>`).join('')}
+      </select>
       <input class="f-track" placeholder="Номер для отслеживания" maxlength="40"
              value="${esc(sh.track_number || '')}">
-      <button class="btn" data-to="">Сохранить номер</button>
-      ${next ? `<button class="btn btn-accent" data-to="${next[0]}">${next[1]}</button>` : ''}
-      ${sh.status !== 'assembling' ? '<button class="btn" data-to="assembling">Вернуть в сборку</button>' : ''}
+      <button class="btn btn-accent ship-save">Сохранить</button>
       ${sh.track_url ? `<a href="${esc(sh.track_url)}" target="_blank" rel="noopener">где посылка →</a>` : ''}
     </div>` : (sh.track_number ? `<div class="meta">номер ${esc(sh.track_number)}</div>` : '')}
   </div>`;
 }
 
-// Номер и статус посылки. Ушли все посылки — сервер сам переводит заказ
+// Статус и номер — у каждой посылки свои: посылки из разных филиалов
+// уходят в разные дни. Ушли все — сервер сам переводит заказ
 // в «отправлен», доставлены все — в «выдан»
-async function saveShip(el, to){
+async function saveShip(el){
   el.querySelectorAll('button').forEach(b => b.disabled = true);
-  const body = {track_number: el.querySelector('.f-track').value.trim()};
-  if (to) body.status = to;
+  const body = {track_number: el.querySelector('.f-track').value.trim(),
+                status: el.querySelector('.f-ship').value};
   try {
     const r = await fetch(`/api/manage/shipments/${el.dataset.id}`, {
       method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});

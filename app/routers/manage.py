@@ -865,7 +865,8 @@ async def patch_shipment(
     user=Depends(require_role("manager")),
 ):
     row = (await session.execute(text("""
-        SELECT s.id, s.order_id, s.status, o.status::text AS order_status
+        SELECT s.id, s.order_id, s.status, s.carrier, s.track_number,
+               o.status::text AS order_status
           FROM order_shipments s JOIN orders o ON o.id = s.order_id
          WHERE s.id = :id"""), {"id": shipment_id})).first()
     if not row:
@@ -879,9 +880,10 @@ async def patch_shipment(
         track = payload.track_number.strip().replace(" ", "")
         if track and not re.match(TRACK_RE, track):
             raise HTTPException(422, "Номер отслеживания: латиница, цифры и дефис, 4–40 знаков")
-    if payload.status == "sent" and not (track or (await session.execute(text(
-            "SELECT track_number FROM order_shipments WHERE id = :id"),
-            {"id": shipment_id})).scalar()):
+    # СДЭК и Почта дают номер при приёме посылки — без него покупатель
+    # её не найдёт. Яндекс присылает отслеживание получателю сам
+    if (payload.status in ("sent", "delivered") and row.carrier in ("cdek", "pochta")
+            and not (track if payload.track_number is not None else row.track_number)):
         raise HTTPException(422, "Впишите номер отслеживания — без него покупатель "
                                  "не найдёт посылку")
 
