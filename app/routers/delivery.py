@@ -125,6 +125,8 @@ async def delivery_quotes(
         "need_postcode": "pochta" in delivery.enabled() and not payload.postcode
                          and not issues.get("pochta") and bool(parcels),
         "options": [_money(o) for o in got["options"]],
+        # Службы, которые сейчас не ответили, — повторить расчёт можно
+        "retry": got.get("failed", []),
     }
 
 

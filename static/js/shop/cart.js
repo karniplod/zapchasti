@@ -265,7 +265,9 @@ if (form && $('cname')){
 
   // ── Варианты служб и пункты выдачи ───────────────────────────
   let qseq = 0;
-  async function loadQuotes(point){
+  // quiet — пересчёт по кнопке «Попробовать ещё раз»: варианты остаются
+  // на экране, пока не придут новые
+  async function loadQuotes(point, quiet){
     if (!hasCarriers) return;
     const city = $('dCity').value.trim();
     if (city.length < 2) return;
@@ -279,7 +281,7 @@ if (form && $('cname')){
         if (hit) D.cdek_code = hit.cdek_code;
       } catch {}
     }
-    if (!point){ $('dState').textContent = 'Считаем доставку…'; $('dOptions').innerHTML = ''; }
+    if (!point && !quiet){ $('dState').textContent = 'Считаем доставку…'; $('dOptions').innerHTML = ''; }
     const r = await fetch('/api/delivery/quotes', {method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({city, cdek_code: D.cdek_code, postcode: postcode(),
@@ -305,6 +307,7 @@ if (form && $('cname')){
     if (!D.options.some(o => `${o.carrier}:${o.mode}` === keep)) D.point = null;
     D.needPost = !!d.need_postcode;
     D.issues = d.issues || {};
+    D.retry = d.retry || [];
     D.parcels = d.parcels || [];
     const any = D.options.length || D.needPost || Object.keys(D.issues).length;
     const one = D.parcels.length === 1 ? D.parcels[0] : null;
@@ -361,7 +364,16 @@ if (form && $('cname')){
     // из этого филиала не возит) — показываем причину, а не прячем вариант
     + Object.entries(D.issues).map(([c, why]) =>
         `<div class="tile is-off is-na"><span><b>${esc(c === 'pochta' ? 'Почта России — до отделения' : CARRIER[c] || c)}</b>
-          <small>${esc(why)}</small></span></div>`).join('');
+          <small>${esc(why)}</small>
+          ${(D.retry || []).includes(c) ? `<button type="button" class="linkish retry-q" data-c="${c}">Попробовать ещё раз</button>` : ''}
+          </span></div>`).join('');
+    // Служба не ответила — спросить её снова. Остальные службы уже
+    // посчитаны и запомнены сервером: повтор ждёт только молчавшую
+    $('dOptions').querySelectorAll('.retry-q').forEach(b => b.onclick = async () => {
+      b.disabled = true; b.textContent = 'Спрашиваем…';
+      await loadQuotes(null, true);
+      if ((D.retry || []).includes(b.dataset.c)) toast(`${CARRIER[b.dataset.c] || 'Служба'} всё ещё не отвечает — попробуйте чуть позже`);
+    });
     $('dOptions').querySelectorAll('input:not([disabled])').forEach(i => i.onchange = () => {
       D.point = null; loadPoints(); sync();
     });

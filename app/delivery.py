@@ -359,11 +359,12 @@ async def _pochta_quotes(http, origin: dict, dest: dict, pkg: dict) -> list[dict
     if not dest.get("postcode") or not origin.get("postcode") or pkg["weight_g"] > POCHTA_MAX_G:
         return []
     # Тарификатор Почты отвечает с перебоями: на 503 — сразу ещё раз,
-    # молчит — ждём 7 секунд, не дольше: дальше выручит недавний расчёт
+    # молчит — ждём 12 секунд: бывает, отвечает за 5–10. Дольше не ждём:
+    # дальше выручит недавний расчёт или кнопка «Попробовать ещё раз»
     for attempt in (1, 2):
         r = await http.get("https://tariff.pochta.ru/v2/calculate/tariff/delivery", params={
             "json": "", "object": 4030, "from": origin["postcode"], "to": dest["postcode"],
-            "weight": pkg["weight_g"], "pack": 10}, timeout=7)
+            "weight": pkg["weight_g"], "pack": 10}, timeout=12)
         if r.status_code < 500 or attempt == 2:
             break
     r.raise_for_status()
@@ -565,7 +566,7 @@ async def _parcel_quotes(http, origin: dict, dest: dict, items: list[dict],
             issues[name] = (f"{CARRIERS[name]} сейчас не отвечает — попробуйте через минуту "
                             "или выберите другую службу") if name in failed else \
                 _issue(name, origin, dest, pkg)
-    return {"pkg": pkg, "options": options, "issues": issues}
+    return {"pkg": pkg, "options": options, "issues": issues, "failed": failed}
 
 
 async def quotes(parcels: list[dict], dest: dict, session=None, commit: bool = True) -> dict:
@@ -587,7 +588,7 @@ async def quotes(parcels: list[dict], dest: dict, session=None, commit: bool = T
     cache = await _load_cache(session, keys)
     fresh: dict = {}
     # Все пары «посылка × служба» — тоже разом
-    async with httpx.AsyncClient(timeout=10) as http:
+    async with httpx.AsyncClient(timeout=12) as http:
         got = await asyncio.gather(*(_parcel_quotes(http, p["origin"], dest, p["items"], p["value"],
                                                     cache, fresh) for p in parcels))
     # commit=False — расчёт внутри чужой транзакции (правка заказа): она
@@ -637,7 +638,11 @@ async def quotes(parcels: list[dict], dest: dict, session=None, commit: bool = T
             why = f"{CARRIERS[carrier]}: посылки не отправить одним способом"
         if why:
             issues[carrier] = why
-    return {"options": sorted(options, key=lambda o: o["price"]), "issues": issues}
+    # Какие службы не ответили (а не «не возят»): корзина покажет у них
+    # «Попробовать ещё раз»
+    offered = {o["carrier"] for o in options}
+    failed = sorted({n for g in got for n in g["failed"]} - offered)
+    return {"options": sorted(options, key=lambda o: o["price"]), "issues": issues, "failed": failed}
 
 
 async def points(carrier: str, dest: dict) -> list[dict]:

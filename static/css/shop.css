@@ -545,3 +545,8 @@ button.tile{width:100%;padding:0;border:0;background:none;font:inherit;text-alig
 .chip-btn.on{border-color:var(--accent);background:var(--accent-bg);color:var(--accent-dk)}
 .save-addr{grid-column:1/-1;margin:2px 0 0}
 .save-addr[hidden]{display:none}
+
+/* «Попробовать ещё раз» у службы, которая не ответила */
+.tile .retry-q{display:inline-block;margin-top:6px;font-size:var(--t-xs);font-weight:600}
+.tile .retry-q:disabled{color:var(--dim);text-decoration:none;cursor:default}
+.tile.is-na:has(.retry-q){cursor:default}
