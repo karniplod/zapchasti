@@ -12,9 +12,27 @@
 .tabs button.on i{color:inherit;opacity:.7}
 #ordersBox[hidden]{display:none}
 
+/* Фильтры под поиском — одной строкой, на телефоне переносятся */
+.o-filters{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;margin:10px 0 2px}
+.o-filters select{width:auto;min-width:0;flex:0 1 auto}
+.o-date{display:flex;align-items:center;gap:6px;margin:0;font-size:13px;color:var(--muted)}
+.o-date input{width:auto}
+.o-export{margin-left:auto}
+.o-totals{margin:12px 2px;font-size:13.5px;color:var(--muted)}
+.o-totals b{color:var(--ink);font-variant-numeric:tabular-nums}
+.o-totals[hidden],.o-more[hidden]{display:none}
+.o-more{display:flex;justify-content:center;margin:14px 0}
+/* Требуют внимания: вкладка подсвечена, когда такие есть, строки — полосой */
+.tabs .t-att.hot:not(.on){color:var(--warn)}
+.tabs .t-att.hot:not(.on) i{color:var(--warn);opacity:1;font-weight:700}
+a.o-row.is-att{box-shadow:inset 3px 0 0 var(--warn)}
+.o-att{color:var(--warn)!important;margin-top:4px}
+.o-mgr{margin-top:4px}
+.o-mgr i{font-style:normal;color:var(--dim)}
+
 /* Таблица: строка целиком — ссылка на карточку заказа */
 .o-table{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
-.o-row{display:grid;grid-template-columns:150px minmax(180px,1.1fr) minmax(220px,1.6fr) 130px 150px;
+.o-row{display:grid;grid-template-columns:150px minmax(180px,1.1fr) minmax(220px,1.6fr) 130px 170px;
   gap:14px;align-items:center;padding:12px 16px;border-top:1px solid var(--line);color:var(--ink)}
 .o-row:first-child{border-top:0}
 a.o-row:hover{background:var(--panel-2)}
@@ -63,3 +81,7 @@ a.o-row:hover{background:var(--panel-2)}
 .ord .meta{font-size:13px;color:var(--dim);margin-top:5px}
 .ord.done{opacity:.6}
 .ord .num[href^="tel:"]:hover{text-decoration:underline}
+
+.lnk{background:none;border:0;padding:0;color:var(--amber);font:inherit;font-size:13.5px;cursor:pointer}
+.lnk:hover{text-decoration:underline}
+.lnk[hidden]{display:none}

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ru"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Покупатель</title>
+<link rel="stylesheet" href="/static/admin.css?v={{ admin_css_version() }}">
+<link rel="stylesheet" href="{{ asset('css/admin/users.css') }}"></head><body>
+
+{% include "admin/_nav.html" %}
+
+{#
+  Карточка покупателя (app/routers/users_admin.py): контакты, заказы,
+  баллы и скидка, адреса, входы с устройствами, блокировка, история
+  изменений. Рисует static/js/admin/customer.js; после каждой правки
+  карточка перечитывается целиком.
+#}
+<div class="wrap wrap-wide">
+  <a class="back" href="/users">← Все покупатели</a>
+  <div id="card" data-id="{{ customer_id }}"><p class="blank">Загружаю…</p></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+{% include "_validation.html" %}
+<script src="{{ asset('js/admin/customer.js') }}"></script>
+</body></html>

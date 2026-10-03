@@ -371,3 +371,6 @@ button{font-family:inherit}
   .ask-btns{flex-direction:column-reverse}
   .ask-btns button{width:100%}
 }
+
+/* Сообщение с одной кнопкой: «Отмена» спрятана (static/js/ask.js) */
+.ask-btns [hidden]{display:none}

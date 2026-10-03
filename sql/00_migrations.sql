@@ -838,3 +838,10 @@ CREATE TABLE IF NOT EXISTS account_audit (
     details      text
 );
 CREATE INDEX IF NOT EXISTS account_audit_target_idx ON account_audit (target_kind, target_id, at DESC);
+
+-- Ответственный за заказ — как в CRM: кто ведёт. Назначается сам, когда
+-- сотрудник первым меняет статус, или кнопкой «Взять себе».
+-- notify_orders у сотрудника — письмо о каждом новом заказе (его филиала)
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS manager_id int REFERENCES users(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS orders_manager_idx ON orders (manager_id);
+ALTER TABLE users  ADD COLUMN IF NOT EXISTS notify_orders boolean NOT NULL DEFAULT false;

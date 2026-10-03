@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .. import address as addr
 from .. import customer_auth as ca
 from .. import delivery as ship_services
-from .. import loyalty, mailer, order_log, payments
+from .. import loyalty, mailer, notify, order_log, payments
 from ..validation import address as addr_rules
 from ..validation import people, require
 from ..config import settings
@@ -743,6 +743,7 @@ async def create_order(
     if bonus:
         await loyalty.move(session, customer["id"], -bonus, "spend", f"Оплата заказа № {number}",
                            order_id)
+    await notify.staff_new_order(session, order_id)
     if (payload.save_address and payload.delivery_method == "shipping"
             and payload.delivery_street and payload.delivery_mode != "pvz"):
         await remember_address(session, customer["id"], payload)

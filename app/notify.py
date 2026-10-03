@@ -26,8 +26,9 @@ log = logging.getLogger("razbor.notify")
 _KEY = "notify_outbox"
 
 
-def _queue(session: AsyncSession, to: str, subject: str, body: str, link: str | None = None) -> None:
-    session.sync_session.info.setdefault(_KEY, []).append((to, subject, body, link))
+def _queue(session: AsyncSession, to: str, subject: str, body: str, link: str | None = None,
+           staff: bool = False) -> None:
+    session.sync_session.info.setdefault(_KEY, []).append((to, subject, body, link, staff))
 
 
 @event.listens_for(Session, "after_commit")
@@ -39,8 +40,8 @@ def _flush(sync_session) -> None:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         return
-    for to, subject, body, link in mails:
-        loop.create_task(_send(to, subject, body, link))
+    for to, subject, body, link, staff in mails:
+        loop.create_task(_send(to, subject, body, link, staff))
 
 
 @event.listens_for(Session, "after_rollback")
@@ -48,14 +49,17 @@ def _drop(sync_session) -> None:
     sync_session.info.pop(_KEY, None)
 
 
-async def _send(to: str, subject: str, body: str, link: str | None) -> None:
+async def _send(to: str, subject: str, body: str, link: str | None, staff: bool = False) -> None:
     url = f"{settings.base_url}{link}" if link else settings.base_url
     text_body = f"{body}\n\n{url}\n\n— {settings.app_name}"
+    # Письмо сотруднику ведёт в бэкенд, покупателю — в кабинет
+    where, foot = (("Открыть заказ в бэкенде", "письма о новых заказах включаются в карточке сотрудника")
+                   if staff else ("Открыть в личном кабинете", "уведомления настраиваются в профиле"))
     html_body = ("<div style=\"font:15px/1.6 Arial,sans-serif;color:#333\">"
                  + "".join(f"<p>{html.escape(p)}</p>" for p in body.split("\n\n"))
-                 + f"<p><a href=\"{html.escape(url)}\" style=\"color:#F54F0C\">Открыть в личном кабинете</a></p>"
+                 + f"<p><a href=\"{html.escape(url)}\" style=\"color:#F54F0C\">{where}</a></p>"
                  f"<p style=\"color:#888;font-size:13px\">{html.escape(settings.app_name)} · "
-                 f"уведомления настраиваются в профиле</p></div>")
+                 f"{foot}</p></div>")
     try:
         await mailer.send(to, subject, text_body, html_body)
     except Exception as e:  # письмо — не повод уронить что-то ещё
@@ -163,3 +167,42 @@ async def personal_discount(session: AsyncSession, customer_id: int, percent) ->
     _queue(session, to, f"Ваша персональная скидка — {p}%",
            f"Для вас теперь действует персональная скидка {p}% на все детали. "
            "Она применится сама при оформлении заказа.", "/account/bonus")
+
+
+def _phone(p: str) -> str:
+    """+79125554433 → +7 912 555-44-33 — как в бэкенде."""
+    d = "".join(ch for ch in p if ch.isdigit())
+    return f"+7 {d[1:4]} {d[4:7]}-{d[7:9]}-{d[9:]}" if len(d) == 11 else p
+
+
+async def staff_new_order(session: AsyncSession, order_id: int) -> None:
+    """Новый заказ с сайта — письмо сотрудникам, у которых включено
+    notify_orders. Сотрудник филиала получает только заказы, где есть
+    работа его филиалу: самовывоз оттуда или деталь оттуда."""
+    o = (await session.execute(text("""
+        SELECT o.id, o.number, o.total, o.delivery_method, o.payment_method,
+               coalesce(o.contact_name, c.name) AS name, coalesce(o.contact_phone, c.phone) AS phone,
+               o.delivery_address, o.delivery_city,
+               (SELECT city || ', ' || name FROM branches WHERE id = o.pickup_branch_id) AS branch,
+               (SELECT count(*) FROM order_items WHERE order_id = o.id) AS items
+          FROM orders o LEFT JOIN customers c ON c.id = o.customer_id WHERE o.id = :o"""),
+        {"o": order_id})).first()
+    if not o:
+        return
+    rows = (await session.execute(text("""
+        SELECT u.email FROM users u
+         WHERE u.is_active AND u.notify_orders AND u.email IS NOT NULL
+           AND (u.branch_id IS NULL
+                OR EXISTS (SELECT 1 FROM orders o WHERE o.id = :o AND o.pickup_branch_id = u.branch_id)
+                OR EXISTS (SELECT 1 FROM order_items oi JOIN parts p ON p.id = oi.part_id
+                            WHERE oi.order_id = :o AND p.branch_id = u.branch_id))"""),
+        {"o": order_id})).all()
+    total = f"{o.total:,.0f} ₽".replace(",", " ")
+    where = (f"доставка: {o.delivery_address or o.delivery_city or 'адрес уточнить'}"
+             if o.delivery_method == "shipping" else f"самовывоз: {o.branch or 'филиал не выбран'}")
+    body = (f"Новый заказ № {o.number} на {total} — {o.items} поз.\n\n"
+            f"Покупатель: {o.name or 'без имени'}, {_phone(o.phone) if o.phone else 'без телефона'}\n"
+            f"Получение — {where}\n"
+            f"Оплата: {'онлайн' if o.payment_method == 'online' else 'при получении'}")
+    for r in rows:
+        _queue(session, r.email, f"Новый заказ № {o.number} — {total}", body, f"/orders/{o.number}", staff=True)

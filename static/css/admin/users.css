@@ -1,0 +1,119 @@
+/* Стили templates/admin/users.html и customer.html. Общее — в static/admin.css */
+
+.wrap-wide{max-width:1200px}
+.tabs button i{font-style:normal;color:var(--dim);margin-left:4px;font-size:12px}
+.tabs button.on i{color:inherit;opacity:.7}
+#custBox[hidden],#staffBox[hidden],.s-form[hidden],.u-more[hidden]{display:none}
+.lnk{background:none;border:0;padding:0;color:var(--amber);font:inherit;font-size:13.5px;cursor:pointer}
+.lnk:hover{text-decoration:underline}
+.lnk.danger{color:var(--err)}
+.back{display:inline-block;color:var(--muted);font-size:13.5px;margin-bottom:12px}
+.back:hover{color:var(--ink)}
+.muted{color:var(--muted)}
+.mono{font-family:var(--mono)}
+.r{text-align:right}
+.u-hint{margin:0;color:var(--muted);font-size:13px;line-height:1.45}
+
+/* ── Покупатели: поиск и таблица ───────────────────────── */
+.u-search{display:flex;gap:10px;flex-wrap:wrap}
+.u-search input{flex:1 1 280px}
+.u-search select{width:auto;flex:0 0 auto}
+.u-totals{margin:12px 2px;font-size:13.5px;color:var(--muted)}
+.u-totals b{color:var(--ink)}
+.u-table{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.u-row{display:grid;grid-template-columns:minmax(200px,1.5fr) minmax(120px,1fr) 80px 120px 90px 120px;
+  gap:14px;align-items:center;padding:11px 16px;border-top:1px solid var(--line);color:var(--ink)}
+.u-row:first-child{border-top:0}
+a.u-row:hover{background:var(--panel-2)}
+.u-hd{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);padding:10px 16px}
+.u-row > span{min-width:0}
+.u-row b{display:block;font-weight:600;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.u-row small{display:block;font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.u-num b{font-variant-numeric:tabular-nums}
+.u-tags{display:flex;flex-wrap:wrap;gap:4px}
+a.u-row.is-blocked{box-shadow:inset 3px 0 0 var(--err)}
+.u-more{display:flex;justify-content:center;margin:14px 0}
+.tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:5px;background:var(--panel-2);
+  color:var(--muted);white-space:nowrap}
+.tag.ok{background:rgba(76,195,138,.15);color:var(--ok)}
+.tag.bad{background:rgba(255,95,86,.14);color:var(--err)}
+@media(max-width:900px){
+  .u-hd{display:none}
+  .u-row{grid-template-columns:1fr auto auto;gap:4px 12px}
+  .u-who{grid-column:1/-1}
+  .u-tags{grid-column:1/-1}
+  .u-when{display:none}
+}
+
+/* ── Сотрудники ────────────────────────────────────────── */
+.u-head{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:14px}
+.s-form h2{margin:0 0 14px;font-size:17px}
+.s-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.s-grid > div[hidden]{display:none}
+.s-grid .lnk{margin-top:6px;font-size:12.5px}
+.s-check{display:flex;align-items:center;gap:8px;margin:14px 0 0;font-size:13.5px;color:var(--ink)}
+.s-check input{width:auto}
+.s-check small{color:var(--muted)}
+#staffList{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
+#staffList .blank{grid-column:1/-1}
+.s-card{margin:0}
+.s-card.is-off{opacity:.6}
+.s-top{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.s-ava{flex:0 0 38px;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;
+  background:var(--panel-2);color:var(--amber);font-weight:700}
+.s-who{flex:1;min-width:0}
+.s-who b{display:block;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.s-who small{color:var(--muted);font-size:12.5px}
+.s-facts{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;margin:0 0 12px;font-size:13.5px}
+.s-facts dt{color:var(--muted)}
+.s-facts dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.s-facts dd a{color:var(--amber)}
+.s-facts.wide{grid-template-columns:120px 1fr;gap:8px 14px}
+.s-acts{display:flex;flex-wrap:wrap;gap:6px 16px;padding-top:10px;border-top:1px solid var(--line)}
+.s-histbox{margin-top:10px;font-size:12.5px;color:var(--muted)}
+.s-histbox[hidden]{display:none}
+.s-histbox p{margin:0 0 6px}
+.s-histbox b{color:var(--ink);font-weight:600}
+.s-histbox .when{font-family:var(--mono);margin-right:6px}
+.s-histbox .who{color:var(--dim)}
+
+/* ── Карточка покупателя ───────────────────────────────── */
+.c-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+.c-head h1{margin:0;font-size:26px;font-weight:650}
+.c-head .sub{margin:4px 0 0;color:var(--muted);font-size:13.5px}
+.blocked-bar{padding:8px 14px;border-radius:9px;background:rgba(255,95,86,.12);color:var(--err);font-weight:600;font-size:13.5px}
+.c-stats{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:16px}
+.c-stats div{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.c-stats b{display:block;font-size:19px;font-variant-numeric:tabular-nums}
+.c-stats small{color:var(--muted);font-size:12px}
+.c-grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px;align-items:start}
+.blk-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:10px}
+.blk-h h2{margin:0;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);font-weight:600}
+.c-orders{display:grid}
+.c-ord{display:grid;grid-template-columns:120px 90px 1fr 100px 110px;gap:10px;align-items:center;
+  padding:9px 4px;border-top:1px solid var(--line);font-size:13.5px}
+.c-ord:first-child{border-top:0}
+.c-ord:hover{background:var(--panel-2)}
+.c-ord .mono{color:var(--amber)}
+.st{display:inline-block;font-size:11.5px;padding:3px 9px;border-radius:5px;background:var(--panel-2);
+  color:var(--muted);text-align:center}
+.st.paid,.st.completed{background:rgba(76,195,138,.15);color:var(--ok)}
+.st.new{background:rgba(255,194,51,.15);color:var(--amber)}
+.st.confirmed,.st.shipped{background:rgba(110,160,255,.14);color:#8fb4ff}
+.st.cancelled{color:var(--err)}
+.c-list{list-style:none;margin:0;padding:0}
+.c-list li{padding:8px 0;border-top:1px solid var(--line);font-size:13.5px}
+.c-list li:first-child{border-top:0}
+.c-list b{display:block;font-weight:600}
+.c-list small{color:var(--muted);font-size:12.5px}
+.c-list .plus{color:var(--ok)}
+.c-list .minus{color:var(--err)}
+.c-ledger{margin-top:14px}
+.c-acts{display:grid;gap:8px;margin-top:12px}
+.c-acts .btn{width:100%}
+@media(max-width:900px){
+  .c-stats{grid-template-columns:repeat(3,1fr)}
+  .c-grid{grid-template-columns:1fr}
+  .c-ord{grid-template-columns:1fr auto;gap:2px 10px}
+  .c-ord > span:nth-child(3){grid-column:1/-1;order:5;color:var(--muted)}
+}

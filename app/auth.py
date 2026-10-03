@@ -82,8 +82,10 @@ def verify_password(raw: str, hashed: str) -> bool:
 # ------------------------------------------------------------------
 
 
-def issue_session(response: Response, user_id: int, role: str) -> None:
-    token = signer.dumps({"uid": user_id, "role": role})
+def issue_session(response: Response, user_id: int, role: str, version: int = 0) -> None:
+    # v — номер сеансов сотрудника: сменили пароль или отключили входы
+    # (раздел «Пользователи») — номер вырос, старые куки не подходят
+    token = signer.dumps({"uid": user_id, "role": role, "v": version})
     response.set_cookie(
         settings.session_cookie,
         token,
@@ -99,9 +101,9 @@ def drop_session(response: Response) -> None:
     response.delete_cookie(settings.session_cookie, path="/")
 
 
-def issue_app_token(user_id: int, role: str) -> str:
+def issue_app_token(user_id: int, role: str, version: int = 0) -> str:
     """Токен для Android-приложения: приходит в заголовке Authorization."""
-    return app_signer.dumps({"uid": user_id, "role": role})
+    return app_signer.dumps({"uid": user_id, "role": role, "v": version})
 
 
 def _read_token(request: Request) -> dict:
@@ -137,7 +139,7 @@ async def authenticate(session: AsyncSession, login: str, password: str) -> dict
     row = (
         await session.execute(
             text("""
-        SELECT id, login, password_hash, full_name, role, is_active
+        SELECT id, login, password_hash, full_name, role, is_active, session_version
           FROM users WHERE login = :login
     """),
             {"login": login.strip().lower()},
@@ -157,7 +159,8 @@ async def authenticate(session: AsyncSession, login: str, password: str) -> dict
         {"id": row.id},
     )
     await session.commit()
-    return {"id": row.id, "login": row.login, "name": row.full_name, "role": row.role}
+    return {"id": row.id, "login": row.login, "name": row.full_name, "role": row.role,
+            "sv": row.session_version}
 
 
 async def current_user(request: Request, session: AsyncSession = Depends(get_session)) -> dict:
@@ -168,7 +171,7 @@ async def current_user(request: Request, session: AsyncSession = Depends(get_ses
     row = (
         await session.execute(
             text("""
-        SELECT id, login, full_name, role, is_active, branch_id
+        SELECT id, login, full_name, role, is_active, branch_id, session_version
           FROM users WHERE id = :id
     """),
             {"id": data["uid"]},
@@ -177,6 +180,8 @@ async def current_user(request: Request, session: AsyncSession = Depends(get_ses
 
     if not row or not row.is_active:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Учётная запись отключена")
+    if row.session_version != data.get("v", 0):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Сеанс завершён — войдите заново")
 
     return {"id": row.id, "login": row.login, "name": row.full_name,
             "role": row.role, "branch_id": row.branch_id,

@@ -13,10 +13,13 @@
 ({"status": ...}) и посылки — их форма не меняется.
 """
 
+import csv
+import io
 import re
+from datetime import date
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
@@ -91,21 +94,66 @@ def _search(q: str) -> tuple[str, dict]:
         "q": f"%{q}%", "ph": phone, "phl": f"%{phone}%" if phone else None}
 
 
-@router.get("/api/manage/orders")
-async def orders_list(
-    status: str | None = None,
-    mine: bool = False,
-    q: str = "",
-    session: AsyncSession = Depends(get_session),
-    user=Depends(current_user),
-):
-    """mine — заказы, где есть работа у филиала сотрудника: посылка из
-    его филиала или самовывоз из него. q — поиск одной строкой."""
+# «Требует внимания»: новый заказ лежит без ответственного дольше двух
+# часов или онлайн-оплату ждём больше суток — деталь закреплена за
+# покупателем, а денег нет. Такие видно отдельной вкладкой
+ATTENTION_SQL = """(
+    (o.status = 'new' AND o.manager_id IS NULL AND o.created_at < now() - interval '2 hours')
+    OR (o.payment_method = 'online' AND o.paid_at IS NULL AND o.status IN ('new', 'confirmed')
+        AND o.created_at < now() - interval '1 day'))"""
+PAGE_SIZE = 50
+
+
+def _filters(user: dict, *, status: str | None = None, mine: bool = False, q: str = "",
+             who: str = "", paid: str = "", method: str = "", date_from: str = "",
+             date_to: str = "", attention: bool = False) -> tuple[str, dict]:
+    """Условия выборки заказов — общие для списка, итогов и выгрузки.
+    who: me — мои, none — без ответственного; paid: yes / wait / receipt;
+    method: pickup, shipping или служба (cdek, yandex, pochta)."""
     if mine and not user.get("branch_id"):
         raise HTTPException(422, "У вашей учётной записи не указан филиал")
     where, params = _search(q)
-    rows = await session.execute(
-        text(f"""
+    conds = ["""(CAST(:st AS text) IS NULL OR o.status::text = CAST(:st AS text))""",
+             """(CAST(:br AS int) IS NULL
+                OR o.pickup_branch_id = CAST(:br AS int)
+                OR EXISTS (SELECT 1 FROM order_shipments s
+                            WHERE s.order_id = o.id AND s.branch_id = CAST(:br AS int)))"""]
+    params.update(st=status or None, br=user["branch_id"] if mine else None)
+    if who == "me":
+        conds.append("o.manager_id = :me")
+        params["me"] = user["id"]
+    elif who == "none":
+        conds.append("o.manager_id IS NULL AND o.status NOT IN ('completed', 'cancelled')")
+    if paid == "yes":
+        conds.append("o.paid_at IS NOT NULL")
+    elif paid == "wait":
+        conds.append("o.paid_at IS NULL AND o.payment_method = 'online' AND o.status <> 'cancelled'")
+    elif paid == "receipt":
+        conds.append("o.paid_at IS NULL AND coalesce(o.payment_method, '') <> 'online'")
+    if method in ("pickup", "shipping"):
+        conds.append("o.delivery_method = :dm")
+        params["dm"] = method
+    elif method in ("cdek", "yandex", "pochta"):
+        conds.append("o.delivery_carrier = :dc")
+        params["dc"] = method
+    # Период — по дню оформления в часовом поясе сервера; «по» включительно
+    for key, op in (("date_from", ">="), ("date_to", "<")):
+        v = date_from if key == "date_from" else date_to
+        if v:
+            if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", v):
+                raise HTTPException(422, "Дата — в формате ГГГГ-ММ-ДД")
+            shift = " + interval '1 day'" if key == "date_to" else ""
+            conds.append(f"o.created_at {op} CAST(:{key} AS date){shift}")
+            try:
+                params[key] = date.fromisoformat(v)    # asyncpg ждёт дату, не строку
+            except ValueError:
+                raise HTTPException(422, "Такой даты нет") from None
+    if attention:
+        conds.append(ATTENTION_SQL)
+    return "WHERE " + "\n           AND ".join(conds) + where, params
+
+
+LIST_SQL = """
         SELECT o.id, o.number, o.status::text AS status, o.total, o.created_at,
                o.paid_at, o.delivery_method, o.delivery_address, o.comment,
                -- Получатель из формы заказа важнее карточки покупателя:
@@ -113,65 +161,137 @@ async def orders_list(
                coalesce(o.contact_phone, c.phone) AS phone,
                coalesce(o.contact_name, c.name) AS customer_name,
                o.payment_method, o.delivery_carrier, o.delivery_mode, o.delivery_price,
-               o.delivery_postcode, o.delivery_city, o.manager_note,
+               o.delivery_postcode, o.delivery_city, o.manager_note, o.manager_id,
+               (SELECT coalesce(u.full_name, u.login) FROM users u WHERE u.id = o.manager_id) AS manager,
+               {attention} AS attention,
                (SELECT br.city || ', ' || br.name FROM branches br
                  WHERE br.id = o.pickup_branch_id) AS pickup_branch,
                (SELECT count(*) FROM order_items oi WHERE oi.order_id = o.id) AS items
           FROM orders o
           LEFT JOIN customers c ON c.id = o.customer_id
-         WHERE (CAST(:st AS text) IS NULL OR o.status::text = CAST(:st AS text))
-           AND (CAST(:br AS int) IS NULL
-                OR o.pickup_branch_id = CAST(:br AS int)
-                OR EXISTS (SELECT 1 FROM order_shipments s
-                            WHERE s.order_id = o.id AND s.branch_id = CAST(:br AS int)))
-           {where}
-         ORDER BY o.created_at DESC
-         LIMIT 200
-    """),
-        {"st": status, "br": user["branch_id"] if mine else None, **params},
+         {where}
+         ORDER BY o.created_at DESC"""
+
+
+@router.get("/api/manage/orders")
+async def orders_list(
+    status: str | None = None,
+    mine: bool = False,
+    q: str = "",
+    who: str = "",
+    paid: str = "",
+    method: str = "",
+    date_from: str = "",
+    date_to: str = "",
+    attention: bool = False,
+    page: int = 0,
+    session: AsyncSession = Depends(get_session),
+    user=Depends(current_user),
+):
+    """mine — заказы, где есть работа у филиала сотрудника: посылка из
+    его филиала или самовывоз из него. q — поиск одной строкой.
+
+    Без page — просто список (последние 200): так его читает приложение
+    сотрудника. С page=1, 2… — страница и итоги по выборке: сколько
+    заказов и на какую сумму — для бэкенда."""
+    where, params = _filters(user, status=status, mine=mine, q=q, who=who, paid=paid,
+                             method=method, date_from=date_from, date_to=date_to, attention=attention)
+    size = PAGE_SIZE if page else 200
+    offset = (max(page, 1) - 1) * size
+    rows = await session.execute(
+        text(LIST_SQL.format(attention=ATTENTION_SQL, where=where) + " LIMIT :lim OFFSET :off"),
+        {**params, "lim": size, "off": offset},
     )
     orders = [dict(r._mapping) for r in rows]
-    if not orders:
-        return []
-
-    items = await session.execute(
-        text("""
-        SELECT oi.order_id, oi.price, oi.qty, oi.shipment_id,
-               p.sku, p.name, p.status::text AS status,
-               (SELECT br.city || ', ' || br.name FROM branches br
-                 WHERE br.id = p.branch_id) AS branch
-          FROM order_items oi
-          JOIN parts p ON p.id = oi.part_id
-         WHERE oi.order_id = ANY(:ids)
-         ORDER BY oi.id
-    """),
-        {"ids": [o["id"] for o in orders]},
-    )
-    by_order: dict[int, list] = {}
-    for r in items:
-        by_order.setdefault(r.order_id, []).append(dict(r._mapping))
-    ships: dict[int, list] = {}
-    for r in await shipments_of(session, [o["id"] for o in orders]):
-        ships.setdefault(r["order_id"], []).append(r)
-    for o in orders:
-        o["items"] = by_order.get(o["id"], [])
-        o["shipments"] = ships.get(o["id"], [])
-    return orders
+    if orders:
+        items = await session.execute(
+            text("""
+            SELECT oi.order_id, oi.price, oi.qty, oi.shipment_id,
+                   p.sku, p.name, p.status::text AS status,
+                   (SELECT br.city || ', ' || br.name FROM branches br
+                     WHERE br.id = p.branch_id) AS branch
+              FROM order_items oi
+              JOIN parts p ON p.id = oi.part_id
+             WHERE oi.order_id = ANY(:ids)
+             ORDER BY oi.id
+        """),
+            {"ids": [o["id"] for o in orders]},
+        )
+        by_order: dict[int, list] = {}
+        for r in items:
+            by_order.setdefault(r.order_id, []).append(dict(r._mapping))
+        ships: dict[int, list] = {}
+        for r in await shipments_of(session, [o["id"] for o in orders]):
+            ships.setdefault(r["order_id"], []).append(r)
+        for o in orders:
+            o["items"] = by_order.get(o["id"], [])
+            o["shipments"] = ships.get(o["id"], [])
+    if not page:
+        return orders
+    tot = (await session.execute(text(f"""
+        SELECT count(*) AS n,
+               coalesce(sum(o.total) FILTER (WHERE o.status <> 'cancelled'), 0) AS sum,
+               coalesce(sum(o.total) FILTER (WHERE o.paid_at IS NOT NULL AND o.status <> 'cancelled'), 0) AS paid
+          FROM orders o LEFT JOIN customers c ON c.id = o.customer_id
+         {where}"""), params)).first()
+    return {"items": orders, "page": page, "pages": max(1, -(-tot.n // size)),
+            "total": tot.n, "sum": str(tot.sum), "paid_sum": str(tot.paid)}
 
 
 @router.get("/api/manage/orders/counts")
 async def orders_counts(mine: bool = False, session: AsyncSession = Depends(get_session),
                         user=Depends(current_user)):
-    """Сколько заказов в каждом статусе — для вкладок списка."""
-    rows = await session.execute(text("""
-        SELECT o.status::text AS status, count(*) AS n FROM orders o
-         WHERE CAST(:br AS int) IS NULL OR o.pickup_branch_id = CAST(:br AS int)
+    """Сколько заказов в каждом статусе — для вкладок списка; attention —
+    сколько требуют внимания, me — сколько ведёт сам сотрудник."""
+    params = {"br": user.get("branch_id") if mine else None, "me": user["id"]}
+    scope = """(CAST(:br AS int) IS NULL OR o.pickup_branch_id = CAST(:br AS int)
             OR EXISTS (SELECT 1 FROM order_shipments s
-                        WHERE s.order_id = o.id AND s.branch_id = CAST(:br AS int))
-         GROUP BY 1"""), {"br": user.get("branch_id") if mine else None})
+                        WHERE s.order_id = o.id AND s.branch_id = CAST(:br AS int)))"""
+    rows = await session.execute(text(f"""
+        SELECT o.status::text AS status, count(*) AS n FROM orders o
+         WHERE {scope} GROUP BY 1"""), params)
     out = {r.status: r.n for r in rows}
     out[""] = sum(out.values())
+    extra = (await session.execute(text(f"""
+        SELECT count(*) FILTER (WHERE {ATTENTION_SQL}) AS attention,
+               count(*) FILTER (WHERE o.manager_id = :me
+                                  AND o.status NOT IN ('completed', 'cancelled')) AS me
+          FROM orders o WHERE {scope}"""), params)).first()
+    out["attention"], out["me"] = extra.attention, extra.me
     return out
+
+
+@router.get("/api/manage/orders/export.csv")
+async def orders_export(
+    status: str | None = None, mine: bool = False, q: str = "", who: str = "", paid: str = "",
+    method: str = "", date_from: str = "", date_to: str = "", attention: bool = False,
+    session: AsyncSession = Depends(get_session),
+    user=Depends(require_role("manager")),
+):
+    """Выборка заказов для Excel: те же фильтры, что у списка. Точка с
+    запятой и BOM — так файл открывается в русском Excel без мастера."""
+    where, params = _filters(user, status=status, mine=mine, q=q, who=who, paid=paid,
+                             method=method, date_from=date_from, date_to=date_to, attention=attention)
+    rows = (await session.execute(text(LIST_SQL.format(attention=ATTENTION_SQL, where=where)
+                                       + " LIMIT 5000"), params)).all()
+    buf = io.StringIO()
+    w = csv.writer(buf, delimiter=";")
+    w.writerow(["Номер", "Дата", "Статус", "Покупатель", "Телефон", "Получение", "Адрес / филиал",
+                "Служба", "Сумма", "Доставка", "Оплата", "Оплачен", "Ответственный", "Заметка"])
+    for r in rows:
+        w.writerow([
+            r.number, r.created_at.strftime("%d.%m.%Y %H:%M"), ORDER_LABELS.get(r.status, r.status),
+            r.customer_name or "", r.phone or "",
+            "доставка" if r.delivery_method == "shipping" else "самовывоз",
+            r.delivery_address or r.delivery_city or r.pickup_branch or "",
+            {"cdek": "СДЭК", "yandex": "Яндекс", "pochta": "Почта России"}.get(r.delivery_carrier or "", ""),
+            f"{r.total:.2f}".replace(".", ","), f"{(r.delivery_price or 0):.2f}".replace(".", ","),
+            PAYMENT_LABELS.get(r.payment_method or "", r.payment_method or ""),
+            r.paid_at.strftime("%d.%m.%Y") if r.paid_at else "", r.manager or "", r.manager_note or "",
+        ])
+    name = f"zakazy-{date.today():%Y-%m-%d}.csv"
+    return Response("\ufeff" + buf.getvalue(), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
 # ------------------------------------------------------------------
@@ -222,6 +342,9 @@ async def order_card(order_id: int, session: AsyncSession = Depends(get_session)
     order["pickup_branch"] = (await session.execute(text("""
         SELECT city || ', ' || name FROM branches WHERE id = :b"""),
         {"b": o.pickup_branch_id})).scalar() if o.pickup_branch_id else None
+    order["manager"] = (await session.execute(text(
+        "SELECT coalesce(full_name, login) FROM users WHERE id = :u"), {"u": o.manager_id})).scalar() \
+        if o.manager_id else None
     order["promo_code"] = (await session.execute(text(
         "SELECT code FROM promo_codes WHERE id = :p"), {"p": o.promo_code_id})).scalar() \
         if o.promo_code_id else None
@@ -273,6 +396,11 @@ async def order_card(order_id: int, session: AsyncSession = Depends(get_session)
         # Способы онлайн-оплаты — для смены способа в карточке
         "pay_methods": [{"code": m["code"], "title": m["title"]} for m in payments.methods()],
         "can_edit": user["role"] in ("manager", "admin"),
+        # Кому можно передать заказ — действующие сотрудники
+        "staff": [dict(r._mapping) for r in await session.execute(text("""
+            SELECT id, coalesce(full_name, login) AS name, role::text AS role FROM users
+             WHERE is_active AND role IN ('manager', 'admin') ORDER BY 2"""))],
+        "me": user["id"],
     }
 
 
@@ -307,6 +435,8 @@ class OrderPatch(BaseModel):
     delivery_price: Decimal | None = Field(default=None, ge=0, le=1_000_000)
     # Способ оплаты: on_receipt / card / sbp / robokassa
     pay_choice: str | None = Field(default=None, max_length=16)
+    # Ответственный; null — снять
+    manager_id: int | None = None
 
 
 # Куда можно перевести заказ. Список, а не свободный переход: «отменён»
@@ -498,6 +628,10 @@ async def patch_order(
         from .account_orders import switch_payment
         await switch_payment(session, o, payload.pay_choice, user)
 
+    # --- ответственный ------------------------------------------------
+    if "manager_id" in sent and payload.manager_id != o.manager_id:
+        await set_manager(session, o, payload.manager_id, user)
+
     # --- статус ---------------------------------------------------------
     if "status" in sent and payload.status != o.status:
         if payload.status not in ORDER_FLOW:
@@ -510,9 +644,28 @@ async def patch_order(
         await order_log.log(session, order_id, "status",
                             f"Статус: {ORDER_LABELS.get(o.status)} → {ORDER_LABELS.get(payload.status)}",
                             user)
+        # Кто первым взялся за заказ без ответственного — тот его и ведёт
+        if not o.manager_id and "manager_id" not in sent and user["role"] in ("manager", "admin"):
+            await set_manager(session, o, user["id"], user)
 
     await session.commit()
     return {"ok": True, "need_recalc": need_recalc}
+
+
+async def set_manager(session: AsyncSession, o, manager_id: int | None, user: dict) -> None:
+    """Ответственный за заказ — действующий менеджер или админ; в ленту."""
+    name = None
+    if manager_id is not None:
+        name = (await session.execute(text("""
+            SELECT coalesce(full_name, login) FROM users
+             WHERE id = :u AND is_active AND role IN ('manager', 'admin')"""), {"u": manager_id})).scalar()
+        if not name:
+            raise HTTPException(422, "Ответственным может быть действующий менеджер или администратор")
+    old = (await session.execute(text("SELECT coalesce(full_name, login) FROM users WHERE id = :u"),
+                                 {"u": o.manager_id})).scalar() if o.manager_id else None
+    await session.execute(text("UPDATE orders SET manager_id = :m, updated_at = now() WHERE id = :o"),
+                          {"m": manager_id, "o": o.id})
+    await order_log.log(session, o.id, "edit", f"Ответственный: {old or '—'} → {name or '—'}", user)
 
 
 async def sync_totals(session: AsyncSession, order_id: int) -> None:

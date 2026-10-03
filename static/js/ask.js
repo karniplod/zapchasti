@@ -25,6 +25,9 @@ function askConfirm(text, {title = 'Подтвердите действие', ok
     d.querySelector('p').textContent = text;
     d.querySelector('.ask-no').textContent = cancel;
     d.querySelector('.ask-yes').textContent = ok;
+    // cancel: null — сообщение с одной кнопкой («Понятно»); переносы строк в тексте сохраняются
+    if (cancel === null) d.querySelector('.ask-no').hidden = true;
+    d.querySelector('p').style.whiteSpace = 'pre-line';
     d.querySelector('.ask-no').onclick = () => d.close('no');
     d.querySelector('.ask-yes').onclick = () => d.close('yes');
     d.addEventListener('click', e => { if (e.target === d) d.close('no'); });

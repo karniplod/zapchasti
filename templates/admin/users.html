@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ru"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Пользователи</title>
+<link rel="stylesheet" href="/static/admin.css?v={{ admin_css_version() }}">
+<link rel="stylesheet" href="{{ asset('css/admin/users.css') }}"></head><body>
+
+{% include "admin/_nav.html" %}
+
+{#
+  Пользователи (app/routers/users_admin.py): покупатели сайта и
+  сотрудники бэкенда. Сотрудников заводит и правит только админ;
+  менеджер видит вкладку «Сотрудники» со своей учёткой — правит свои
+  контакты и письма о новых заказах.
+#}
+<div class="wrap wrap-wide">
+  <div class="tabs" id="mode">
+    <button class="on" data-m="customers">Покупатели <i id="nCust"></i></button>
+    <button data-m="staff">{{ 'Сотрудники' if user.role == 'admin' else 'Моя учётная запись' }}</button>
+  </div>
+
+  {# ── Покупатели ─────────────────────────────────────────── #}
+  <div id="custBox">
+    <div class="u-search">
+      <input id="q" type="search" autocomplete="off"
+             placeholder="Имя, телефон, email или номер заказа">
+      <select id="show" aria-label="Кого показать">
+        <option value="">Все покупатели</option>
+        <option value="buyers">С заказами</option>
+        <option value="idle">Без заказов</option>
+        <option value="blocked">Заблокированные</option>
+      </select>
+      <select id="sort" aria-label="Порядок">
+        <option value="new">Сначала новые</option>
+        <option value="login">По последнему входу</option>
+        <option value="orders">По числу заказов</option>
+        <option value="spent">По сумме покупок</option>
+      </select>
+    </div>
+    <p class="u-totals" id="custTotals"></p>
+    <div id="custList"><p class="blank">Загружаю…</p></div>
+    <div class="u-more" id="custMore" hidden><button type="button" class="btn" id="custMoreBtn">Показать ещё</button></div>
+  </div>
+
+  {# ── Сотрудники ─────────────────────────────────────────── #}
+  <div id="staffBox" hidden>
+    {% if user.role == 'admin' %}
+    <div class="u-head">
+      <p class="u-hint">Роль решает, что сотрудник видит в бэкенде. Новый пароль и отключение
+        сразу завершают его входы — и в браузере, и в приложении.</p>
+      <button type="button" class="btn btn-accent" id="staffNew">Добавить сотрудника</button>
+    </div>
+    {% endif %}
+    <form class="panel s-form" id="staffForm" hidden novalidate>
+      <h2 id="sfTitle">Новый сотрудник</h2>
+      <div class="s-grid">
+        <div><label for="sfLogin">Логин</label>
+          <input id="sfLogin" maxlength="32" autocomplete="off" placeholder="ivanov"></div>
+        <div><label for="sfName">Имя</label>
+          <input id="sfName" maxlength="80" autocomplete="off" placeholder="Иван Иванов"></div>
+        <div class="adm-only"><label for="sfRole">Роль</label><select id="sfRole"></select></div>
+        <div class="adm-only"><label for="sfBranch">Филиал</label><select id="sfBranch"></select></div>
+        <div><label for="sfEmail">Email</label>
+          <input id="sfEmail" type="email" maxlength="254" autocomplete="off" placeholder="для писем о заказах"></div>
+        <div><label for="sfPhone">Телефон</label>
+          <input id="sfPhone" type="tel" maxlength="32" autocomplete="off"></div>
+        <div class="adm-only"><label for="sfPass" id="sfPassL">Пароль</label>
+          <input id="sfPass" type="text" maxlength="200" autocomplete="new-password"
+                 placeholder="не короче 8 знаков, буквы и цифры">
+          <button type="button" class="lnk" id="sfGen">Придумать пароль</button></div>
+      </div>
+      <label class="s-check"><input type="checkbox" id="sfNotify"> Присылать письмо о каждом новом заказе
+        <small>(сотруднику филиала — только заказы его филиала)</small></label>
+      <div class="actions-row">
+        <button type="submit" class="btn btn-accent" id="sfSave">Сохранить</button>
+        <button type="button" class="btn" id="sfCancel">Отмена</button>
+      </div>
+    </form>
+    <div id="staffList"><p class="blank">Загружаю…</p></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+{% include "_validation.html" %}
+<script src="{{ asset('js/admin/users.js') }}"></script>
+</body></html>

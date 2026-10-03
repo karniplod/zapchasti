@@ -43,6 +43,7 @@ from .routers import (
     shop,
     staff_app,
     stock,
+    users_admin,
 )
 from .templating import templates
 
@@ -98,6 +99,7 @@ app.include_router(reference.router)
 app.include_router(admin.router)
 app.include_router(manage.router)
 app.include_router(orders_admin.router)
+app.include_router(users_admin.router)
 app.include_router(promo_admin.router)
 app.include_router(stock.router)
 app.include_router(staff_app.router)
@@ -183,7 +185,7 @@ async def login_submit(
     # Открытый редирект: пускаем только на внутренние пути
     target = next if next.startswith("/") and not next.startswith("//") else "/admin"
     response = RedirectResponse(target, status_code=303)
-    issue_session(response, user["id"], user["role"])
+    issue_session(response, user["id"], user["role"], user.pop("sv", 0))
     log.info("Вход: %s (%s)", user["login"], user["role"])
     return response
 
@@ -219,7 +221,7 @@ async def app_login(
 
     _login_fails.pop(key, None)
     log.info("Вход из приложения: %s (%s)", user["login"], user["role"])
-    return {"token": issue_app_token(user["id"], user["role"]), "user": user}
+    return {"token": issue_app_token(user["id"], user["role"], user.pop("sv", 0)), "user": user}
 
 
 @app.get("/api/auth/me")

@@ -23,8 +23,38 @@
       <label class="mine-only"><input type="checkbox" id="mine"> Мой филиал</label>
       {% endif %}
     </div>
+    {# Фильтры — как в CRM: кто ведёт, оплата, получение, период.
+       Выгрузка берёт те же фильтры #}
+    <div class="o-filters" id="filters">
+      <select id="fWho" aria-label="Ответственный">
+        <option value="">Все ответственные</option>
+        <option value="me">Мои заказы</option>
+        <option value="none">Без ответственного</option>
+      </select>
+      <select id="fPaid" aria-label="Оплата">
+        <option value="">Любая оплата</option>
+        <option value="yes">Оплачены</option>
+        <option value="wait">Ждём онлайн-оплату</option>
+        <option value="receipt">При получении</option>
+      </select>
+      <select id="fMethod" aria-label="Получение">
+        <option value="">Любое получение</option>
+        <option value="pickup">Самовывоз</option>
+        <option value="shipping">Доставка</option>
+        <option value="cdek">— СДЭК</option>
+        <option value="yandex">— Яндекс</option>
+        <option value="pochta">— Почта России</option>
+      </select>
+      <label class="o-date">с <input type="date" id="fFrom"></label>
+      <label class="o-date">по <input type="date" id="fTo"></label>
+      <button type="button" class="lnk" id="fReset" hidden>Сбросить</button>
+      {% if user.role in ('manager', 'admin') %}
+      <a class="btn o-export" id="fExport" href="/api/manage/orders/export.csv">Выгрузить в Excel</a>
+      {% endif %}
+    </div>
     <div class="tabs" id="tabs">
       <button class="on" data-s="">Все <i></i></button>
+      <button data-s="attention" class="t-att" title="Новые без ответственного дольше 2 часов и неоплаченные онлайн дольше суток">Требуют внимания <i></i></button>
       <button data-s="new">Новые <i></i></button>
       <button data-s="confirmed">Подтверждённые <i></i></button>
       <button data-s="paid">Оплаченные <i></i></button>
@@ -33,7 +63,9 @@
       <button data-s="cancelled">Отменённые <i></i></button>
     </div>
   </div>
+  <p class="o-totals" id="totals" hidden></p>
   <div id="list" data-branch="{{ user.branch_id or '' }}"><p class="blank">Загружаю…</p></div>
+  <div class="o-more" id="more" hidden><button type="button" class="btn" id="moreBtn">Показать ещё</button></div>
 </div>
 
 <div class="toast" id="toast"></div>

@@ -90,6 +90,13 @@ function head(o){
       <div><h1>Заказ № ${esc(o.number)}</h1>
         <p class="sub">от ${dt(o.created_at)}${o.source === 'site' ? ' · с сайта' : o.source ? ' · ' + esc(o.source) : ''}
           ${o.updated_at ? ' · изменён ' + dt(o.updated_at) : ''}</p></div>
+      <div class="c-mgr"><small>Ответственный</small>
+        ${D.can_edit ? `<select id="mgrSel" aria-label="Ответственный">
+            <option value="">— не назначен —</option>
+            ${D.staff.map(u => `<option value="${u.id}" ${u.id === o.manager_id ? 'selected' : ''}>${esc(u.name)}</option>`).join('')}
+          </select>
+          ${o.manager_id !== D.me ? '<button type="button" class="lnk" id="mgrMe">Взять себе</button>' : ''}`
+          : `<b>${esc(o.manager || 'не назначен')}</b>`}</div>
       <div class="c-total"><small>Итого</small><b>${money(o.total)}</b>
         <small class="${o.paid_at ? 'ok' : ''}">${o.paid_at ? 'оплачен ' + date(o.paid_at)
           : 'не оплачен · ' + esc(D.order.payment_label || '')}</small></div>
@@ -135,7 +142,7 @@ function contact(o){
              : '<span class="muted">телефона нет</span>'}
         ${email ? `<span class="mail"><a href="mailto:${esc(email)}">${esc(email)}</a>${copyBtn(email, 'Скопировать email')}</span>` : ''}
       </div>
-      ${c ? `<p class="acct">Аккаунт на сайте: ${esc([phoneFmt(c.phone), c.email].filter(Boolean).join(', ') || c.name || '—')}
+      ${c ? `<p class="acct">Аккаунт на сайте: <a href="/users/customers/${c.id}">${esc([phoneFmt(c.phone), c.email].filter(Boolean).join(', ') || c.name || '—')}</a>
           · с ${date(c.created_at)} · заказов ${c.orders}${+c.spent ? ', оплачено на ' + money(c.spent) : ''}</p>
         <p class="acct loyal">Баллов: <b>${c.bonus}</b> · персональная скидка: <b>${+c.personal_discount ? Math.round(+c.personal_discount * 10) / 10 + '%' : 'нет'}</b>
           ${D.can_edit ? '<button type="button" class="lnk" id="loyalOpen">Баллы и скидка</button>' : ''}</p>
@@ -594,6 +601,10 @@ $('card').addEventListener('click', async e => {
   }
   if (t.id === 'recalcBtn'){ runRecalc(false); return; }
   if (t.id === 'loyalOpen'){ openLoyalty(); return; }
+  if (t.id === 'mgrMe'){
+    if (await api('PATCH', `/api/manage/orders/${ID}`, {manager_id: D.me})){ toast('Заказ ваш', 'ok'); load(); }
+    return;
+  }
   if (t.id === 'recalcApply'){ runRecalc(true); return; }
   if (t.id === 'recalcHide'){ recalc = null; render(); return; }
   if (t.classList.contains('del')){
@@ -643,6 +654,14 @@ $('card').addEventListener('click', async e => {
     if (await api('POST', `/api/manage/orders/${ID}/notes`, {text: v})){ load(); }
     else t.disabled = false;
   }
+});
+
+// Ответственный — сразу, как выбрали
+$('card').addEventListener('change', async e => {
+  if (e.target.id !== 'mgrSel') return;
+  const v = e.target.value;
+  if (await api('PATCH', `/api/manage/orders/${ID}`, {manager_id: v ? +v : null})) toast('Ответственный сохранён', 'ok');
+  load();
 });
 
 // Количество и цена строки сохраняются сразу, как поле отпустили

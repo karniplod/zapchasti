@@ -215,3 +215,10 @@
 .loyal-hist .plus{color:var(--ok);font-weight:600}
 .loyal-hist .minus{color:var(--err);font-weight:600}
 .loyal-hist small{color:var(--dim)}
+
+/* Ответственный — в шапке рядом с итогом */
+.c-mgr{display:grid;gap:4px;justify-items:start;margin-left:auto;margin-right:24px}
+.c-mgr small{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.c-mgr select{width:auto;min-width:200px}
+.c-mgr b{font-weight:600}
+@media(max-width:700px){.c-mgr{margin:0}}
