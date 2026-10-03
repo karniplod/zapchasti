@@ -150,6 +150,19 @@ const Check = {
     return /^\d{6}$/.test(v) ? '' : 'Индекс — шесть цифр';
   },
   city(v){ return Check.text(v, {min: 2, max: 120, what: 'Город'}); },
+  // Промокод — как его заводит менеджер (app/validation/promo.py)
+  promo(v){
+    v = String(v || '').trim().toUpperCase();
+    if (!v) return 'Введите промокод';
+    return /^[A-Z0-9_-]{3,30}$/.test(v) ? '' : 'Промокод: латиница, цифры и дефис, от 3 до 30 знаков';
+  },
+  // Сколько баллов списать: целое, не больше доступного
+  bonus(v, max){
+    v = String(v ?? '').trim();
+    if (!v) return '';
+    if (!/^\d+$/.test(v)) return 'Баллы — целым числом';
+    return +v > max ? `Можно списать не больше ${max.toLocaleString('ru')}` : '';
+  },
   // Номер отслеживания посылки (app/validation/orders.py)
   track(v){
     v = String(v || '').replace(/\s/g, '');

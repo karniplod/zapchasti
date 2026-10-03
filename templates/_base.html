@@ -46,11 +46,17 @@
       <a href="/cars" {% if request.url.path.startswith('/cars') %}aria-current="page"{% endif %}>Машины</a>
       <a href="/delivery" {% if request.url.path == '/delivery' %}aria-current="page"{% endif %}>Доставка</a>
       <a href="/contacts" {% if request.url.path == '/contacts' %}aria-current="page"{% endif %}>Контакты</a>
+      <a href="/account" {% if request.url.path.startswith('/account') %}aria-current="page"{% endif %}>Личный кабинет</a>
       {% if user %}<a class="to-admin" href="/admin">Бэкенд</a>{% endif %}
     </nav>
     {# Вход и кабинет: состояние приходит из /api/me, потому что шапка
        одна на все страницы, а покупателя знают не все обработчики #}
-    <a class="acct-link" id="acctLink" href="/account/login">Войти</a>
+    {# Вошёл — по имени открывается окно: баллы, последний вход и с какого
+       устройства, переход в профиль (static/js/chrome.js) #}
+    <div class="acct-wrap">
+      <a class="acct-link" id="acctLink" href="/account/login">Войти</a>
+      <div class="acct-pop" id="acctPop" role="dialog" aria-label="Личный кабинет" hidden></div>
+    </div>
     {# Подпись — внутри кнопки, а не рядом: на телефоне наведения нет,
        там всё решает касание, и по слову надо попадать так же, как по
        значку. Слова лежат в шаблоне, а не в стилях, чтобы их можно было

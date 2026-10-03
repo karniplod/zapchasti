@@ -2,6 +2,7 @@
 {% block title %}Мои адреса{% endblock %}
 {% block description %}Адреса доставки для быстрого оформления заказов.{% endblock %}
 {% set section = 'addresses' %}
+{% from "_macros.html" import addr_icon %}
 
 {#
   Сохранённые адреса доставки (app/routers/cabinet.py). При оформлении
@@ -22,9 +23,11 @@
     <ul class="addr-list" id="addrList">
       {% for a in addresses %}
       <li data-id="{{ a.id }}" data-addr='{{ a | tojson }}'>
-        <div>
+        {{ addr_icon(a.title) }}
+        <div class="addr-body">
           <b>{{ a.title or a.city }}</b>{% if a.is_default %}<span class="chip">основной</span>{% endif %}
           <p>{{ a.line }}</p>
+          {% if a.last_used %}<small class="addr-used">Последний заказ на этот адрес — {{ a.last_used }}</small>{% endif %}
         </div>
         <div class="addr-acts">
           {% if not a.is_default %}<button type="button" class="linkish make-default">Сделать основным</button>{% endif %}
@@ -39,7 +42,11 @@
       <h3 id="addrFormTitle">Новый адрес</h3>
       <div class="oe-grid">
         <div><label for="fTitle">Название</label>
-          <input class="field" id="fTitle" maxlength="40" placeholder="Дом, Работа, Гараж"></div>
+          <input class="field" id="fTitle" maxlength="40" placeholder="Своё название или выберите ниже">
+          {# Готовые названия — одной кнопкой; своё можно вписать в поле #}
+          <div class="title-chips" id="fTitles" role="group" aria-label="Готовые названия">
+            {% for t in titles %}<button type="button" class="chip-btn" data-t="{{ t }}">{{ addr_icon(t) }}{{ t }}</button>{% endfor %}
+          </div></div>
         <div class="city-fld"><label for="fCity">Город</label>
           <input class="field" id="fCity" maxlength="120" autocomplete="off" placeholder="Начните вводить: Самара">
           <div class="suggest" id="fCityList" role="listbox" hidden></div></div>

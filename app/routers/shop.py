@@ -28,6 +28,9 @@ from ..config import settings
 from ..database import get_session
 from ..templating import templates
 
+# Готовые названия для «Моих адресов» — кнопками у поля «Название»
+ADDRESS_TITLES = ["Дом", "Работа", "Офис", "Дача", "Гараж"]
+
 router = APIRouter(tags=["shop"])
 
 CART_COOKIE = "razbor_cart"
@@ -141,11 +144,10 @@ async def cart_page(
             "methods": payments.methods(),
             "carriers": ship_services.enabled(),
             "address_hints": addr.enabled(),
-            # Мои адреса — кнопками над полями адреса (app/routers/cabinet.py)
-            "saved_addresses": [dict(r._mapping) for r in await session.execute(text("""
-                SELECT id, title, country, city, cdek_code, postcode, street, house, block, flat,
-                       is_default FROM customer_addresses WHERE customer_id = :c
-                 ORDER BY is_default DESC, created_at"""), {"c": customer["id"]})] if customer else [],
+            # Мои адреса — выпадающим списком над полями адреса; первый
+            # (из последнего заказа или самый свежий) подставляется сам
+            "saved_addresses": await addresses_of(session, customer["id"]) if customer else [],
+            "address_titles": ADDRESS_TITLES,
             # Деталь могли продать, пока она лежала в корзине
             "gone": [i for i in items if i["status"] != "in_stock"],
             "no_price": [i for i in items if i["price"] is None],
@@ -377,8 +379,8 @@ async def register(
         sent = await send_verification(session, customer["id"], value, safe_next_url(request))
         return {"confirm": True, "email": value, "sent": sent}
 
+    await ca.login(session, request, response, customer["id"], "register")
     await adopt_cart(session, cart_token(request), customer["id"])
-    ca.issue(response, customer["id"])
     return {"ok": True}
 
 
@@ -472,7 +474,10 @@ async def verify_email(
     dest = next if next.startswith("/") and not next.startswith("//") else "/account"
     response = RedirectResponse(dest + ("&" if "?" in dest else "?") + "verified=1",
                                 status_code=303)
-    ca.issue(response, row.id)
+    try:
+        await ca.login(session, request, response, row.id, "email_link")
+    except HTTPException as e:
+        return RedirectResponse("/account/login?" + urlencode({"error": e.detail}), status_code=303)
     return response
 
 
@@ -499,8 +504,8 @@ async def login(
             "code": "email_unverified", "email": customer["email"],
         }, status_code=403)
 
+    await ca.login(session, request, response, customer["id"], "password")
     await adopt_cart(session, cart_token(request), customer["id"])
-    ca.issue(response, customer["id"])
     return {"ok": True}
 
 
@@ -524,8 +529,10 @@ class OrderIn(BaseModel):
     # и пересчитает сам (app/loyalty.py)
     promo_code: str | None = Field(default=None, max_length=40)
     bonus: int = Field(default=0, ge=0, le=10_000_000)
-    # «Запомнить адрес» — в «Мои адреса», если такого там ещё нет
+    # «Запомнить адрес» — в «Мои адреса», если такого там ещё нет;
+    # address_title — как назвать: Дом, Работа
     save_address: bool = False
+    address_title: str | None = Field(default=None, max_length=40)
     contact_phone: str = Field(min_length=10, max_length=40)
     delivery_method: str = Field(default="pickup", max_length=32)
     pickup_branch_id: int | None = None
@@ -772,6 +779,12 @@ async def create_order(
     return out
 
 
+async def addresses_of(session: AsyncSession, customer_id: int) -> list[dict]:
+    # cabinet импортирует shop — поэтому здесь, а не наверху
+    from .cabinet import addresses_of as of
+    return await of(session, customer_id)
+
+
 async def remember_address(session: AsyncSession, customer_id: int, payload: "OrderIn") -> None:
     """Адрес из заказа — в «Мои адреса», если такого ещё нет и место есть.
     Не получилось — заказ всё равно оформлен: это удобство, не условие."""
@@ -789,7 +802,7 @@ async def remember_address(session: AsyncSession, customer_id: int, payload: "Or
     if same or count >= MAX_ADDRESSES:
         return
     await save_address(session, customer_id, {
-        "title": None, "country": payload.delivery_country or "RU",
+        "title": (payload.address_title or "").strip() or None, "country": payload.delivery_country or "RU",
         "city": (payload.delivery_city or "").strip(), "cdek_code": payload.delivery_cdek_code,
         "postcode": payload.delivery_postcode, "street": payload.delivery_street.strip(),
         "house": (payload.delivery_house or "").strip(),

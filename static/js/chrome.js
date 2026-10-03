@@ -43,8 +43,66 @@ fetch('/api/me').then(r => r.json()).then(d => {
   if (d.cart){ const n = document.getElementById('cartN');
                n.textContent = d.cart; n.hidden = false; }
   if (d.authorized){ const a = document.getElementById('acctLink');
-                     a.href = '/account'; a.textContent = d.name || 'Кабинет'; }
+                     a.href = '/account'; a.textContent = d.name || 'Кабинет';
+                     acctPop(a); }
 }).catch(() => {});
+
+// Окно под именем покупателя: баллы, последний вход — когда и с какого
+// устройства, «Перейти в профиль». Данные — при каждом открытии
+// (/api/account/brief). Ctrl/⌘+клик открывает кабинет как ссылку
+function acctPop(link){
+  const box = document.getElementById('acctPop');
+  if (!box) return;
+  link.setAttribute('aria-haspopup', 'dialog');
+  link.setAttribute('aria-expanded', 'false');
+  link.setAttribute('aria-controls', 'acctPop');
+  const esc = s => String(s ?? '').replace(/[&<>"]/g,
+    c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  // Время — в часовом поясе покупателя: сервер отдаёт его с поясом
+  const when = iso => {
+    const d = new Date(iso), now = new Date();
+    const day = d.toDateString() === now.toDateString() ? 'сегодня'
+      : d.toDateString() === new Date(now - 864e5).toDateString() ? 'вчера'
+      : d.toLocaleDateString('ru', {day: 'numeric', month: 'long', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric'});
+    return `${day} в ${d.toLocaleTimeString('ru', {hour: '2-digit', minute: '2-digit'})}`;
+  };
+  const close = () => { box.hidden = true; link.setAttribute('aria-expanded', 'false'); };
+  const draw = d => {
+    const initial = (d.name || d.contact || '?').trim()[0].toUpperCase();
+    const last = d.previous || d.current;
+    box.innerHTML = `
+      <div class="ap-head"><span class="ap-ava" aria-hidden="true">${esc(initial)}</span>
+        <span class="ap-who"><b>${esc(d.name || 'Покупатель')}</b>${d.contact ? `<small>${esc(d.contact)}</small>` : ''}</span>
+        <button type="button" class="mc-x" aria-label="Закрыть">×</button></div>
+      <a class="ap-bonus" href="/account/bonus"><span>Баллы</span><b>${(+d.balance).toLocaleString('ru')}</b></a>
+      <dl class="ap-facts">
+        ${last ? `<dt>${d.previous ? 'Последний вход' : 'Вход'}</dt>
+          <dd>${esc(when(last.at))}<small>${esc(last.device)}</small></dd>` : ''}
+        ${d.previous && d.current ? `<dt>Сейчас</dt>
+          <dd>${esc(d.current.device)}<small>вход ${esc(when(d.current.at))}</small></dd>` : ''}
+      </dl>
+      ${d.previous ? '<p class="ap-note">Не узнаёте вход? Смените пароль в профиле.</p>' : ''}
+      <a class="btn btn-primary" href="/account/profile">Перейти в профиль</a>
+      <div class="ap-links"><a href="/account">Мои заказы</a><a href="/account/logout">Выйти</a></div>`;
+  };
+  link.addEventListener('click', async e => {
+    if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    if (!box.hidden){ close(); return; }
+    box.hidden = false;
+    link.setAttribute('aria-expanded', 'true');
+    box.style.top = innerWidth <= 640 ? Math.round(link.getBoundingClientRect().bottom + 6) + 'px' : '';
+    box.innerHTML = '<p class="mc-empty">Загружаем…</p>';
+    try {
+      const r = await fetch('/api/account/brief', {cache: 'no-store'});
+      if (r.status === 401){ location.href = '/account/login'; return; }
+      draw(await r.json());
+    } catch { box.innerHTML = '<p class="mc-empty">Нет связи с сервером</p>'; }
+  });
+  box.addEventListener('click', e => { if (e.target.closest('.mc-x')){ close(); link.focus(); } });
+  document.addEventListener('click', e => { if (!box.hidden && !e.target.closest('.acct-wrap')) close(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !box.hidden){ close(); link.focus(); } });
+}
 
 // Краткая корзина под значком: что лежит, сколько стоит, «Оформить заказ».
 // Состав — с сервера при каждом открытии (/api/cart?full=1): корзина

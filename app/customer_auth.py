@@ -54,16 +54,48 @@ def read_verify_token(token: str) -> dict | None:
         return None
 
 
-def issue(response: Response, customer_id: int) -> None:
+BLOCKED = "Вход в кабинет закрыт. Если это ошибка — позвоните или напишите нам"
+
+
+def issue(response: Response, customer_id: int, login_id: int | None = None,
+          version: int = 0) -> None:
+    """Кука входа. lid — строка журнала входов: по ней окно кабинета
+    отличает этот вход от прошлого; v — номер сеанса покупателя:
+    увеличили (выйти на всех устройствах, блокировка) — кука не подходит."""
     response.set_cookie(
         COOKIE,
-        signer.dumps({"cid": customer_id}),
+        signer.dumps({"cid": customer_id, "lid": login_id, "v": version}),
         max_age=TTL_DAYS * 86400,
         httponly=True,
         secure=not settings.debug,
         samesite="lax",
         path="/",
     )
+
+
+async def login(session: AsyncSession, request: Request, response: Response,
+                customer_id: int, method: str) -> None:
+    """Вход состоялся: запись в журнал (когда, с какого устройства) и кука.
+    Заблокированного не впускаем — 403 с понятным текстом."""
+    row = (await session.execute(text(
+        "SELECT is_blocked, session_version FROM customers WHERE id = :id"),
+        {"id": customer_id})).first()
+    if not row or row.is_blocked:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, BLOCKED)
+    lid = (await session.execute(text("""
+        INSERT INTO customer_logins (customer_id, method, user_agent)
+        VALUES (:c, :m, :ua) RETURNING id"""),
+        {"c": customer_id, "m": method,
+         "ua": (request.headers.get("user-agent") or "")[:400] or None})).scalar_one()
+    # Журнал — для «последнего входа», не архив: хватит двадцати
+    await session.execute(text("""
+        DELETE FROM customer_logins WHERE customer_id = :c AND id NOT IN (
+            SELECT id FROM customer_logins WHERE customer_id = :c ORDER BY at DESC, id DESC LIMIT 20)"""),
+        {"c": customer_id})
+    await session.execute(text("UPDATE customers SET last_login_at = now() WHERE id = :id"),
+                          {"id": customer_id})
+    await session.commit()
+    issue(response, customer_id, lid, row.session_version)
 
 
 def drop(response: Response) -> None:
@@ -87,12 +119,16 @@ async def optional_customer(
     row = (
         await session.execute(
             text("""
-        SELECT id, phone, name, email FROM customers WHERE id = :id
+        SELECT id, phone, name, email, is_blocked, session_version FROM customers WHERE id = :id
     """),
             {"id": data["cid"]},
         )
     ).first()
-    return dict(row._mapping) if row else None
+    # Заблокирован или вышел на всех устройствах — эта кука больше не вход
+    if not row or row.is_blocked or row.session_version != data.get("v", 0):
+        return None
+    return {"id": row.id, "phone": row.phone, "name": row.name, "email": row.email,
+            "login_id": data.get("lid")}
 
 
 async def current_customer(customer: dict | None = Depends(optional_customer)) -> dict:

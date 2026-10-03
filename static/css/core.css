@@ -147,6 +147,12 @@ p.hint{margin:4px 0 0}
   color:var(--muted);white-space:nowrap;transition:color .13s}
 .sec-head a::after{content:" →"}
 .sec-head a:hover{color:var(--accent)}
+/* Кнопка справа в заголовке — «Скрыть» / «Показать» */
+.sec-head .sec-toggle{margin-left:auto;padding:0 0 12px;background:none;border:0;
+  font:inherit;font-size:var(--t-sm);color:var(--muted);cursor:pointer;white-space:nowrap;
+  transition:color .13s}
+.sec-head .sec-toggle:hover{color:var(--accent)}
+.is-folded .sec-head{margin-bottom:0}
 
 /* Хлебные крошки над карточкой детали и машины */
 .crumbs{font-size:var(--t-sm);color:var(--muted);padding:18px 0 0}
@@ -209,7 +215,11 @@ p.hint{margin:4px 0 0}
 /* Ошибка у поля — из static/js/validate.js: рамка и подпись под полем */
 .field.is-bad,.field.is-bad:focus{border-color:var(--err);
   box-shadow:0 0 0 3px rgba(210,52,31,.12)}
-.fld-err{margin:6px 0 0;color:var(--err);font-size:var(--t-sm);line-height:1.35}
+.fld-err{display:flex;gap:6px;align-items:flex-start;margin:6px 0 0;color:var(--err);
+  font-size:var(--t-sm);line-height:1.35}
+/* Значок «!» в кружке перед текстом ошибки */
+.fld-err::before{content:"!";flex:0 0 15px;height:15px;margin-top:1px;border-radius:50%;
+  background:var(--err);color:#fff;font-size:10px;font-weight:700;line-height:15px;text-align:center}
 .fld-err[hidden]{display:none}
 .field:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(245,79,12,.12)}
 .field-code{font-family:var(--mono);letter-spacing:.12em;text-transform:uppercase;
@@ -387,3 +397,8 @@ label{display:block;font-size:var(--t-xs);font-weight:500;color:var(--muted);
   background:var(--ink);color:#fff;border-radius:var(--r);padding:13px 20px;
   font-size:var(--t-sm);opacity:0;transition:.2s;pointer-events:none;z-index:60}
 .toast.show{opacity:1}
+
+/* Значок адреса (templates/_macros.html, addr_icon): дом, работа, дача… */
+.addr-ico{display:inline-grid;place-items:center;flex:0 0 auto;width:34px;height:34px;padding:7px;
+  border-radius:50%;background:var(--accent-bg);color:var(--accent)}
+.addr-ico svg{width:100%;height:100%;display:block}

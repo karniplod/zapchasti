@@ -446,6 +446,23 @@ async function loadFresh(){
   } catch { /* каталог ниже всё равно загрузится */ }
 }
 
+// «Скрыть» / «Показать» — запоминаем в браузере. Хранилище может быть
+// недоступно (приватный режим) — тогда просто не помним
+const FRESH_KEY = 'freshHidden';
+function freshFold(hide){
+  $('freshBody').hidden = hide;
+  $('freshToggle').textContent = hide ? 'Показать' : 'Скрыть';
+  $('freshToggle').setAttribute('aria-expanded', String(!hide));
+  $('fresh').classList.toggle('is-folded', hide);
+}
+try { freshFold(localStorage.getItem(FRESH_KEY) === '1'); } catch {}
+$('freshToggle').onclick = () => {
+  const hide = !$('freshBody').hidden;
+  freshFold(hide);
+  try { hide ? localStorage.setItem(FRESH_KEY, '1') : localStorage.removeItem(FRESH_KEY); } catch {}
+  if (!hide) fillRows($('freshGrid'), 1);
+};
+
 // При подборе по машине свежие убираем: они мешают увидеть результат
 const _openCatalog = openCatalog;
 openCatalog = function(){ $('fresh').hidden = true; _openCatalog(); };

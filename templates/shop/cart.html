@@ -6,6 +6,7 @@
 <link rel="stylesheet" href="{{ asset('css/shop.css') }}">
 {% endblock %}
 
+{% from "_macros.html" import addr_icon %}
 {% macro rub(v) %}{{ "{:,.0f}".format(v).replace(",", " ") }} ₽{% endmacro %}
 
 {#
@@ -163,11 +164,43 @@
             заказ в выбранном, перевоз займёт несколько дней.</p>{% endif %}
         </div>
 
-        {# Доставка: страна и город → варианты служб с ценой → пункт выдачи
-           или адрес по полям. Цену показываем, но при оформлении сервер
-           считает её заново. Подсказки улицы и дома — DaData, если ключ задан #}
+        {# Доставка сверху вниз: мои адреса → страна и город → улица, дом,
+           квартира, индекс → варианты служб с ценой → пункт выдачи. Адрес
+           до вариантов: по индексу считает Почта, и человек заполняет форму
+           подряд, не возвращаясь наверх. Цену показываем, но при оформлении
+           сервер считает её заново. Подсказки улицы и дома — DaData #}
         <div id="shipBox" hidden data-carriers="{{ carriers | join(',') }}"
              data-hints="{{ 1 if address_hints else 0 }}">
+
+          {# Мои адреса — выпадающим списком: город, улица, дом, индекс сразу.
+             Первый в списке (из последнего заказа или самый свежий)
+             подставлен заранее #}
+          {% if saved_addresses %}
+          <div class="fld sa" id="savedAddr" data-list='{{ saved_addresses | tojson }}'>
+            <label id="saLabel">Мои адреса</label>
+            <button type="button" class="sa-btn" id="saBtn" aria-haspopup="listbox"
+                    aria-expanded="false" aria-labelledby="saLabel saCur">
+              <span id="saIco">{{ addr_icon(none) }}</span>
+              <span class="sa-cur" id="saCur"><b id="saTitle">Выберите адрес</b><small id="saLine"></small></span>
+              <svg class="sa-arr" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"
+                stroke="currentColor" stroke-width="1.6" fill="none"/></svg>
+            </button>
+            <div class="sa-menu" id="saMenu" role="listbox" aria-labelledby="saLabel" hidden>
+              {% for a in saved_addresses %}
+              <button type="button" role="option" class="sa-opt" data-i="{{ loop.index0 }}" aria-selected="false">
+                {{ addr_icon(a.title) }}
+                <span class="sa-txt"><b>{{ a.title or a.city }}</b><small>{{ a.line }}</small></span>
+                {% if loop.first and a.last_used %}<em class="sa-tag">в прошлом заказе</em>{% endif %}
+              </button>
+              {% endfor %}
+              <button type="button" role="option" class="sa-opt sa-new" data-i="-1" aria-selected="false">
+                <span class="addr-ico sa-plus" aria-hidden="true">+</span>
+                <span class="sa-txt"><b>Новый адрес</b><small>Ввести вручную</small></span>
+              </button>
+            </div>
+          </div>
+          {% endif %}
+
           <div class="co-grid">
             <div class="fld">
               <label for="dCountry">Страна</label>
@@ -186,6 +219,46 @@
                      data-cdek="{{ chosen_city_code(request) }}">
               <div class="suggest" id="dCityList" role="listbox" hidden></div>
             </div>
+          </div>
+
+          <div id="addrBox" class="addr-grid">
+            <div class="fld sug-fld a-street">
+              <label for="aStreet">Улица <span class="opt-note" hidden>— для пункта выдачи необязательно</span></label>
+              <input class="field" id="aStreet" autocomplete="off" maxlength="120"
+                     placeholder="{{ 'Начните вводить: Ленинградская' if address_hints else 'ул. Ленинградская' }}">
+              <div class="suggest" id="aStreetList" role="listbox" hidden></div>
+            </div>
+            <div class="fld sug-fld a-house">
+              <label for="aHouse">Дом</label>
+              <input class="field" id="aHouse" autocomplete="off" maxlength="20" placeholder="10">
+              <div class="suggest" id="aHouseList" role="listbox" hidden></div>
+            </div>
+            <div class="fld a-block">
+              <label for="aBlock">Корпус, строение</label>
+              <input class="field" id="aBlock" maxlength="20" placeholder="—">
+            </div>
+            <div class="fld a-flat">
+              <label for="aFlat">Квартира, офис</label>
+              <input class="field" id="aFlat" maxlength="20" placeholder="—">
+            </div>
+            <div class="fld a-post">
+              <label for="dPost">Индекс</label>
+              <input class="field" id="dPost" inputmode="numeric" maxlength="6"
+                     autocomplete="postal-code" placeholder="443001">
+              <p class="hint" id="postHint">{{ 'Подставится сам, когда адрес введён полностью'
+                 if address_hints else 'Шесть цифр — нужен для Почты России' }}</p>
+            </div>
+            {% if customer %}
+            {# Запомнить — и сразу назвать: Дом, Работа. Название необязательно #}
+            <div class="save-addr" id="saveAddrBox">
+              <label class="no-pat"><input type="checkbox" id="saveAddr" checked>
+                Запомнить адрес в «Мои адреса»</label>
+              <div class="title-chips" id="saveTitles" role="group" aria-label="Как назвать адрес">
+                {% for t in address_titles %}<button type="button" class="chip-btn" data-t="{{ t }}"
+                  aria-pressed="false">{{ addr_icon(t) }}{{ t }}</button>{% endfor %}
+              </div>
+            </div>
+            {% endif %}
           </div>
 
           {% if carriers %}
@@ -213,50 +286,6 @@
             <p class="fld-err" id="dPointErr" hidden></p>
           </div>
           {% endif %}
-
-          {# Мои адреса — одной кнопкой: город, улица, дом, индекс сразу #}
-          {% if saved_addresses %}
-          <div class="saved-addr" id="savedAddr" data-list='{{ saved_addresses | tojson }}'>
-            <span>Мои адреса:</span>
-            {% for a in saved_addresses %}
-            <button type="button" class="chip-btn" data-i="{{ loop.index0 }}"
-                    title="{{ a.city }}, {{ a.street }}, {{ a.house }}">{{ a.title or (a.city ~ ', ' ~ a.street ~ ', ' ~ a.house) }}</button>
-            {% endfor %}
-          </div>
-          {% endif %}
-
-          <div id="addrBox" class="addr-grid" hidden>
-            <div class="fld sug-fld a-street">
-              <label for="aStreet">Улица</label>
-              <input class="field" id="aStreet" autocomplete="off" maxlength="120"
-                     placeholder="{{ 'Начните вводить: Ленинградская' if address_hints else 'ул. Ленинградская' }}">
-              <div class="suggest" id="aStreetList" role="listbox" hidden></div>
-            </div>
-            <div class="fld sug-fld a-house">
-              <label for="aHouse">Дом</label>
-              <input class="field" id="aHouse" autocomplete="off" maxlength="20" placeholder="10">
-              <div class="suggest" id="aHouseList" role="listbox" hidden></div>
-            </div>
-            <div class="fld a-block">
-              <label for="aBlock">Корпус, строение</label>
-              <input class="field" id="aBlock" maxlength="20" placeholder="—">
-            </div>
-            <div class="fld a-flat">
-              <label for="aFlat">Квартира, офис</label>
-              <input class="field" id="aFlat" maxlength="20" placeholder="—">
-            </div>
-            <div class="fld a-post">
-              <label for="dPost">Индекс</label>
-              <input class="field" id="dPost" inputmode="numeric" maxlength="6"
-                     autocomplete="postal-code" placeholder="443001">
-              <p class="hint" id="postHint">{{ 'Подставится сам, когда адрес введён полностью'
-                 if address_hints else 'Шесть цифр — нужен для Почты России' }}</p>
-            </div>
-            {% if customer %}
-            <label class="no-pat save-addr" id="saveAddrBox"><input type="checkbox" id="saveAddr" checked>
-              Запомнить адрес в «Мои адреса»</label>
-            {% endif %}
-          </div>
         </div>
       </section>
 
@@ -294,35 +323,63 @@
       {% endif %}
     </div>
 
-    {# ── Сводка ─────────────────────────────────────────────── #}
+    {# ── Сводка ───────────────────────────────────────────────
+       Сверху вниз: что выбрано → скидки (промокод, баллы) → строки
+       расчёта → итог → согласие → кнопка. Согласие стоит прямо над
+       кнопкой: его не пропустить, и ошибка у него видна там же, где жмут #}
     <aside class="co-side">
       <div class="co-sum">
+        <h2 class="co-sum-h">Ваш заказ</h2>
         {% if customer %}
         <dl class="co-picked">
-          <dt>Получение:</dt><dd id="sumShip">Самовывоз</dd>
-          <dt id="sumPointL" hidden>Пункт:</dt><dd id="sumPoint" hidden></dd>
-          <dt>Оплата:</dt><dd id="sumPay">{{ methods[0].title if methods else 'При получении' }}</dd>
+          <dt>Получение</dt><dd id="sumShip">Самовывоз</dd>
+          <dt id="sumPointL" hidden>Пункт</dt><dd id="sumPoint" hidden></dd>
+          <dt>Оплата</dt><dd id="sumPay">{{ methods[0].title if methods else 'При получении' }}</dd>
         </dl>
-        {% endif %}
-        {% if customer %}
+
         {# Скидка и баллы (app/loyalty.py): промокод проверяет сервер,
            баллами — до 30% товаров после скидки #}
         <div class="co-loyal" id="loyalBox">
-          <div class="promo-row">
-            <input class="field" id="promoCode" maxlength="30" autocomplete="off"
-                   placeholder="Промокод" aria-label="Промокод">
-            <button type="button" class="btn btn-ghost btn-sm" id="promoGo">Применить</button>
+          <div class="loyal-fld" id="promoFld">
+            <label for="promoCode" class="loyal-l">Промокод</label>
+            {# Код применён — вместо поля плашка с кодом и крестиком #}
+            <div class="promo-box" id="promoBox">
+              <input class="field" id="promoCode" maxlength="30" autocomplete="off"
+                     spellcheck="false" placeholder="Введите код" aria-describedby="promoCodeErr">
+              <button type="button" class="promo-go" id="promoGo">Применить</button>
+            </div>
+            <p class="fld-err" id="promoCodeErr" hidden></p>
+            <div class="promo-tag" id="promoTag" hidden>
+              <span class="promo-ico" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M4.5 10.5l3.5 3.5 7.5-8"
+                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <span class="promo-txt"><b id="promoTagCode"></b><small id="promoTagNote"></small></span>
+              <button type="button" class="promo-x" id="promoDrop" aria-label="Убрать промокод" title="Убрать промокод">
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor"
+                  stroke-width="1.8" stroke-linecap="round"/></svg></button>
+            </div>
           </div>
-          <p class="fld-err" id="promoCodeErr" hidden></p>
-          <p class="promo-ok" id="promoOk" hidden></p>
-          <div class="bonus-row" id="bonusRow" hidden>
-            <label class="no-pat"><input type="checkbox" id="bonusOn"> Списать баллы</label>
-            <input class="field" id="bonusAmt" type="number" min="0" step="1" inputmode="numeric"
-                   aria-label="Сколько баллов списать" disabled>
-            <small id="bonusHint"></small>
+          <p class="loyal-note" id="promoOk" hidden></p>
+
+          <div class="co-bonus" id="bonusRow" hidden>
+            <div class="bonus-top">
+              <span class="bonus-bal"><b id="bonusBal">0</b> баллов на счету</span>
+              <label class="switch"><input type="checkbox" id="bonusOn" role="switch">
+                <span aria-hidden="true"></span><span class="sr">Списать баллы</span></label>
+            </div>
+            <div class="bonus-use" id="bonusUse" hidden>
+              <div class="bonus-amt">
+                <input class="field" id="bonusAmt" type="number" min="0" step="1" inputmode="numeric"
+                       aria-label="Сколько баллов списать" aria-describedby="bonusAmtErr">
+                <button type="button" class="bonus-all" id="bonusAll">Все</button>
+              </div>
+              <input type="range" class="bonus-range" id="bonusRange" min="0" step="1" aria-label="Сколько баллов списать">
+              <p class="fld-err" id="bonusAmtErr" hidden></p>
+            </div>
+            <small class="bonus-hint" id="bonusHint"></small>
           </div>
         </div>
         {% endif %}
+
         <dl class="sum-lines">
           <dt>Товары, {{ units }} шт</dt><dd>{{ rub(total) }}</dd>
           <dt id="discL" hidden>Скидка</dt><dd id="discLine" class="minus" hidden></dd>
@@ -333,23 +390,21 @@
           <span>Итого</span>
           <b id="grandTotal" data-goods="{{ total }}">{{ rub(total) }}</b>
         </div>
+
         {% if customer %}
+        <label class="agree" id="agreeBox">
+          <input type="checkbox" id="agree" aria-describedby="agreeErr">
+          <span>Согласен на обработку персональных данных по
+            <a href="/privacy" target="_blank">политике конфиденциальности</a></span>
+        </label>
+        <p class="fld-err" id="agreeErr" hidden></p>
         <button class="btn btn-primary" id="place" type="submit"
                 {% if not total %}disabled{% endif %}>Оформить заказ</button>
+        <p class="co-foot">Деталь закрепится за вами сразу после оформления.</p>
         {% else %}
         <a class="btn btn-primary" href="/account/login?next=/cart">Войти и оформить</a>
         {% endif %}
       </div>
-
-      {% if customer %}
-      <label class="agree">
-        <input type="checkbox" id="agree">
-        <span>Согласен на обработку персональных данных для оформления и доставки
-          заказа по <a href="/privacy" target="_blank">политике конфиденциальности</a></span>
-      </label>
-      <p class="fld-err" id="agreeErr" hidden></p>
-      <p class="hint">Деталь закрепится за вами сразу после оформления.</p>
-      {% endif %}
     </aside>
   </form>
   {% endif %}

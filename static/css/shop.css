@@ -3,7 +3,9 @@
    Общий словарь (кнопки, поля, .notice, .empty) — в core.css.
    ───────────────────────────────────────────────────────── */
 
-.shop{padding:30px 0 70px}
+/* Только сверху и снизу: бока — отступы .wrap, иначе на любом экране
+   корзина и кабинет прилипали к краям */
+.shop{padding-top:30px;padding-bottom:70px}
 .shop.narrow{max-width:min(760px, 100%)}
 .shop h1{margin:0 0 6px}
 .shop > .lead{margin:0 0 22px}
@@ -38,8 +40,8 @@
    вместе со страницей. На узком экране — одна колонка, сводка внизу */
 .co{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:24px;align-items:start;
   margin-top:8px}
-@media(max-width:960px){.co{grid-template-columns:1fr}}
-.co-main{display:grid;gap:18px;min-width:0}
+@media(max-width:960px){.co{grid-template-columns:minmax(0,1fr)}}
+.co-main{display:grid;grid-template-columns:minmax(0,1fr);gap:18px;min-width:0}
 .co-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
   padding:20px 22px}
 .co-card h2{display:flex;align-items:center;gap:12px;margin:0 0 16px;
@@ -97,7 +99,7 @@
   .co-card{padding:16px}
   .co-items thead{display:none}
   .co-items,.co-items tbody{display:block}
-  .co-items tr{display:grid;grid-template-columns:64px 1fr auto;gap:4px 12px;
+  .co-items tr{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:4px 12px;
     padding:12px 0;border-bottom:1px solid var(--line)}
   .co-items tr:last-child{border-bottom:0}
   .co-items td{display:block;padding:0;border:0}
@@ -140,7 +142,7 @@ button.tile{width:100%;padding:0;border:0;background:none;font:inherit;text-alig
 .tile.is-na:hover span{border-color:var(--line-2)}
 
 /* Доставка службой: город с подсказкой, варианты, пункты выдачи */
-#shipBox{margin-top:14px;display:grid;gap:12px}
+#shipBox{margin-top:14px;display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
 /* Блок меняет высоту на глазах (список ↔ карточка пункта): привязка
    прокрутки браузера здесь только мешает — страница прыгала вниз */
 .co-main{overflow-anchor:none}
@@ -514,37 +516,128 @@ button.tile{width:100%;padding:0;border:0;background:none;font:inherit;text-alig
 .no-pat input{width:16px;height:16px;margin:0;accent-color:var(--accent)}
 
 /* Промокод и баллы в итогах оформления */
-.co-loyal{display:grid;gap:8px;margin:0 0 14px;padding-bottom:14px;border-bottom:1px solid var(--line)}
-.promo-row{display:flex;gap:8px}
-.co-sum .promo-row .field{flex:1 1 0;width:auto;min-width:0;height:40px;text-transform:uppercase;
-  font-family:var(--mono);font-size:var(--t-sm)}
-/* В итогах кнопки во всю ширину — эта рядом с полем */
-.co-sum .promo-row .btn{flex:0 0 auto;width:auto;margin:0}
-.promo-ok{margin:0;font-size:var(--t-xs);color:var(--ok)}
-.promo-ok[hidden],.bonus-row[hidden]{display:none}
-.bonus-row{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 10px;align-items:center}
-.co-loyal{min-width:0}
-.co-loyal .field{min-width:0;width:100%}
-.bonus-row .no-pat{margin:0}
-.bonus-row .field{height:36px;font-size:var(--t-sm)}
-.bonus-row small{grid-column:1/-1;font-size:var(--t-xs);color:var(--muted)}
+.co-loyal{display:grid;gap:12px;margin:0 0 16px;padding-bottom:16px;border-bottom:1px solid var(--line);min-width:0}
+.co-loyal > *{min-width:0}
+.co-loyal [hidden]{display:none}
+.loyal-l{display:block;margin:0 0 6px;font-size:var(--t-xs);font-weight:600;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.06em}
+/* Поле и кнопка — одним блоком, как строка поиска в шапке */
+.promo-box{display:flex;border:1px solid var(--line-2);border-radius:var(--r);background:var(--surface);
+  transition:border-color .13s,box-shadow .13s}
+.promo-box:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(245,79,12,.12)}
+.promo-box:has(.is-bad){border-color:var(--err);box-shadow:0 0 0 3px rgba(210,52,31,.10)}
+.co-sum .promo-box .field{flex:1 1 0;min-width:0;width:auto;height:42px;border:0;box-shadow:none;
+  font-family:var(--mono);font-size:var(--t-sm);letter-spacing:.06em;text-transform:uppercase}
+.promo-box .field::placeholder{font-family:var(--body);letter-spacing:0;text-transform:none}
+.promo-box .field:focus,.promo-box .field.is-bad{box-shadow:none;border:0}
+.promo-go{flex:0 0 auto;margin:4px;padding:0 14px;border:0;border-radius:var(--r-xs);
+  background:var(--dark);color:#fff;font:inherit;font-size:var(--t-sm);font-weight:600;cursor:pointer;
+  transition:background .13s}
+.promo-go:hover{background:var(--dark-dk)}
+.promo-go:disabled{background:var(--dim);cursor:default}
+/* Применённый код */
+.promo-tag{display:flex;align-items:center;gap:10px;padding:9px 10px 9px 12px;
+  border:1px dashed var(--ok);border-radius:var(--r);background:rgba(30,142,90,.06)}
+.promo-ico{flex:0 0 22px;width:22px;height:22px;border-radius:50%;background:var(--ok);color:#fff;
+  display:grid;place-items:center}
+.promo-ico svg{width:14px;height:14px}
+.promo-txt{flex:1;min-width:0;line-height:1.3}
+.promo-txt b{display:block;font-family:var(--mono);font-size:var(--t-sm);letter-spacing:.06em}
+.promo-txt small{display:block;font-size:var(--t-xs);color:var(--ok)}
+.promo-x{flex:0 0 auto;width:28px;height:28px;display:grid;place-items:center;padding:0;border:0;
+  border-radius:50%;background:none;color:var(--muted);cursor:pointer}
+.promo-x:hover{background:rgba(0,0,0,.06);color:var(--ink)}
+.promo-x svg{width:14px;height:14px}
+.loyal-note{display:flex;gap:8px;align-items:flex-start;margin:0;padding:8px 10px;border-radius:var(--r);
+  background:rgba(30,142,90,.07);color:var(--ok);font-size:var(--t-xs);line-height:1.4}
+.loyal-note::before{content:"%";flex:0 0 16px;height:16px;border-radius:50%;background:var(--ok);color:#fff;
+  font-size:10px;font-weight:700;line-height:16px;text-align:center}
+/* Баллы — карточкой: остаток, переключатель, сколько списать */
+.co-bonus{display:grid;gap:10px;padding:12px;border-radius:var(--r);background:var(--surface-2)}
+.bonus-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.bonus-bal{font-size:var(--t-sm);color:var(--muted)}
+.bonus-bal b{font-family:var(--display);font-size:var(--t-md);color:var(--ink);font-weight:600}
+.bonus-use{display:grid;gap:8px}
+.bonus-amt{display:flex;gap:6px}
+.co-sum .bonus-amt .field{flex:1 1 0;width:auto;min-width:0;height:38px;font-size:var(--t-sm);
+  font-variant-numeric:tabular-nums}
+.bonus-all{flex:0 0 auto;padding:0 12px;border:1px solid var(--line-2);border-radius:var(--r);
+  background:var(--surface);font:inherit;font-size:var(--t-sm);cursor:pointer}
+.bonus-all:hover{border-color:var(--accent);color:var(--accent)}
+.bonus-range{--p:100%;width:100%;height:4px;margin:6px 0;-webkit-appearance:none;appearance:none;
+  border-radius:2px;cursor:pointer;
+  background:linear-gradient(var(--accent),var(--accent)) 0/var(--p) 100% no-repeat,var(--line-2)}
+.bonus-range::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;
+  background:var(--surface);border:2px solid var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.bonus-range::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--surface);
+  border:2px solid var(--accent)}
+.bonus-hint{font-size:var(--t-xs);color:var(--muted);line-height:1.4}
+/* Переключатель */
+.switch{position:relative;display:inline-flex;flex:0 0 auto;cursor:pointer}
+.switch input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer;z-index:1}
+.switch span[aria-hidden]{width:40px;height:22px;border-radius:11px;background:var(--line-2);
+  position:relative;transition:background .15s}
+.switch span[aria-hidden]::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;
+  border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+.switch input:checked + span{background:var(--accent)}
+.switch input:checked + span::after{transform:translateX(18px)}
+.switch input:focus-visible + span{outline:2px solid var(--accent);outline-offset:2px}
+.switch input:disabled + span{opacity:.5}
 .sum-lines dd.minus{color:var(--ok)}
 .sum-lines [hidden]{display:none}
 .order-minus b{color:var(--ok)}
 .bonus-got{margin:8px 0 0;color:var(--ok)}
 /* Колонка — сетка: без min-width поля промокода и баллов распирали блок */
 .co-side > *{min-width:0}
-.co-loyal > *{min-width:0}
+.co-sum-h{margin:0 0 14px;font-size:var(--t-lg);font-weight:600}
+.co-sum .agree{margin:0 0 14px;font-size:var(--t-xs);color:var(--muted);line-height:1.45}
+.co-sum .agree input{margin-top:0}
+.co-sum .agree a{color:var(--ink);text-decoration:underline;text-underline-offset:2px}
+.co-sum .agree:has(.is-bad){color:var(--err)}
+.co-sum .agree:has(.is-bad) input{outline:2px solid var(--err);outline-offset:1px}
+.co-sum #agreeErr{margin:-8px 0 12px}
+.co-foot{margin:10px 0 0;font-size:var(--t-xs);color:var(--dim);text-align:center}
 
-/* Мои адреса в оформлении — кнопками над полями */
-.saved-addr{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:var(--t-sm);color:var(--muted)}
+/* Мои адреса в оформлении — выпадающим списком над страной и городом */
+.sa{position:relative;margin-bottom:2px}
+.sa-btn{display:flex;align-items:center;gap:12px;width:100%;padding:8px 14px 8px 8px;text-align:left;
+  background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r);font:inherit;color:var(--ink);
+  cursor:pointer;transition:border-color .13s}
+.sa-btn:hover,.sa-btn[aria-expanded=true]{border-color:var(--accent)}
+.sa-btn:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(245,79,12,.12)}
+.sa-cur,.sa-txt{flex:1;min-width:0;line-height:1.3}
+.sa-cur b,.sa-txt b{display:block;font-size:var(--t-sm);font-weight:600}
+.sa-cur small,.sa-txt small{display:block;font-size:var(--t-xs);color:var(--muted);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sa-arr{flex:0 0 10px;width:10px;height:6px;color:var(--muted);transition:transform .15s}
+.sa-btn[aria-expanded=true] .sa-arr{transform:rotate(180deg)}
+.sa-menu{position:absolute;z-index:20;left:0;right:0;top:calc(100% + 4px);max-height:340px;overflow:auto;
+  padding:6px;background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r);box-shadow:var(--shadow)}
+.sa-menu[hidden]{display:none}
+.sa-opt{display:flex;align-items:center;gap:12px;width:100%;padding:8px;border:0;border-radius:var(--r);
+  background:none;font:inherit;color:var(--ink);text-align:left;cursor:pointer}
+.sa-opt:hover,.sa-opt:focus-visible{background:var(--surface-2);outline:none}
+.sa-opt[aria-selected=true]{background:var(--accent-bg)}
+.sa-tag{flex:0 0 auto;font-style:normal;font-size:11px;font-weight:600;color:var(--ok);
+  padding:2px 8px;border-radius:999px;background:rgba(30,142,90,.1)}
+.sa-new{border-top:1px solid var(--line);border-radius:0 0 var(--r) var(--r);margin-top:4px;padding-top:10px}
+.sa-plus{font-size:20px;font-weight:400;line-height:1;padding:0;background:var(--surface-2);color:var(--muted)}
+/* Адрес до вариантов доставки; для пункта выдачи — необязателен */
+#addrBox{margin-top:2px;margin-bottom:18px}
+#addrBox[hidden]{display:none}
+.opt-note{font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0}
+.save-addr{grid-column:1/-1;margin:2px 0 0;display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
+.save-addr[hidden]{display:none}
+.save-addr .no-pat{margin:0}
+.title-chips{display:flex;flex-wrap:wrap;gap:6px}
+.title-chips[hidden]{display:none}
 .chip-btn{padding:6px 12px;border:1px solid var(--line-2);border-radius:999px;background:var(--surface);
   font:inherit;font-size:var(--t-sm);color:var(--ink);cursor:pointer;max-width:260px;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
 .chip-btn:hover{border-color:var(--accent);color:var(--accent)}
 .chip-btn.on{border-color:var(--accent);background:var(--accent-bg);color:var(--accent-dk)}
-.save-addr{grid-column:1/-1;margin:2px 0 0}
-.save-addr[hidden]{display:none}
+.title-chips .chip-btn{display:inline-flex;align-items:center;gap:5px;padding:4px 11px 4px 7px;font-size:var(--t-xs)}
+.title-chips .addr-ico{width:16px;height:16px;padding:0;background:none}
 
 /* «Попробовать ещё раз» у службы, которая не ответила */
 .tile .retry-q{display:inline-block;margin-top:6px;font-size:var(--t-xs);font-weight:600}

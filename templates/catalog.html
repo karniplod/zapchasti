@@ -50,11 +50,17 @@
 </section>
 
 <section class="wrap fresh" id="fresh" hidden>
-  <div class="sec-head"><h2>Свежие <b>поступления</b></h2></div>
+  {# «Скрыть» — блок сворачивается до заголовка, выбор помнит браузер:
+     постоянному покупателю свежие не нужны над каждым подбором #}
+  <div class="sec-head"><h2>Свежие <b>поступления</b></h2>
+    <button type="button" class="sec-toggle" id="freshToggle" aria-expanded="true"
+            aria-controls="freshBody">Скрыть</button></div>
+  <div id="freshBody">
   {# Если в выбранном городе пусто, показываем склад целиком и говорим
      об этом: молча исчезнувший блок выглядит поломкой сайта #}
   <p class="hint fresh-note" id="freshNote" hidden></p>
   <div class="grid grid-fill" id="freshGrid"></div>
+  </div>
 </section>
 
 <div class="wrap layout">

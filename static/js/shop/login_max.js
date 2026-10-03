@@ -17,6 +17,11 @@ async function poll(){
       location.href = box.dataset.next;
       return;
     }
+    if (d.state === 'blocked'){
+      state.textContent = d.detail;
+      state.className = 'max-state bad';
+      return;
+    }
     if (d.state === 'expired'){
       state.innerHTML = 'Код устарел. <a href="">Получить новый</a>';
       state.className = 'max-state bad';

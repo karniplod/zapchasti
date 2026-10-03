@@ -16,9 +16,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import address
 from .. import customer_auth as ca
-from .. import loyalty, mailer
+from .. import loyalty, mailer, useragent
 from ..auth import hash_password, verify_password
 from ..database import get_session
+from ..templating import _phone as phone_fmt
 from ..templating import templates
 from ..validation import address as addr_rules
 from ..validation import people, require
@@ -41,6 +42,30 @@ async def account_loyalty(session: AsyncSession = Depends(get_session),
             "personal_discount": str(disc["personal"]),
             "accrual_percent": loyalty.ACCRUAL_PERCENT,
             "spend_limit_percent": loyalty.SPEND_LIMIT_PERCENT}
+
+
+@router.get("/api/account/brief")
+async def account_brief(session: AsyncSession = Depends(get_session),
+                        customer: dict = Depends(ca.current_customer)):
+    """Окно под именем в шапке: кто вошёл, баллы, этот вход и прошлый —
+    когда и с какого устройства. Чужой вход в прошлом — повод сменить пароль."""
+    rows = (await session.execute(text("""
+        SELECT id, method, user_agent, at FROM customer_logins
+         WHERE customer_id = :c ORDER BY at DESC, id DESC LIMIT 2"""),
+        {"c": customer["id"]})).all()
+    lid = customer.get("login_id")
+    # Кука старше журнала (lid нет) — текущим считаем самый свежий вход
+    cur = next((r for r in rows if r.id == lid), None) if lid else (rows[0] if rows else None)
+    prev = next((r for r in rows if r is not cur), None)
+    item = lambda r: {"at": r.at.isoformat(), "device": useragent.device(r.user_agent),  # noqa: E731
+                      "method": r.method} if r else None
+    return {
+        "name": customer["name"],
+        "contact": phone_fmt(customer["phone"]) if customer["phone"] else customer["email"],
+        "balance": await loyalty.balance(session, customer["id"]),
+        "current": item(cur),
+        "previous": item(prev),
+    }
 
 
 class PromoIn(BaseModel):
@@ -206,21 +231,41 @@ MAX_ADDRESSES = 10
 
 
 async def addresses_of(session: AsyncSession, customer_id: int) -> list[dict]:
-    return [dict(r._mapping) for r in await session.execute(text("""
-        SELECT id, title, country, city, cdek_code, postcode, street, house, block, flat, is_default
-          FROM customer_addresses WHERE customer_id = :c
-         ORDER BY is_default DESC, created_at"""), {"c": customer_id})]
+    """Адреса покупателя: первым — тот, что был в последнем заказе;
+    по которым заказов не было — основной, затем свежие. Так же их
+    подставляет оформление заказа: первый в списке — сам.
+
+    «Был в заказе» — совпали город, улица, дом и квартира: адрес
+    в заказе хранится полями, ссылки на сохранённый нет"""
+    rows = [dict(r._mapping) for r in await session.execute(text("""
+        SELECT a.id, a.title, a.country, a.city, a.cdek_code, a.postcode, a.street, a.house,
+               a.block, a.flat, a.is_default,
+               (SELECT max(o.created_at) FROM orders o
+                 WHERE o.customer_id = a.customer_id AND o.delivery_mode IS DISTINCT FROM 'pvz'
+                   AND lower(trim(o.delivery_city)) = lower(trim(a.city))
+                   AND lower(trim(o.delivery_street)) = lower(trim(a.street))
+                   AND lower(trim(o.delivery_house)) = lower(trim(a.house))
+                   AND lower(coalesce(trim(o.delivery_flat), '')) = lower(coalesce(trim(a.flat), ''))
+               ) AS last_used_at
+          FROM customer_addresses a WHERE a.customer_id = :c
+         ORDER BY last_used_at DESC NULLS LAST, a.is_default DESC, a.created_at DESC, a.id DESC"""),
+        {"c": customer_id})]
+    for r in rows:
+        r["line"] = address.compose(r["country"], r["postcode"], r["city"], r["street"], r["house"],
+                                    r["block"], r["flat"])[0] or f'{r["city"]}, {r["street"]}, {r["house"]}'
+        used = r.pop("last_used_at")
+        r["last_used"] = used.strftime("%d.%m.%Y") if used else None
+    return rows
 
 
 @router.get("/account/addresses", response_class=HTMLResponse)
 async def addresses_page(request: Request, session: AsyncSession = Depends(get_session),
                          customer: dict = Depends(ca.current_customer)):
     rows = await addresses_of(session, customer["id"])
-    for r in rows:
-        r["line"] = address.compose(r["country"], r["postcode"], r["city"], r["street"], r["house"],
-                                    r["block"], r["flat"])[0]
+    from .shop import ADDRESS_TITLES
     return page(request, "shop/account_addresses.html", customer, "addresses",
-                await loyalty.balance(session, customer["id"]), addresses=rows, limit=MAX_ADDRESSES)
+                await loyalty.balance(session, customer["id"]), addresses=rows, limit=MAX_ADDRESSES,
+                titles=ADDRESS_TITLES)
 
 
 @router.get("/api/account/addresses")

@@ -797,3 +797,44 @@ CREATE TABLE IF NOT EXISTS delivery_quote_cache (
     options   jsonb NOT NULL,
     saved_at  timestamptz NOT NULL DEFAULT now()
 );
+
+
+-- ------------------------------------------------------------
+-- Входы покупателей и управление учётными записями
+-- ------------------------------------------------------------
+-- Журнал входов: когда и с какого устройства — покупатель видит
+-- последний вход в окне кабинета, менеджер — в карточке покупателя.
+-- Хранится только строка браузера, без IP: для узнавания своего
+-- устройства этого хватает
+CREATE TABLE IF NOT EXISTS customer_logins (
+    id           bigserial PRIMARY KEY,
+    customer_id  bigint NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    method       text NOT NULL,                  -- password, register, email_link, google, vk…
+    user_agent   text,
+    at           timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS customer_logins_customer_idx ON customer_logins (customer_id, at DESC);
+
+-- Заблокированный покупатель не входит и не оформляет заказы.
+-- session_version: кука несёт номер; увеличили — все входы покупателя
+-- (сотрудника) закончились: «выйти на всех устройствах», смена пароля
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_blocked      boolean NOT NULL DEFAULT false;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS blocked_reason  text;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS session_version int NOT NULL DEFAULT 0;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS staff_note      text;   -- видно только сотрудникам
+ALTER TABLE users     ADD COLUMN IF NOT EXISTS session_version int NOT NULL DEFAULT 0;
+ALTER TABLE users     ADD COLUMN IF NOT EXISTS phone           text;
+ALTER TABLE users     ADD COLUMN IF NOT EXISTS email           text;
+
+-- Кто из сотрудников что поменял в учётных записях: роль, пароль,
+-- блокировка, баллы. Читают админ и менеджер в карточке
+CREATE TABLE IF NOT EXISTS account_audit (
+    id           bigserial PRIMARY KEY,
+    at           timestamptz NOT NULL DEFAULT now(),
+    actor_id     int REFERENCES users(id) ON DELETE SET NULL,
+    target_kind  text NOT NULL,                  -- staff | customer
+    target_id    bigint NOT NULL,
+    action       text NOT NULL,
+    details      text
+);
+CREATE INDEX IF NOT EXISTS account_audit_target_idx ON account_audit (target_kind, target_id, at DESC);

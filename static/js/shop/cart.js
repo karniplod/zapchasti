@@ -79,6 +79,8 @@ if (form && $('cname')){
   const D = {city: '', cdek_code: hasCarriers && +$('dCity').dataset.cdek || null, options: [],
              point: null, points: [], street_fias: '', parcels: [], issues: {}};
   const opt = () => D.options.find(o => `${o.carrier}:${o.mode}` === val('dopt')) || null;
+  const isPvz = () => { const o = opt(); return !!(o && o.mode === 'pvz'); };
+  const ADDR_FIELDS = ['aStreet', 'aHouse', 'aBlock', 'aFlat'];
   const postcode = () => $('dPost').value.length === 6 ? $('dPost').value : null;
 
   // Сводка справа повторяет выбор — его видно рядом с итогом и кнопкой
@@ -89,8 +91,15 @@ if (form && $('cname')){
     const o = ship && hasCarriers ? opt() : null;
     $('pickupBox').hidden = ship;
     shipBox.hidden = !ship;
-    // Адрес не нужен только для пункта выдачи: его адрес — у пункта
-    $('addrBox').hidden = !ship || !!(o && o.mode === 'pvz');
+    // Для пункта выдачи адрес не нужен — у пункта свой. Поля не прячем:
+    // они выше вариантов, и прыгала бы вся форма. Подпись говорит, что
+    // заполнять необязательно, проверка их пропускает
+    $('addrBox').hidden = !ship;
+    const pvz = !!(o && o.mode === 'pvz');
+    $('addrBox').classList.toggle('is-optional', pvz);
+    $('addrBox').querySelector('.opt-note').hidden = !pvz;
+    if ($('saveAddrBox') && pvz) $('saveAddrBox').hidden = true;
+    if (pvz) ADDR_FIELDS.forEach(id => fieldError($(id), ''));
     if (hasCarriers) $('dPointBox').hidden = !(o && o.mode === 'pvz');
     // Выбранный пункт — и в сводке: адрес рядом с итогом и кнопкой
     const pt = o && o.mode === 'pvz' && D.points.find(x => x.code === D.point);
@@ -452,13 +461,27 @@ if (form && $('cname')){
   sync();
 
   // ── Мои адреса ──────────────────────────────────────────────
-  // Кнопка адреса заполняет город, улицу, дом и индекс сразу. Основной
-  // подставляется сам, если он в городе из шапки (или город не выбран).
-  // Выбрали сохранённый — «Запомнить адрес» не нужен; поправили поле —
-  // это уже новый адрес
+  // Выпадающий список: адрес заполняет страну, город, улицу, дом и индекс
+  // сразу. Первый в списке подставлен заранее — сервер ставит наверх
+  // адрес из последнего заказа, без заказов — самый свежий; если в городе
+  // из шапки есть свой адрес — берём его. Выбрали сохранённый —
+  // «Запомнить адрес» не нужен; поправили поле — это уже новый адрес
   const saved = $('savedAddr') ? JSON.parse($('savedAddr').dataset.list) : [];
   const ADDR_IDS = ['aStreet', 'aHouse', 'aBlock', 'aFlat', 'dPost'];
-  const markSaved = on => { if ($('saveAddrBox')) $('saveAddrBox').hidden = on; };
+  const markSaved = on => { if ($('saveAddrBox')) $('saveAddrBox').hidden = on || isPvz(); };
+  const saOpen = on => {
+    $('saMenu').hidden = !on;
+    $('saBtn').setAttribute('aria-expanded', String(on));
+    if (on) ($('saMenu').querySelector('[aria-selected=true]') || $('saMenu').querySelector('.sa-opt')).focus();
+  };
+  const saShow = i => {
+    const a = saved[i];
+    $('saTitle').textContent = a ? a.title || a.city : i === -1 ? 'Новый адрес' : 'Другой адрес';
+    $('saLine').textContent = a ? a.line : 'Заполните поля ниже';
+    $('saIco').innerHTML = a ? $('saMenu').querySelector(`.sa-opt[data-i="${i}"] .addr-ico`).outerHTML
+                             : $('saMenu').querySelector('.sa-new .addr-ico').outerHTML;
+    $('saMenu').querySelectorAll('.sa-opt').forEach(o => o.setAttribute('aria-selected', String(+o.dataset.i === i)));
+  };
   function applySaved(a, i){
     $('dCountry').value = a.country || 'RU';
     $('dCity').value = a.city; D.cdek_code = a.cdek_code; D.street_fias = '';
@@ -466,22 +489,58 @@ if (form && $('cname')){
     $('aBlock').value = a.block || ''; $('aFlat').value = a.flat || '';
     $('dPost').value = a.postcode || ''; $('dPost').dataset.manual = a.postcode ? '1' : '';
     ['dCity', ...ADDR_IDS].forEach(id => fieldError($(id), ''));
-    $('savedAddr').querySelectorAll('.chip-btn').forEach(b => b.classList.toggle('on', +b.dataset.i === i));
+    saShow(i);
     markSaved(true);
     if (val('dm') === 'shipping' && hasCarriers) loadQuotes();
   }
   if (saved.length){
-    $('savedAddr').addEventListener('click', e => {
-      const b = e.target.closest('.chip-btn');
-      if (b) applySaved(saved[+b.dataset.i], +b.dataset.i);
+    $('saBtn').onclick = () => saOpen($('saMenu').hidden);
+    $('saMenu').addEventListener('click', e => {
+      const o = e.target.closest('.sa-opt');
+      if (!o) return;
+      const i = +o.dataset.i;
+      saOpen(false);
+      if (i >= 0){ applySaved(saved[i], i); return; }
+      // Новый адрес: город оставляем, остальное — с чистого листа
+      ADDR_IDS.forEach(id => { $(id).value = ''; fieldError($(id), ''); });
+      $('dPost').dataset.manual = '';
+      saShow(-1); markSaved(false);
+      $('aStreet').focus();
     });
+    // Стрелки и Esc в открытом списке
+    $('saMenu').addEventListener('keydown', e => {
+      const opts = [...$('saMenu').querySelectorAll('.sa-opt')];
+      const k = opts.indexOf(document.activeElement);
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+        e.preventDefault();
+        opts[(k + (e.key === 'ArrowDown' ? 1 : opts.length - 1)) % opts.length].focus();
+      } else if (e.key === 'Escape'){ saOpen(false); $('saBtn').focus(); }
+    });
+    document.addEventListener('click', e => { if (!e.target.closest('#savedAddr')) saOpen(false); });
     ['dCity', ...ADDR_IDS].forEach(id => $(id).addEventListener('input', () => {
-      $('savedAddr').querySelectorAll('.chip-btn.on').forEach(b => b.classList.remove('on'));
+      if ($('saMenu').querySelector('.sa-opt[aria-selected=true]:not(.sa-new)')) saShow(null);
       markSaved(false);
     }));
-    const def = saved.findIndex(a => a.is_default);
     const head = window.siteCity ? window.siteCity.get().city : '';
-    if (def >= 0 && (!head || head === saved[def].city)) applySaved(saved[def], def);
+    const here = head ? saved.findIndex(a => a.city.toLowerCase() === head.toLowerCase()) : -1;
+    const first = here >= 0 ? here : 0;
+    applySaved(saved[first], first);
+  }
+
+  // Как назвать запоминаемый адрес: Дом, Работа — по желанию
+  let saveTitle = null;
+  if ($('saveTitles')){
+    $('saveTitles').addEventListener('click', e => {
+      const b = e.target.closest('.chip-btn');
+      if (!b) return;
+      saveTitle = saveTitle === b.dataset.t ? null : b.dataset.t;
+      $('saveTitles').querySelectorAll('.chip-btn').forEach(x => {
+        x.classList.toggle('on', x.dataset.t === saveTitle);
+        x.setAttribute('aria-pressed', String(x.dataset.t === saveTitle));
+      });
+      $('saveAddr').checked = true;
+    });
+    $('saveAddr').addEventListener('change', () => { $('saveTitles').hidden = !$('saveAddr').checked; });
   }
 
   // ── Скидка и баллы ──────────────────────────────────────────
@@ -497,42 +556,85 @@ if (form && $('cname')){
       else fieldError($('promoCode'), '');
       L.discount = +d.discount; L.source = d.source; L.code = d.code;
       L.balance = d.bonus_balance; L.max = d.bonus_max;
-      $('promoOk').hidden = !(d.source || d.note);
-      $('promoOk').textContent = d.note ? d.note
-        : d.source === 'promo' ? `Промокод ${d.code}: скидка ${d.kind === 'percent' ? Math.round(+d.value) + '%' : rub(d.value)}`
-        : d.source === 'personal' ? `Ваша персональная скидка ${Math.round(+d.value * 10) / 10}%` : '';
+      // Код применён — поле прячем, показываем плашку с кодом и крестиком
+      const applied = d.source === 'promo';
+      $('promoBox').hidden = applied;
+      $('promoTag').hidden = !applied;
+      if (applied){
+        $('promoTagCode').textContent = d.code;
+        $('promoTagNote').textContent = 'скидка ' + (d.kind === 'percent' ? Math.round(+d.value) + '%' : rub(d.value))
+          + ' · −' + rub(d.discount);
+      }
+      // Персональная скидка или пояснение сервера («ваша скидка выгоднее»)
+      const note = d.note || (d.source === 'personal'
+        ? `Действует ваша персональная скидка ${Math.round(+d.value * 10) / 10}%` : '');
+      $('promoOk').hidden = !note;
+      $('promoOk').textContent = note;
       $('bonusRow').hidden = !L.balance;
-      $('bonusHint').textContent = L.balance
-        ? `На счету ${L.balance}, можно списать до ${L.max} — это до 30% товаров` : '';
-      $('bonusAmt').max = L.max;
-      if (L.bonus > L.max){ L.bonus = L.max; $('bonusAmt').value = L.max || ''; }
+      $('bonusBal').textContent = L.balance.toLocaleString('ru');
+      $('bonusHint').textContent = !L.balance ? ''
+        : L.max ? `1 балл = 1 ₽. Можно списать до ${L.max.toLocaleString('ru')} — это до 30% стоимости товаров`
+        : 'Списать баллы можно, когда в заказе есть товары с ценой';
+      $('bonusOn').disabled = !L.max;
+      $('bonusAmt').max = $('bonusRange').max = L.max;
+      if (L.bonus > L.max){ L.bonus = L.max; bonusShow(); }
       sync();
-    } catch {}
+    } catch { fieldError($('promoCode'), code ? 'Нет связи с сервером — попробуйте ещё раз' : ''); }
+    finally { $('promoGo').disabled = false; $('promoGo').textContent = 'Применить'; }
   }
+  // Сначала проверка в браузере (те же правила, что у менеджера при
+  // заведении кода), потом сервер: есть ли такой, действует ли
   $('promoGo').onclick = () => {
     const code = $('promoCode').value.trim();
-    if (!code){ fieldError($('promoCode'), 'Введите промокод'); return; }
+    const err = Check.promo(code);
+    if (err){ fieldError($('promoCode'), err); $('promoCode').focus(); return; }
+    $('promoGo').disabled = true; $('promoGo').textContent = 'Проверяем…';
     loyalty(code);
+  };
+  $('promoDrop').onclick = () => {
+    $('promoCode').value = '';
+    loyalty('');
+    $('promoCode').focus();
   };
   $('promoCode').addEventListener('keydown', e => {
     if (e.key === 'Enter'){ e.preventDefault(); $('promoGo').click(); }
   });
   $('promoCode').addEventListener('input', () => {
     $('promoCode').value = $('promoCode').value.toUpperCase().replace(/\s/g, '');
-    // Промокод стёрли — скидка снова без него
-    if (!$('promoCode').value && L.code) loyalty('');
+    if ($('promoCode').classList.contains('is-bad')) fieldError($('promoCode'), '');
   });
-  $('bonusOn').onchange = () => {
-    $('bonusAmt').disabled = !$('bonusOn').checked;
-    L.bonus = $('bonusOn').checked ? L.max : 0;
+
+  // Баллы: переключатель, число и ползунок. Больше, чем можно, не
+  // обрезаем молча — говорим, сколько можно; спишется не больше этого
+  const bonusShow = () => {
     $('bonusAmt').value = L.bonus || '';
-    sync();
+    $('bonusRange').value = L.bonus;
+    $('bonusRange').style.setProperty('--p', (L.max ? L.bonus / L.max * 100 : 0) + '%');
+  };
+  $('bonusOn').onchange = () => {
+    $('bonusUse').hidden = !$('bonusOn').checked;
+    L.bonus = $('bonusOn').checked ? L.max : 0;
+    fieldError($('bonusAmt'), '');
+    bonusShow(); sync();
   };
   $('bonusAmt').addEventListener('input', () => {
-    const n = Math.max(0, Math.min(L.max, Math.floor(+$('bonusAmt').value || 0)));
-    L.bonus = n; sync();
+    const raw = $('bonusAmt').value;
+    fieldError($('bonusAmt'), Check.bonus(raw, L.max));
+    L.bonus = Math.max(0, Math.min(L.max, Math.floor(+raw || 0)));
+    $('bonusRange').value = L.bonus;
+    $('bonusRange').style.setProperty('--p', (L.max ? L.bonus / L.max * 100 : 0) + '%');
+    sync();
   });
-  $('bonusAmt').addEventListener('change', () => { $('bonusAmt').value = L.bonus || ''; });
+  // Ушли с поля — в нём то, что действительно спишется
+  $('bonusAmt').addEventListener('blur', () => setTimeout(() => {
+    if (!$('bonusAmt').classList.contains('is-bad')) return;
+    bonusShow();
+    setTimeout(() => fieldError($('bonusAmt'), ''), 2500);
+  }, 200));
+  $('bonusRange').addEventListener('input', () => {
+    L.bonus = +$('bonusRange').value; fieldError($('bonusAmt'), ''); bonusShow(); sync();
+  });
+  $('bonusAll').onclick = () => { L.bonus = L.max; fieldError($('bonusAmt'), ''); bonusShow(); sync(); };
   loyalty('');
 
   phoneMask($('cphone'));
@@ -547,8 +649,9 @@ if (form && $('cname')){
     [$('cphone'), v => Check.phoneRule(v)],
     [$('branch'), v => v ? '' : 'Выберите филиал'],
     [$('dCity'), v => Check.city(v)],
-    [$('aStreet'), v => Check.street(v)],
-    [$('aHouse'), v => Check.house(v)],
+    // Для пункта выдачи улица и дом необязательны
+    [$('aStreet'), v => isPvz() && !v.trim() ? '' : Check.street(v)],
+    [$('aHouse'), v => isPvz() && !v.trim() ? '' : Check.house(v)],
     [$('aBlock'), v => Check.addrPart(v)],
     [$('aFlat'), v => Check.addrPart(v)],
     [$('dPost'), v => { const o = opt(); return Check.postcode(v, {required: !!o && o.mode === 'post'}); }],
@@ -561,6 +664,8 @@ if (form && $('cname')){
     if ($('cname').value.trim()) fieldError($('cname'), Check.fio($('cname').value, {noPatronymic: $('cnoPat').checked}));
   };
   $('agree').onchange = () => { if ($('agree').checked) fieldError($('agree'), ''); };
+  // Промокод ввели, но не применили — не теряем его молча при оформлении
+  const promoPending = () => !$('promoBox').hidden && $('promoCode').value.trim() && !L.code;
 
   form.onsubmit = async e => {
     e.preventDefault();
@@ -573,6 +678,11 @@ if (form && $('cname')){
         $('dPointErr').textContent = 'Выберите пункт выдачи'; $('dPointErr').hidden = false;
         $('dPointQ').focus(); ok = false;
       }
+    }
+    if (promoPending()){
+      fieldError($('promoCode'), 'Нажмите «Применить» или сотрите код');
+      if (ok) $('promoCode').focus();
+      ok = false;
     }
     if (!$('agree').checked){
       fieldError($('agree'), 'Без согласия мы не можем принять заказ');
@@ -607,6 +717,7 @@ if (form && $('cname')){
           delivery_postcode: ship ? postcode() : null,
           promo_code: L.code,
           save_address: !!($('saveAddr') && $('saveAddr').checked && !$('saveAddrBox').hidden),
+          address_title: saveTitle,
           bonus: L.bonus,
           payment_method: pm === 'on_receipt' ? 'on_receipt' : 'online',
           pay_with: pm === 'on_receipt' ? null : pm,

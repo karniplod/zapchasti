@@ -93,11 +93,14 @@ def fail(message: str) -> RedirectResponse:
 
 
 async def finish(request: Request, session: AsyncSession, customer_id: int,
-                 next_url: str) -> RedirectResponse:
+                 next_url: str, method: str) -> RedirectResponse:
     """Общий конец любого входа: корзина — покупателю, кука — браузеру."""
-    await adopt_cart(session, cart_token(request), customer_id)
     response = RedirectResponse(safe_next(next_url), status_code=303)
-    ca.issue(response, customer_id)
+    try:
+        await ca.login(session, request, response, customer_id, method)
+    except HTTPException as e:
+        return fail(e.detail)
+    await adopt_cart(session, cart_token(request), customer_id)
     response.delete_cookie(STATE_COOKIE, path="/auth")
     return response
 
@@ -230,7 +233,7 @@ async def google_callback(
         session, "google", str(u["sub"]), name=u.get("name"),
         email=u.get("email"), email_verified=bool(u.get("email_verified")),
         display=u.get("email") or u.get("name"))
-    return await finish(request, session, cid, st["n"])
+    return await finish(request, session, cid, st["n"], "google")
 
 
 @router.get("/auth/vk/callback")
@@ -280,7 +283,7 @@ async def vk_callback(
     cid = await ca.identity_login(
         session, "vk", str(u["user_id"]), name=name, email=u.get("email"),
         email_verified=bool(u.get("email")), phone=u.get("phone"), display=name)
-    return await finish(request, session, cid, st["n"])
+    return await finish(request, session, cid, st["n"], "vk")
 
 
 @router.get("/auth/yandex/callback")
@@ -326,7 +329,7 @@ async def yandex_callback(
     cid = await ca.identity_login(
         session, "yandex", str(u["id"]), name=name, email=email,
         email_verified=bool(email), phone=phone, display=email or u.get("login") or name)
-    return await finish(request, session, cid, st["n"])
+    return await finish(request, session, cid, st["n"], "yandex")
 
 
 # ------------------------------------------------------------------
@@ -366,7 +369,7 @@ async def telegram_callback(
     cid = await ca.identity_login(
         session, "telegram", data["id"], name=name,
         display="@" + data["username"] if data.get("username") else name)
-    return await finish(request, session, cid, next)
+    return await finish(request, session, cid, next, "telegram")
 
 
 # ------------------------------------------------------------------
@@ -432,9 +435,12 @@ async def max_status(
 
     cid = await ca.identity_login(session, "max", str(row.max_user_id),
                                   name=row.max_name, display=row.max_name)
-    await adopt_cart(session, cart_token(request), cid)
     response = JSONResponse({"state": "ok"})
-    ca.issue(response, cid)
+    try:
+        await ca.login(session, request, response, cid, "max")
+    except HTTPException as e:
+        return JSONResponse({"state": "blocked", "detail": e.detail})
+    await adopt_cart(session, cart_token(request), cid)
     response.delete_cookie(STATE_COOKIE, path="/auth")
     return response
 

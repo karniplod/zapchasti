@@ -28,11 +28,25 @@ function open(a){
   F.forEach(id => { $(id).value = a ? (a[v[id]] || '') : ''; fieldError($(id), ''); });
   $('fDefault').checked = a ? a.is_default : !document.querySelector('#addrList li');
   $('addrFormTitle').textContent = a ? 'Изменить адрес' : 'Новый адрес';
+  markTitle();
   $('addrForm').hidden = false;
   $('addrForm').scrollIntoView({behavior: 'smooth', block: 'start'});
   $('fCity').focus({preventScroll: true});
 }
 if ($('addrNew')) $('addrNew').onclick = () => open(null);
+
+// Готовые названия: кнопка ставит название в поле, выбранная подсвечена.
+// Вписали своё — подсветка у совпадающей кнопки, если такая есть
+const markTitle = () => $('fTitles').querySelectorAll('.chip-btn').forEach(b =>
+  b.classList.toggle('on', b.dataset.t.toLowerCase() === $('fTitle').value.trim().toLowerCase()));
+$('fTitles').addEventListener('click', e => {
+  const b = e.target.closest('.chip-btn');
+  if (!b) return;
+  $('fTitle').value = b.classList.contains('on') ? '' : b.dataset.t;
+  fieldError($('fTitle'), '');
+  markTitle();
+});
+$('fTitle').addEventListener('input', markTitle);
 $('fCancel').onclick = () => { $('addrForm').hidden = true; };
 
 // Город — подсказка из справочника СДЭК: код города нужен для тарифов
