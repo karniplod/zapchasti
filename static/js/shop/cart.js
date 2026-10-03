@@ -297,7 +297,8 @@ if (form && $('cname')){
       return `<label class="tile"><input type="radio" name="dopt" value="${k}" ${k === cur ? 'checked' : ''}>
         <span><b>${esc(o.title)}</b>
         <small>${o.from && !D.point ? 'от ' : ''}${rub(o.price)}${n > 1 ? ' за ' + parcels(n) : ''}${o.days ? ' · ' + esc(o.days) : ''}
-          ${n > 1 ? '<br>посылки придут в разные дни' : ''}</small></span></label>`;
+          ${n > 1 ? '<br>посылки придут в разные дни' : ''}
+          ${o.estimate ? '<br>цена примерная: учебная среда СДЭК' : ''}</small></span></label>`;
     }).join('')
     // Почта России считает только по индексу. Пока его нет — плитка видна,
     // но неактивна: человек сразу знает, что такой вариант есть и что для

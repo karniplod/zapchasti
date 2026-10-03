@@ -178,14 +178,25 @@ async def _cdek_quotes(http, origin: dict, dest: dict, pkg: dict) -> list[dict]:
         return []
     origin["cdek_city_code"] = src
     L, W, H = pkg["dims"]
-    d = await _cdek(http, "POST", "/calculator/tarifflist", json={
-        "from_location": {"code": src}, "to_location": {"code": dest["cdek_code"]},
-        "packages": [{"weight": pkg["weight_g"], "length": L, "width": W, "height": H}]})
-    tariffs = {t["tariff_code"]: t for t in d.get("tariff_codes", [])}
     # Мы сдаём посылку в офис СДЭК («склад»). «Посылка» — до 30 кг,
     # тяжелее — «Магистральный экспресс», он и считается дешевле на весе
     heavy = pkg["weight_g"] > 30000
     pick = {"pvz": 62 if heavy else 136, "door": 122 if heavy else 137}
+    try:
+        d = await _cdek(http, "POST", "/calculator/tarifflist", json={
+            "from_location": {"code": src}, "to_location": {"code": dest["cdek_code"]},
+            "packages": [{"weight": pkg["weight_g"], "length": L, "width": W, "height": H}]})
+    except httpx.HTTPStatusError as e:
+        # Учебная среда СДЭК бывает сломана: её калькулятор не узнаёт ни
+        # одного города, хотя подсказка городов и пункты выдачи работают.
+        # Чтобы оформление можно было пройти целиком, в учебном режиме
+        # считаем примерную цену сами и честно её так подписываем.
+        # С боевыми ключами этого нет — там ошибка есть ошибка
+        if settings.cdek_test and e.response.status_code == 400:
+            log.warning("СДЭК учебный: калькулятор не ответил, цена примерная")
+            return _cdek_estimate(origin, dest, pkg, pick)
+        raise
+    tariffs = {t["tariff_code"]: t for t in d.get("tariff_codes", [])}
     out = []
     for mode, code in pick.items():
         t = tariffs.get(code)
@@ -194,6 +205,29 @@ async def _cdek_quotes(http, origin: dict, dest: dict, pkg: dict) -> list[dict]:
         out.append({"carrier": "cdek", "mode": mode, "tariff": str(code),
                     "price": Decimal(str(t["delivery_sum"])),
                     **_span(t.get("period_min"), t.get("period_max"))})
+    return out
+
+
+# Дальние города: посылка идёт неделю и больше и стоит дороже
+_FAR = {"Владивосток", "Хабаровск", "Южно-Сахалинск", "Петропавловск-Камчатский",
+        "Магадан", "Якутск", "Благовещенск", "Норильск", "Анадырь"}
+
+
+def _cdek_estimate(origin: dict, dest: dict, pkg: dict, pick: dict) -> list[dict]:
+    """Примерный тариф СДЭК — только для учебного режима, когда учебный
+    калькулятор не работает. Порядок цен близок к настоящим «Посылкам»:
+    база плюс килограммы, до двери дороже, дальний Восток — дороже и дольше."""
+    kg = pkg["weight_g"] / 1000
+    same = origin.get("cdek_city_code") == dest.get("cdek_code")
+    far = (origin.get("city") in _FAR) != (dest.get("city") in _FAR)
+    base = 220 if same else 390 + (1400 if far else 0)
+    per_kg = 18 if same else (95 if far else 42)
+    days = (1, 2) if same else ((8, 13) if far else (2, 5))
+    out = []
+    for mode, code in pick.items():
+        price = base + per_kg * kg + (210 if mode == "door" else 0)
+        out.append({"carrier": "cdek", "mode": mode, "tariff": str(code),
+                    "price": Decimal(round(price / 5) * 5), "estimate": True, **_span(*days)})
     return out
 
 
@@ -424,12 +458,12 @@ def _issue(carrier: str, origin: dict, dest: dict, pkg: dict) -> str | None:
     if carrier == "yandex":
         if not _ya_station(origin):
             return f"Яндекс не возит {frm}"
-        # Тестовая среда везёт всё со своего склада, а не из филиала
-        if not origin.get("yandex_station_id"):
-            frm = "отсюда"
+        # Тестовая среда везёт всё со своего склада, а не из филиала —
+        # называть город филиала тогда неправда
+        frm = f" {frm}" if origin.get("yandex_station_id") else ""
         if dest.get("point"):
-            return f"Яндекс не возит {frm} в этот пункт — выберите другой"
-        return f"Яндекс не возит {frm} в этот город"
+            return f"Яндекс не возит{frm} в этот пункт — выберите другой"
+        return f"Яндекс не возит{frm} в этот город"
     if carrier == "cdek" and dest.get("cdek_code"):
         return f"СДЭК не посчитал доставку {frm}"
     return None
@@ -498,6 +532,7 @@ async def quotes(parcels: list[dict], dest: dict) -> dict:
                "price": sum((o["price"] for o in per), Decimal(0)),
                **_span(min(lo) if lo else 0, max(hi) if hi else 0),
                "from": any(o.get("from") for o in per),
+               "estimate": any(o.get("estimate") for o in per),
                "point": per[0].get("point"),
                "parcels": [{"branch_id": p["origin"].get("id"), "city": p["origin"].get("city"),
                             "from_city": p["origin"].get("label") or city_from(p["origin"].get("city")),
