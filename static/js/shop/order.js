@@ -50,7 +50,7 @@ if (wait){
   const esc = s => String(s ?? '').replace(/[&<>"]/g,
     c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
   const D = {cdek: form.dataset.cdek ? +form.dataset.cdek : null, point: form.dataset.point || null,
-             points: [], init: null};
+             points: [], init: null, added: []};
   const val = id => $(id) ? $(id).value.trim() : null;
   const digits = s => String(s || '').replace(/\D/g, '').slice(-10);
   const ADDR = ['oeCity', 'oeStreet', 'oeHouse', 'oeBlock', 'oeFlat', 'oePost'];
@@ -60,7 +60,8 @@ if (wait){
     name: val('oeName'), phone: digits(val('oePhone')), comment: val('oeComment'),
     branch: val('oeBranch'), point: D.point,
     addr: ADDR.map(val).join('|'),
-    items: [...form.querySelectorAll('.oe-item')].map(r => r.dataset.item + ':' + qtyOf(r)).join(','),
+    items: [...form.querySelectorAll('.oe-item[data-item]')].map(r => r.dataset.item + ':' + qtyOf(r)).join(','),
+    added: D.added.map(a => a.part_id + ':' + a.qty).join(','),
   });
 
   // Только изменённое — иначе сервер зря пересчитывал бы доставку
@@ -79,7 +80,8 @@ if (wait){
         delivery_flat: val('oeFlat') || null, delivery_postcode: val('oePost') || null});
     }
     if (now.items !== D.init.items)
-      b.items = [...form.querySelectorAll('.oe-item')].map(r => ({id: +r.dataset.item, qty: qtyOf(r)}));
+      b.items = [...form.querySelectorAll('.oe-item[data-item]')].map(r => ({id: +r.dataset.item, qty: qtyOf(r)}));
+    if (D.added.length) b.add = D.added.map(a => ({part_id: a.part_id, qty: a.qty}));
     return b;
   }
 
@@ -108,7 +110,8 @@ if (wait){
           ? `Сумма заказа не изменится: <b>${rub(d.total)}</b>`
           : `Сумма заказа: ${rub(d.old_total)} → <b>${rub(d.total)}</b>`
             + (+d.delivery !== +d.old_delivery
-               ? `<small>доставка ${rub(d.old_delivery)} → ${rub(d.delivery)}${d.days ? ', срок ' + esc(d.days) : ''}</small>` : '');
+               ? `<small>доставка ${rub(d.old_delivery)} → ${rub(d.delivery)}${d.days ? ', срок ' + esc(d.days) : ''}</small>` : '')
+            + (d.parcels > d.old_parcels ? '<small>Добавленная деталь лежит в другом городе — приедет отдельной посылкой</small>' : '');
         $('oeSave').disabled = false;
       } catch {
         if (my === pseq){ $('oeSum').className = 'oe-sum is-err'; $('oeSum').textContent = 'Нет связи с сервером'; }
@@ -138,7 +141,7 @@ if (wait){
   };
 
   // Количество и «Убрать»
-  form.querySelectorAll('.oe-item').forEach(r => {
+  form.querySelectorAll('.oe-item[data-item]').forEach(r => {
     qtyStepper(r.querySelector('.qty'), changed);
     r.querySelector('.oe-drop').onclick = () => {
       const gone = r.classList.toggle('is-gone');
@@ -151,6 +154,75 @@ if (wait){
     if ($(id)) $(id).addEventListener(id === 'oeBranch' ? 'change' : 'input', changed);
   });
   phoneMask($('oePhone'));
+
+  // Подсказки улицы и дома (static/js/addr_suggest.js)
+  addressSuggest({city: $('oeCity'), street: $('oeStreet'), house: $('oeHouse'), block: $('oeBlock'),
+                  post: $('oePost'), streetList: $('oeStreetList'), houseList: $('oeHouseList'),
+                  country: () => form.dataset.country, onChange: changed});
+
+  // ── Добавить деталь ──
+  // Ищем по каталогу (/api/catalog/parts): то же, что видит покупатель
+  // на витрине, только в наличии. Добавленная деталь — новой строкой
+  // в списке; в заказ она попадёт вместе с остальной правкой
+  const inOrder = sku => !!form.querySelector(`.oe-item[data-sku="${CSS.escape(sku)}"]`);
+  let fq, fseq = 0;
+  $('oeAddQ').addEventListener('input', () => {
+    clearTimeout(fq);
+    const q = $('oeAddQ').value.trim();
+    if (q.length < 2){ $('oeFound').hidden = true; return; }
+    fq = setTimeout(async () => {
+      const my = ++fseq;
+      let d = {items: []};
+      try { d = await (await fetch('/api/catalog/parts?' + new URLSearchParams({q, page: 1}))).json(); } catch {}
+      if (my !== fseq) return;
+      const rows = (d.items || []).slice(0, 8);
+      $('oeFound').innerHTML = rows.length ? rows.map((p, i) => {
+        const car = [p.brand, p.model, p.year].filter(Boolean).join(' ');
+        const why = inOrder(p.sku) || D.added.some(a => a.sku === p.sku) ? 'уже в заказе'
+                  : !p.price ? 'цена по запросу' : '';
+        return `<div class="f-row">
+          <span class="f-pic">${p.photo ? `<img src="${esc(p.photo)}" alt="" loading="lazy">` : ''}</span>
+          <span class="f-nm"><b>${esc(p.name)}</b>
+            <small>${esc([p.sku, car, p.city].filter(Boolean).join(' · '))}</small></span>
+          <span class="f-pr">${p.price ? rub(p.price) : ''}</span>
+          ${why ? `<span class="f-why">${why}</span>`
+                : `<button type="button" class="btn btn-ghost btn-sm" data-i="${i}">Добавить</button>`}
+        </div>`;
+      }).join('') : '<p class="hint">Ничего не нашлось — попробуйте артикул или каталожный номер</p>';
+      $('oeFound').hidden = false;
+      $('oeFound').querySelectorAll('button[data-i]').forEach(b => b.onclick = () => {
+        addPart(rows[+b.dataset.i]);
+        $('oeFound').hidden = true; $('oeAddQ').value = '';
+      });
+    }, 300);
+  });
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.oe-add')) $('oeFound').hidden = true;
+  });
+
+  function addPart(p){
+    const a = {part_id: p.id, sku: p.sku, name: p.name, price: p.price, qty: 1};
+    D.added.push(a);
+    const row = document.createElement('div');
+    row.className = 'oe-item is-new';
+    row.dataset.sku = p.sku;
+    row.innerHTML = `<span class="nm">${esc(p.name)}<small class="mono">${esc(p.sku)}${p.city ? ' · ' + esc(p.city) : ''} · добавлена</small></span>
+      <div class="qty qty-sm" data-max="${Math.max(1, +p.quantity || 1)}">
+        <button type="button" class="qty-btn" data-d="-1" aria-label="Меньше">−</button>
+        <input class="qty-in" type="number" inputmode="numeric" min="1" value="1" aria-label="Количество">
+        <button type="button" class="qty-btn" data-d="1" aria-label="Больше">+</button>
+      </div>
+      <span class="pr">${rub(p.price)} / шт</span>
+      <button type="button" class="linkish oe-drop">Убрать</button>`;
+    form.querySelector('.oe-items').append(row);
+    qtyStepper(row.querySelector('.qty'), n => { a.qty = n; changed(); });
+    row.querySelector('.oe-drop').onclick = () => {
+      D.added.splice(D.added.indexOf(a), 1);
+      row.remove();
+      changed();
+    };
+    changed();
+  }
   if ($('oePost')) $('oePost').addEventListener('input', () => {
     $('oePost').value = $('oePost').value.replace(/\D/g, '').slice(0, 6);
   });

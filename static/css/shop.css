@@ -432,3 +432,29 @@ button.tile{width:100%;padding:0;border:0;background:none;font:inherit;text-alig
   .oe-item .nm{flex-basis:100%}
   .oe-item .pr{margin-left:auto}
 }
+
+/* Добавить деталь к заказу: поиск по каталогу под списком деталей */
+.oe-add{position:relative;margin-top:14px}
+.oe-found{position:absolute;left:0;right:0;top:100%;z-index:20;margin-top:4px;max-height:360px;
+  overflow:auto;background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r);
+  box-shadow:0 12px 28px rgba(0,0,0,.12)}
+.oe-found[hidden]{display:none}
+.oe-found .hint{margin:0;padding:12px 14px}
+.f-row{display:flex;align-items:center;gap:12px;padding:10px 14px;border-top:1px solid var(--line)}
+.f-row:first-child{border-top:0}
+.f-pic{width:44px;height:44px;flex:0 0 44px;border-radius:var(--r);overflow:hidden;background:var(--surface-2)}
+.f-pic img{width:100%;height:100%;object-fit:cover}
+.f-nm{flex:1;min-width:0;font-size:var(--t-sm)}
+.f-nm b{display:block;font-weight:600}
+.f-nm small{display:block;color:var(--muted);font-size:var(--t-xs);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+.f-pr{font-variant-numeric:tabular-nums;font-size:var(--t-sm);white-space:nowrap}
+.f-why{font-size:var(--t-xs);color:var(--dim);white-space:nowrap}
+.oe-item.is-new{background:var(--accent-bg);margin:0 -12px;padding-left:12px;padding-right:12px;
+  border-radius:var(--r)}
+@media(max-width:640px){
+  .f-row{flex-wrap:wrap}
+  .f-nm{flex-basis:calc(100% - 56px)}
+  .f-pr{margin-left:56px}
+  .f-row .btn{margin-left:auto}
+}

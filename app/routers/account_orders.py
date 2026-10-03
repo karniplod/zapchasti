@@ -2,8 +2,13 @@
 
 Пока менеджер не взял заказ в работу, покупатель сам поправит то, в чём
 ошибся: получателя и телефон, адрес (служба и способ доставки — те же),
-филиал самовывоза, количество деталей и комментарий. Может и отменить
-заказ. Подтверждён, оплачен или отправлен — правит только менеджер.
+филиал самовывоза, количество деталей и комментарий; добавит деталь,
+которую забыл, — из формы правки или со страницы детали. Может и
+отменить заказ. Подтверждён, оплачен или отправлен — правит только
+менеджер.
+
+Добавленная деталь из другого филиала едет своей посылкой: она
+появляется в заказе, и доставка пересчитывается по всем посылкам.
 
 Цену доставки считает сервер — по новому адресу и составу, той же
 службой. Перед сохранением покупатель видит «было → станет»: тот же
@@ -22,8 +27,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .. import customer_auth as ca
 from .. import order_log
 from ..database import get_session
-from .orders_admin import (apply_quote, money, quote_order, return_stock, set_order_status,
-                           shipping_address, sync_totals, take_stock)
+from .orders_admin import (_shipment_for, apply_quote, money, quote_order, return_stock,
+                           set_order_status, shipping_address, sync_totals, take_stock)
 
 router = APIRouter(tags=["account-orders"])
 
@@ -36,6 +41,11 @@ def customer_can_edit(o) -> bool:
 class ItemQty(BaseModel):
     id: int
     qty: int = Field(ge=0, le=999)            # 0 — убрать из заказа
+
+
+class AddPart(BaseModel):
+    part_id: int
+    qty: int = Field(default=1, ge=1, le=999)
 
 
 class CustomerEdit(BaseModel):
@@ -53,6 +63,8 @@ class CustomerEdit(BaseModel):
     delivery_flat: str | None = Field(default=None, max_length=20)
     delivery_point: str | None = Field(default=None, max_length=64)
     items: list[ItemQty] | None = Field(default=None, max_length=100)
+    # Детали, которые покупатель добавляет к заказу
+    add: list[AddPart] | None = Field(default=None, max_length=20)
 
 
 ADDRESS = {"delivery_city", "delivery_cdek_code", "delivery_postcode", "delivery_country",
@@ -84,6 +96,9 @@ async def apply_edit(session: AsyncSession, o, payload: CustomerEdit) -> dict:
     sent = payload.model_fields_set
     changes: list[str] = []
     old_total, old_ship = o.total, o.delivery_price or 0
+    old_parcels = (await session.execute(text(
+        "SELECT count(*) FROM order_shipments WHERE order_id = :o AND status <> 'cancelled'"),
+        {"o": o.id})).scalar()
 
     # --- получатель и комментарий ----------------------------------
     upd: dict = {}
@@ -113,7 +128,7 @@ async def apply_edit(session: AsyncSession, o, payload: CustomerEdit) -> dict:
         want = {i.id: i.qty for i in payload.items}
         if set(want) - set(rows):
             raise HTTPException(422, "В заказе нет такой детали — обновите страницу")
-        if all(want.get(i, r.qty) == 0 for i, r in rows.items()):
+        if all(want.get(i, r.qty) == 0 for i, r in rows.items()) and not payload.add:
             raise HTTPException(409, "В заказе должна остаться хотя бы одна деталь — "
                                      "чтобы отказаться от всего, отмените заказ")
         for iid, qty in want.items():
@@ -141,6 +156,32 @@ async def apply_edit(session: AsyncSession, o, payload: CustomerEdit) -> dict:
                AND NOT EXISTS (SELECT 1 FROM order_items WHERE shipment_id = s.id)"""),
             {"o": o.id})
 
+    # --- добавленные детали ------------------------------------------
+    for a in payload.add or []:
+        p = (await session.execute(text("""
+            SELECT id, sku, name, price, quantity, branch_id FROM parts
+             WHERE id = :p AND status = 'in_stock' AND published AND price IS NOT NULL"""),
+            {"p": a.part_id})).first()
+        if not p:
+            raise HTTPException(409, "Этой детали уже нет в продаже — обновите страницу")
+        if not await take_stock(session, p.id, a.qty):
+            raise HTTPException(409, f"{p.name}: в наличии только {p.quantity} шт.")
+        have = (await session.execute(text("""
+            SELECT id FROM order_items WHERE order_id = :o AND part_id = :p"""),
+            {"o": o.id, "p": p.id})).scalar()
+        if have:
+            await session.execute(text("UPDATE order_items SET qty = qty + :q WHERE id = :i"),
+                                  {"q": a.qty, "i": have})
+        else:
+            # Посылка филиала детали: есть — в неё, нет — новая, её цену
+            # даст пересчёт доставки ниже
+            sid = await _shipment_for(session, o, p.branch_id) if o.delivery_carrier else None
+            await session.execute(text("""
+                INSERT INTO order_items (order_id, part_id, price, qty, shipment_id)
+                VALUES (:o, :p, :pr, :q, :s)"""),
+                {"o": o.id, "p": p.id, "pr": p.price, "q": a.qty, "s": sid})
+        changes.append(f"Добавлено: {p.sku} {p.name}" + (f" × {a.qty}" if a.qty > 1 else ""))
+
     # --- получение -------------------------------------------------
     if "pickup_branch_id" in sent and o.delivery_method == "pickup":
         b = (await session.execute(text("""
@@ -163,7 +204,7 @@ async def apply_edit(session: AsyncSession, o, payload: CustomerEdit) -> dict:
 
     # --- доставка заново: адрес или вес могли поменяться -------------
     o2 = await _reload(session, o.id)
-    if o2.delivery_carrier and (payload.items or sent & ADDRESS):
+    if o2.delivery_carrier and (payload.items or payload.add or sent & ADDRESS):
         opt, ships, code = await quote_order(
             session, o2, " — выберите другой адрес или свяжитесь с нами")
         await apply_quote(session, o.id, opt, ships, code)
@@ -176,7 +217,10 @@ async def apply_edit(session: AsyncSession, o, payload: CustomerEdit) -> dict:
         {"o": o.id})).scalar()
     return {"old_total": str(old_total), "total": str(o2.total), "goods": str(goods),
             "old_delivery": str(old_ship), "delivery": str(o2.delivery_price or 0),
-            "days": o2.delivery_days, "changes": changes}
+            "days": o2.delivery_days, "changes": changes,
+            "old_parcels": old_parcels, "parcels": (await session.execute(text(
+        "SELECT count(*) FROM order_shipments WHERE order_id = :o AND status <> 'cancelled'"),
+        {"o": o.id})).scalar()}
 
 
 @router.post("/api/account/orders/{number}/preview")

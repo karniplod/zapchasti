@@ -106,10 +106,15 @@
             заполните улицу и дом.</p>
           {% endif %}
           <div class="addr-grid oe-addr">
-            <div class="a-street"><label for="oeStreet">Улица</label>
-              <input class="field" id="oeStreet" maxlength="120" value="{{ order.delivery_street or '' }}"></div>
-            <div><label for="oeHouse">Дом</label>
-              <input class="field" id="oeHouse" maxlength="20" value="{{ order.delivery_house or '' }}"></div>
+            {# Подсказки улицы и дома — static/js/addr_suggest.js #}
+            <div class="a-street sug-fld"><label for="oeStreet">Улица</label>
+              <input class="field" id="oeStreet" maxlength="120" autocomplete="off"
+                     value="{{ order.delivery_street or '' }}">
+              <div class="suggest" id="oeStreetList" role="listbox" hidden></div></div>
+            <div class="sug-fld"><label for="oeHouse">Дом</label>
+              <input class="field" id="oeHouse" maxlength="20" autocomplete="off"
+                     value="{{ order.delivery_house or '' }}">
+              <div class="suggest" id="oeHouseList" role="listbox" hidden></div></div>
             <div><label for="oeBlock">Корпус</label>
               <input class="field" id="oeBlock" maxlength="20" value="{{ order.delivery_block or '' }}"></div>
             <div><label for="oeFlat">Кв. / офис</label>
@@ -127,7 +132,7 @@
       <div class="oe-items">
         {% for i in order.lines %}
         {% set more = i.stock if i.status == 'in_stock' and i.stock else 0 %}
-        <div class="oe-item" data-item="{{ i.item_id }}" data-qty="{{ i.qty }}">
+        <div class="oe-item" data-item="{{ i.item_id }}" data-qty="{{ i.qty }}" data-sku="{{ i.sku }}">
           <span class="nm">{{ i.name }}<small class="mono">{{ i.sku }}</small></span>
           <div class="qty qty-sm" data-max="{{ i.qty + more }}">
             <button type="button" class="qty-btn" data-d="-1" aria-label="Меньше">−</button>
@@ -139,6 +144,14 @@
           <button type="button" class="linkish oe-drop">Убрать</button>
         </div>
         {% endfor %}
+      </div>
+      {# Забыли деталь — находят её здесь же, по тем же данным, что каталог.
+         Деталь из другого филиала поедет своей посылкой #}
+      <div class="oe-add">
+        <label for="oeAddQ">Добавить деталь</label>
+        <input class="field" id="oeAddQ" type="search" autocomplete="off"
+               placeholder="Название, артикул или каталожный номер">
+        <div class="oe-found" id="oeFound" hidden></div>
       </div>
     </section>
 
@@ -290,5 +303,6 @@
 
 {% block scripts %}
 <script src="{{ asset('js/validate.js') }}"></script>
+<script src="{{ asset('js/addr_suggest.js') }}"></script>
 <script src="{{ asset('js/shop/order.js') }}"></script>
 {% endblock %}

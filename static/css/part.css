@@ -153,3 +153,7 @@
 
 /* Открыт просмотр фото на весь экран — фон не прокручивается */
 body.no-scroll{overflow:hidden}
+
+/* «Добавить к заказу №» — у покупателя есть новый неоплаченный заказ */
+.to-order{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-top:12px}
+.to-order .hint{margin:0;font-size:var(--t-xs)}

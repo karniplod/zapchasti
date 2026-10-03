@@ -126,7 +126,8 @@ async def catalog_page(request: Request, session: AsyncSession = Depends(get_ses
 
 
 @router.get("/p/{sku}", response_class=HTMLResponse)
-async def part_page(sku: str, request: Request, session: AsyncSession = Depends(get_session)):
+async def part_page(sku: str, request: Request, session: AsyncSession = Depends(get_session),
+                    customer: dict | None = Depends(optional_customer)):
     """Сюда ведёт QR с этикетки — и для кладовщика, и для покупателя."""
     part = (
         await session.execute(
@@ -223,6 +224,13 @@ async def part_page(sku: str, request: Request, session: AsyncSession = Depends(
     # Сотруднику показываем ссылку в бэкенд, покупателю — нет
     user = await optional_user(request, session)
 
+    # Есть новый неоплаченный заказ — деталь можно добавить прямо в него,
+    # а не оформлять второй (app/routers/account_orders.py)
+    open_orders = [dict(r._mapping) for r in await session.execute(text("""
+        SELECT number, total FROM orders
+         WHERE customer_id = :c AND status = 'new' AND paid_at IS NULL
+         ORDER BY id DESC LIMIT 3"""), {"c": customer["id"]})] if customer else []
+
     return templates.TemplateResponse(
         "part.html",
         {
@@ -233,6 +241,7 @@ async def part_page(sku: str, request: Request, session: AsyncSession = Depends(
             "fits": fits,
             "fits_by": fits_by,
             "condition_label": CONDITION_LABELS.get(part.condition, part.condition),
+            "open_orders": open_orders,
         },
     )
 
@@ -535,11 +544,13 @@ async def catalog_parts(
         where.append("p.price <= :pmax")
         params["pmax"] = price_max
     if q:
-        # Три пути: название, точный номер, кросс через oem_cross.
-        # Кросс сужаем по категории — один номер бывает у разных
-        # производителей на совершенно разные детали
+        # Четыре пути: название, наш артикул (с этикетки — целиком или
+        # началом, D-0124 — все детали с машины), точный номер, кросс
+        # через oem_cross. Кросс сужаем по категории — один номер бывает
+        # у разных производителей на совершенно разные детали
         where.append("""(
             p.name ILIKE '%' || CAST(:q AS text) || '%'
+            OR p.sku ILIKE btrim(CAST(:q AS text)) || '%'
             OR p.oem_number = CAST(:oem AS text)
             OR EXISTS (
                 SELECT 1 FROM oem_cross x1

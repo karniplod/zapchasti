@@ -102,6 +102,17 @@
       </button>
       <a class="btn btn-ghost" href="/contacts?about={{ part.sku }}">Задать вопрос</a>
     </div>
+    {# Есть новый неоплаченный заказ — забытую деталь добавляют прямо в
+       него, а не оформляют второй заказ с отдельной доставкой #}
+    {% if open_orders and part.status == 'in_stock' and part.price %}
+    <div class="to-order">
+      {% for o in open_orders %}
+      <button type="button" class="btn btn-ghost btn-sm add-to-order"
+              data-number="{{ o.number }}" data-part="{{ part.id }}">Добавить к заказу № {{ o.number }}</button>
+      {% endfor %}
+      <p class="hint">Заказ ещё не в работе — деталь можно добавить в него</p>
+    </div>
+    {% endif %}
 
     <div class="cond">
       <div class="top">

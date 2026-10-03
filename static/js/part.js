@@ -167,3 +167,31 @@ $('buy').onclick = async () => {
 let t;
 function toast(m){ $('toast').textContent = m; $('toast').classList.add('show');
   clearTimeout(t); t = setTimeout(() => $('toast').classList.remove('show'), 2400); }
+
+// Добавить к открытому заказу. Сначала сервер считает, как изменится
+// сумма (вместе с доставкой новой посылки), — человек видит это в окне
+// подтверждения и только потом добавляет
+document.querySelectorAll('.add-to-order').forEach(b => b.onclick = async () => {
+  const n = b.dataset.number;
+  const body = JSON.stringify({add: [{part_id: +b.dataset.part, qty: qty ? qty.get() : 1}]});
+  const rub = v => Math.round(+v).toLocaleString('ru') + ' ₽';
+  const send = (url, method) => fetch(url, {method, headers: {'Content-Type': 'application/json'}, body});
+  b.disabled = true;
+  try {
+    const r = await send(`/api/account/orders/${n}/preview`, 'POST');
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok){ toast(d.detail || 'Не получилось добавить'); b.disabled = false; return; }
+    // Деталь лежит в другом филиале — приедет отдельной посылкой
+    const ship = (d.parcels > d.old_parcels ? ' Деталь в другом городе — приедет отдельной посылкой.' : '')
+      + (+d.delivery !== +d.old_delivery ? ` Доставка: ${rub(d.old_delivery)} → ${rub(d.delivery)}.` : '');
+    if (!await askConfirm(`Сумма заказа: ${rub(d.old_total)} → ${rub(d.total)}.${ship}`,
+                          {title: `Добавить к заказу № ${n}?`, ok: 'Добавить'})){
+      b.disabled = false; return;
+    }
+    const r2 = await send(`/api/account/orders/${n}`, 'PATCH');
+    const d2 = await r2.json().catch(() => ({}));
+    if (r2.ok){ location.href = `/account/orders/${n}?edited=1`; return; }
+    toast(d2.detail || 'Не получилось добавить');
+  } catch { toast('Нет связи с сервером'); }
+  b.disabled = false;
+});

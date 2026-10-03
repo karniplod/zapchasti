@@ -228,9 +228,12 @@ function receiveForm(o){
                 `<option value="${k}" ${(o.delivery_country || 'RU') === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
             <div><label for="ePost">Индекс</label>
               <input id="ePost" inputmode="numeric" maxlength="6" value="${esc(o.delivery_postcode || '')}"></div>
-            <div class="wide"><label for="eStreet">Улица</label>
-              <input id="eStreet" maxlength="120" value="${esc(o.delivery_street || '')}"></div>
-            <div><label for="eHouse">Дом</label><input id="eHouse" maxlength="20" value="${esc(o.delivery_house || '')}"></div>
+            <div class="wide sug"><label for="eStreet">Улица</label>
+              <input id="eStreet" maxlength="120" autocomplete="off" value="${esc(o.delivery_street || '')}">
+              <div class="suggest" id="eStreetList" hidden></div></div>
+            <div class="sug"><label for="eHouse">Дом</label>
+              <input id="eHouse" maxlength="20" autocomplete="off" value="${esc(o.delivery_house || '')}">
+              <div class="suggest" id="eHouseList" hidden></div></div>
             <div><label for="eBlock">Корпус</label><input id="eBlock" maxlength="20" value="${esc(o.delivery_block || '')}"></div>
             <div><label for="eFlat">Кв. / офис</label><input id="eFlat" maxlength="20" value="${esc(o.delivery_flat || '')}"></div>
           </div>`}
@@ -280,6 +283,10 @@ async function setupReceive(){
     $('ePointQ').addEventListener('input', drawPoints);
     loadPoints();
   }
+  // Подсказки улицы и дома, индекс по адресу (static/js/addr_suggest.js)
+  addressSuggest({city: $('eCity'), street: $('eStreet'), house: $('eHouse'), block: $('eBlock'),
+                  post: $('ePost'), streetList: $('eStreetList'), houseList: $('eHouseList'),
+                  country: () => ($('eCountry') ? $('eCountry').value : 'RU')});
   $('saveReceive').onclick = saveReceive;
 }
 

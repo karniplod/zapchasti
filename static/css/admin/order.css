@@ -91,6 +91,7 @@
 .suggest button{display:block;width:100%;text-align:left;padding:9px 12px;border:0;background:none;
   color:var(--ink);font:inherit;font-size:13.5px;cursor:pointer}
 .suggest button:hover{background:var(--panel-2)}
+.suggest button small{display:block;color:var(--muted);font-size:12px}
 #ePointQ{margin-bottom:8px}
 .points{max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:10px}
 .pt{display:flex;gap:10px;align-items:flex-start;position:relative;margin:0;padding:10px 12px;
