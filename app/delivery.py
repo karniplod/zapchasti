@@ -17,11 +17,13 @@
 """
 
 import asyncio
+import json
 import logging
 import time
 from decimal import Decimal
 
 import httpx
+from sqlalchemy import text
 
 from .config import settings
 
@@ -356,9 +358,14 @@ async def _pochta_quotes(http, origin: dict, dest: dict, pkg: dict) -> list[dict
     деталей; индекс получателя обязателен."""
     if not dest.get("postcode") or not origin.get("postcode") or pkg["weight_g"] > POCHTA_MAX_G:
         return []
-    r = await http.get("https://tariff.pochta.ru/v2/calculate/tariff/delivery", params={
-        "json": "", "object": 4030, "from": origin["postcode"], "to": dest["postcode"],
-        "weight": pkg["weight_g"], "pack": 10})
+    # Тарификатор Почты отвечает с перебоями: на 503 — сразу ещё раз,
+    # молчит — ждём 7 секунд, не дольше: дальше выручит недавний расчёт
+    for attempt in (1, 2):
+        r = await http.get("https://tariff.pochta.ru/v2/calculate/tariff/delivery", params={
+            "json": "", "object": 4030, "from": origin["postcode"], "to": dest["postcode"],
+            "weight": pkg["weight_g"], "pack": 10}, timeout=7)
+        if r.status_code < 500 or attempt == 2:
+            break
     r.raise_for_status()
     d = r.json()
     if d.get("errors") or not d.get("paynds"):
@@ -469,18 +476,80 @@ def _issue(carrier: str, origin: dict, dest: dict, pkg: dict) -> str | None:
     return None
 
 
+# Службы отвечают с перебоями: тарификатор Почты то отдаёт цену за долю
+# секунды, то молчит 20 секунд. Удачный расчёт посылки помним в базе
+# (общей для всех процессов сервера): 30 минут берём его сразу — корзина
+# посчитала, оформление через минуту берёт ту же цену, не спрашивая службу
+# снова; до 6 часов — запасной, если служба не ответила. Цену всё равно
+# считал наш сервер, подменить её нельзя
+FRESH_S, STALE_S = 1800, 6 * 3600
+
+
+def _quote_key(name: str, origin: dict, dest: dict, pkg: dict, value_rub: Decimal) -> str:
+    return "|".join(str(x) for x in (
+        name, origin.get("id"), origin.get("city"), origin.get("postcode"),
+        dest.get("city"), dest.get("cdek_code"), dest.get("postcode"), dest.get("point"),
+        pkg["weight_g"], pkg["dims"], int(value_rub) if name == "yandex" else ""))
+
+
+def _to_json(opts: list[dict]) -> str:
+    return json.dumps([{**o, "price": str(o["price"])} for o in opts], ensure_ascii=False)
+
+
+def _from_json(raw) -> list[dict]:
+    rows = raw if isinstance(raw, list) else json.loads(raw)
+    return [{**o, "price": Decimal(o["price"])} for o in rows]
+
+
+async def _load_cache(session, keys: list[str]) -> dict:
+    if session is None or not keys:
+        return {}
+    rows = await session.execute(text("""
+        SELECT key, options, extract(epoch FROM now() - saved_at) AS age
+          FROM delivery_quote_cache WHERE key = ANY(:k)"""), {"k": keys})
+    return {r.key: {"options": _from_json(r.options), "age": float(r.age)} for r in rows}
+
+
+async def _save_cache(session, fresh: dict, commit: bool) -> None:
+    if session is None or not fresh:
+        return
+    for k, opts in fresh.items():
+        await session.execute(text("""
+            INSERT INTO delivery_quote_cache (key, options, saved_at) VALUES (:k, CAST(:o AS jsonb), now())
+            ON CONFLICT (key) DO UPDATE SET options = EXCLUDED.options, saved_at = now()"""),
+            {"k": k, "o": _to_json(opts)})
+    await session.execute(text("""
+        DELETE FROM delivery_quote_cache WHERE saved_at < now() - interval '1 day'"""))
+    if commit:
+        await session.commit()
+
+
 async def _parcel_quotes(http, origin: dict, dest: dict, items: list[dict],
-                         value_rub: Decimal) -> dict:
+                         value_rub: Decimal, cache: dict, fresh: dict) -> dict:
     """Варианты для одной посылки — по всем включённым службам разом:
-    покупатель ждёт самую медленную, а не сумму всех."""
+    покупатель ждёт самую медленную, а не сумму всех. cache — недавние
+    расчёты из базы, в fresh кладём новые удачные."""
     pkg = package(items)
+    failed: set[str] = set()
 
     async def one(name, call):
+        k = _quote_key(name, origin, dest, pkg, value_rub)
+        hit = cache.get(k)
+        if hit and hit["age"] < FRESH_S:
+            return [dict(o) for o in hit["options"]]
         try:
-            return await call()
+            got = await call()
         except (httpx.HTTPError, KeyError, ValueError, IndexError) as e:
-            log.warning("%s: расчёт не удался: %s", name, e)
+            stale = hit and hit["age"] < STALE_S
+            log.warning("%s: расчёт не удался (%s: %s)%s", name, type(e).__name__, e,
+                        " — берём недавний расчёт" if stale else "")
+            if stale:
+                return [dict(o) for o in hit["options"]]
+            failed.add(name)
             return []
+        if got:
+            fresh[k] = got
+        return [dict(o) for o in got]
 
     calls = {
         "cdek": lambda: _cdek_quotes(http, origin, dest, pkg),
@@ -492,11 +561,14 @@ async def _parcel_quotes(http, origin: dict, dest: dict, items: list[dict],
     for name, got in zip(on, await asyncio.gather(*(one(n, calls[n]) for n in on))):
         options += got
         if not got:
-            issues[name] = _issue(name, origin, dest, pkg)
+            # Служба не ответила — так и говорим: «проверьте индекс» здесь неправда
+            issues[name] = (f"{CARRIERS[name]} сейчас не отвечает — попробуйте через минуту "
+                            "или выберите другую службу") if name in failed else \
+                _issue(name, origin, dest, pkg)
     return {"pkg": pkg, "options": options, "issues": issues}
 
 
-async def quotes(parcels: list[dict], dest: dict) -> dict:
+async def quotes(parcels: list[dict], dest: dict, session=None, commit: bool = True) -> dict:
     """Варианты доставки заказа, который едет посылками — по одной из
     каждого филиала.
 
@@ -508,10 +580,19 @@ async def quotes(parcels: list[dict], dest: dict) -> dict:
     везёт им каждую посылку. Цена — сумма посылок, срок — от самой
     быстрой до самой долгой. → {options: [...], issues: {служба: причина}}.
     """
+    # Недавние расчёты — одним запросом до опроса служб, новые — после:
+    # сессию базы нельзя трогать из параллельных задач
+    keys = [_quote_key(n, p["origin"], dest, package(p["items"]), p["value"])
+            for p in parcels for n in ("cdek", "yandex", "pochta") if n in enabled()]
+    cache = await _load_cache(session, keys)
+    fresh: dict = {}
     # Все пары «посылка × служба» — тоже разом
     async with httpx.AsyncClient(timeout=10) as http:
-        got = await asyncio.gather(*(_parcel_quotes(http, p["origin"], dest, p["items"], p["value"])
-                                     for p in parcels))
+        got = await asyncio.gather(*(_parcel_quotes(http, p["origin"], dest, p["items"], p["value"],
+                                                    cache, fresh) for p in parcels))
+    # commit=False — расчёт внутри чужой транзакции (правка заказа): она
+    # и запишет, а предпросмотр откатит
+    await _save_cache(session, fresh, commit)
 
     keys: list[tuple] = []
     for g in got:

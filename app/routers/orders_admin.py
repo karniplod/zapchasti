@@ -786,7 +786,8 @@ async def quote_order(session: AsyncSession, o, why_suffix: str = "") -> tuple[d
     code = await cdek_code_of(o.delivery_city, o.delivery_cdek_code)
     got = await ship_services.quotes(parcels, {
         "city": o.delivery_city, "cdek_code": code, "postcode": o.delivery_postcode,
-        "point": o.delivery_point if o.delivery_carrier == "yandex" else None})
+        "point": o.delivery_point if o.delivery_carrier == "yandex" else None},
+        session, commit=False)
     opt = next((x for x in got["options"]
                 if x["carrier"] == o.delivery_carrier and x["mode"] == o.delivery_mode), None)
     if not opt:

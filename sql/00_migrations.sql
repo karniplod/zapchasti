@@ -783,3 +783,17 @@ CREATE TABLE IF NOT EXISTS customer_addresses (
     created_at   timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS customer_addresses_customer_idx ON customer_addresses (customer_id);
+
+
+-- ------------------------------------------------------------
+-- Недавние расчёты доставки
+-- ------------------------------------------------------------
+-- Службы отвечают с перебоями (тарификатор Почты то за долю секунды,
+-- то молчит 20 секунд). Удачный расчёт посылки помним: оформление через
+-- минуту после корзины берёт ту же цену, а если служба молчит — недавний
+-- расчёт (app/delivery.py). Таблица, а не память: процессов сервера два
+CREATE TABLE IF NOT EXISTS delivery_quote_cache (
+    key       text PRIMARY KEY,
+    options   jsonb NOT NULL,
+    saved_at  timestamptz NOT NULL DEFAULT now()
+);

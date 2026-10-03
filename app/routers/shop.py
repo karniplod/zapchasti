@@ -842,7 +842,9 @@ async def shipping_choice(session: AsyncSession, request: Request, customer: dic
     if not o:
         # Служба не берёт одну из посылок — говорим, какую
         why = got["issues"].get(payload.delivery_carrier)
-        raise HTTPException(409, why + " — выберите другой вариант" if why else
+        if why and "выберите" not in why:
+            why += " — выберите другой вариант"
+        raise HTTPException(409, why if why else
                             "В этот пункт выдачи служба не доставляет — выберите другой"
                             if mode == "pvz" else
                             "Служба не посчитала доставку — выберите другой вариант")

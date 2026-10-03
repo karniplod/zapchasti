@@ -81,7 +81,7 @@ async def quotes_for_cart(session: AsyncSession, request: Request, customer: dic
     parcels = await parcels_of(session, items)
     if not parcels:
         return {"options": [], "issues": {}}, []
-    got = await delivery.quotes(parcels, dest)
+    got = await delivery.quotes(parcels, dest, session)
     await remember_cdek_codes(session, parcels)
     return got, parcels
 
