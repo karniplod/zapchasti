@@ -115,10 +115,12 @@
       <section class="co-card">
         <h2><span class="co-n">2</span>Получатель</h2>
         <div class="co-grid">
+          {# ФИО полностью: по нему выдают посылку в пункте выдачи и на почте #}
           <div class="fld">
-            <label for="cname">Имя</label>
+            <label for="cname">ФИО</label>
             <input class="field" id="cname" autocomplete="name" maxlength="80"
-                   value="{{ customer.name or '' }}" required>
+                   placeholder="Иванов Иван Иванович" value="{{ customer.name or '' }}" required>
+            <label class="no-pat"><input type="checkbox" id="cnoPat"> Нет отчества</label>
           </div>
           <div class="fld">
             <label for="cphone">Телефон</label>

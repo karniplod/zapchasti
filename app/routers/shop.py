@@ -504,6 +504,8 @@ async def logout():
 
 class OrderIn(BaseModel):
     contact_name: str = Field(min_length=1, max_length=80)
+    # «Нет отчества» в форме: тогда в ФИО достаточно фамилии и имени
+    no_patronymic: bool = False
     contact_phone: str = Field(min_length=10, max_length=40)
     delivery_method: str = Field(default="pickup", max_length=32)
     pickup_branch_id: int | None = None
@@ -556,9 +558,9 @@ async def create_order(
         )
 
     # Проверка полей — та же, что в форме: скрипт можно выключить
-    name = payload.contact_name.strip()
-    if not NAME_RE.match(name):
-        raise HTTPException(422, "Имя получателя — только буквы, пробел и дефис")
+    name, err = ca.check_fio(payload.contact_name, payload.no_patronymic)
+    if err:
+        raise HTTPException(422, "ФИО получателя: " + err[0].lower() + err[1:])
     phone = ca.normalize_phone(payload.contact_phone)
     if not phone:
         raise HTTPException(422, "Телефон получателя в формате +7 900 000-00-00")

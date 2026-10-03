@@ -51,6 +51,25 @@ const Check = {
     if (v.length > 80) return 'Слишком длинно — до 80 символов';
     return new RegExp(`^${LETTER}[${LETTERS} .'’-]*$`).test(v) ? '' : 'Только буквы, пробел и дефис';
   },
+  // ФИО получателя заказа — те же правила, что на сервере
+  // (customer_auth.check_fio): фамилия, имя и отчество полностью;
+  // noPatronymic — «Нет отчества», тогда хватит фамилии и имени
+  fio(v, {noPatronymic = false} = {}){
+    const words = String(v || '').trim().split(/\s+/).filter(Boolean);
+    const need = noPatronymic ? 'фамилию и имя' : 'фамилию, имя и отчество';
+    if (!words.length) return `Укажите ${need}`;
+    if (words.join(' ').length > 80) return 'Слишком длинно — до 80 символов';
+    const word = new RegExp(`^${LETTER}+(?:[-'’]${LETTER}+)*$`);
+    for (const w of words){
+      if (w.includes('.') || w.replace(/[-'’]/g, '').length < 2) return 'Полностью, без инициалов: Иванов Иван Иванович';
+      if (!word.test(w)) return 'Только буквы, пробел и дефис';
+    }
+    if (words.length > 5) return 'Фамилия, имя и отчество — не больше пяти слов';
+    if (words.length < (noPatronymic ? 2 : 3))
+      return words.length === 2 ? 'Добавьте отчество — или отметьте «Нет отчества»'
+                                : `Нужны ${need.replace('фамилию', 'фамилия')} — через пробел`;
+    return '';
+  },
   phoneRule(v, {optional = false} = {}){
     if (!String(v || '').trim()) return optional ? '' : 'Укажите телефон';
     return Check.phone(v) ? '' : 'Телефон в формате +7 900 000-00-00';
@@ -177,6 +196,18 @@ function live(rules){
       if (input.classList.contains('is-bad') && !rule(input.value)) fieldError(input, '');
     });
   }
+}
+
+// ФИО с заглавных букв, когда человек ушёл с поля: «иванов иван» →
+// «Иванов Иван». Частицы отчества (оглы, кызы) остаются строчными
+function fioCase(input){
+  if (!input) return;
+  const lower = ['оглы', 'кызы', 'улы', 'гызы', 'уулу'];
+  input.addEventListener('blur', () => {
+    input.value = input.value.trim().split(/\s+/).filter(Boolean).map(w =>
+      lower.includes(w.toLowerCase()) ? w
+        : w.split('-').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('-')).join(' ');
+  });
 }
 
 // Маска телефона: +7 900 000-00-00 по мере набора. Вставка

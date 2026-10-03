@@ -92,7 +92,7 @@ if (wait){
   // Только изменённое — иначе сервер зря пересчитывал бы доставку
   function body(){
     const now = snapshot(), b = {};
-    if (now.name !== D.init.name) b.contact_name = now.name;
+    if (now.name !== D.init.name){ b.contact_name = now.name; b.no_patronymic = $('oeNoPat').checked; }
     if (now.phone !== D.init.phone) b.contact_phone = val('oePhone');
     if (now.comment !== D.init.comment) b.comment = now.comment;
     if (now.branch !== D.init.branch) b.pickup_branch_id = +now.branch;
@@ -179,6 +179,11 @@ if (wait){
     if ($(id)) $(id).addEventListener(id === 'oeBranch' ? 'change' : 'input', changed);
   });
   phoneMask($('oePhone'));
+  fioCase($('oeName'));
+  $('oeNoPat').onchange = () => {
+    if ($('oeName').value.trim()) fieldError($('oeName'), Check.fio($('oeName').value, {noPatronymic: $('oeNoPat').checked}));
+    changed();
+  };
 
   // Подсказки улицы и дома (static/js/addr_suggest.js)
   addressSuggest({city: $('oeCity'), street: $('oeStreet'), house: $('oeHouse'), block: $('oeBlock'),
@@ -328,7 +333,7 @@ if (wait){
   // Проверка и сохранение
   const SHORT = new RegExp(`^[${LETTERS}\\d/ .-]{1,20}$`);
   const rules = [
-    [$('oeName'), v => Check.name(v)],
+    [$('oeName'), v => Check.fio(v, {noPatronymic: $('oeNoPat').checked})],
     [$('oePhone'), v => Check.phoneRule(v)],
     [$('oeCity'), v => Check.text(v, {min: 2, max: 120, what: 'Город'})],
     [$('oeStreet'), v => v.trim().length >= 2 ? '' : 'Укажите улицу'],

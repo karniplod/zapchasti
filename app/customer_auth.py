@@ -65,6 +65,39 @@ EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$")
 NAME_RE = re.compile(r"^[^\W\d_](?:[^\W\d_]|[ .'’-]){0,79}$")
 
 
+# ФИО получателя заказа: каждое слово — буквы, внутри дефис или апостроф
+# (Иванова-Петрова, д’Артаньян). Частицы отчества пишутся со строчной
+FIO_WORD_RE = re.compile(r"^[^\W\d_]+(?:[-'’][^\W\d_]+)*$")
+FIO_LOWER = {"оглы", "кызы", "улы", "гызы", "уулу"}
+
+
+def check_fio(raw: str, no_patronymic: bool = False) -> tuple[str | None, str | None]:
+    """ФИО получателя заказа → (ФИО с заглавных букв, текст ошибки).
+    Нужны фамилия, имя и отчество; «нет отчества» — фамилия и имя.
+    Без инициалов: по «Иванов И. И.» посылку в пункте выдачи не отдадут.
+    Те же правила — в static/js/validate.js (Check.fio)."""
+    words = (raw or "").split()
+    need = "фамилию и имя" if no_patronymic else "фамилию, имя и отчество"
+    if not words:
+        return None, f"Укажите {need}"
+    if len(" ".join(words)) > 80:
+        return None, "Слишком длинно — до 80 символов"
+    for w in words:
+        if "." in w or len(w.strip("-'’")) < 2:
+            return None, "Полностью, без инициалов: Иванов Иван Иванович"
+        if not FIO_WORD_RE.match(w):
+            return None, "Только буквы, пробел и дефис"
+    if len(words) > 5:
+        return None, "Фамилия, имя и отчество — не больше пяти слов"
+    if len(words) < (2 if no_patronymic else 3):
+        if len(words) == 2:
+            return None, "Добавьте отчество — или отметьте «Нет отчества»"
+        return None, f"Нужны {need.replace('фамилию', 'фамилия')} — через пробел"
+    fixed = [w if w.lower() in FIO_LOWER else
+             "-".join(p[:1].upper() + p[1:] for p in w.split("-")) for w in words]
+    return " ".join(fixed), None
+
+
 def normalize_email(raw: str) -> str | None:
     v = (raw or "").strip().lower()
     return v if len(v) <= 200 and EMAIL_RE.match(v) else None

@@ -399,7 +399,7 @@ if (form && $('cname')){
   const ADDR_STREET = new RegExp(`^[${LETTERS}\\d .,'«»"()№/-]{2,120}$`);
   const ADDR_SHORT = new RegExp(`^[${LETTERS}\\d/ .-]{1,20}$`);
   const rules = [
-    [$('cname'), v => Check.name(v)],
+    [$('cname'), v => Check.fio(v, {noPatronymic: $('cnoPat').checked})],
     [$('cphone'), v => Check.phoneRule(v)],
     [$('branch'), v => v ? '' : 'Выберите филиал'],
     [$('dCity'), v => Check.text(v, {min: 2, max: 120, what: 'Город'})],
@@ -417,6 +417,11 @@ if (form && $('cname')){
     [$('cmt'), v => Check.text(v, {max: 1000, what: 'Комментарий'})],
   ];
   live(rules);
+  fioCase($('cname'));
+  // «Нет отчества» меняет правило — ошибку у поля пересчитываем сразу
+  $('cnoPat').onchange = () => {
+    if ($('cname').value.trim()) fieldError($('cname'), Check.fio($('cname').value, {noPatronymic: $('cnoPat').checked}));
+  };
   $('agree').onchange = () => { if ($('agree').checked) fieldError($('agree'), ''); };
 
   form.onsubmit = async e => {
@@ -446,6 +451,7 @@ if (form && $('cname')){
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
           contact_name: $('cname').value.trim(),
+          no_patronymic: $('cnoPat').checked,
           contact_phone: $('cphone').value.trim(),
           delivery_method: val('dm'),
           pickup_branch_id: ship ? null : +$('branch').value,

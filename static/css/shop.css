@@ -507,3 +507,8 @@ button.tile{width:100%;padding:0;border:0;background:none;font:inherit;text-alig
   .topbar,.head-slot,.site-head,.site-foot,.cat-menu,.no-print,.toast{display:none!important}
   .receipt{border:0;padding:0;max-width:none}
 }
+
+/* «Нет отчества» под полем ФИО */
+.no-pat{display:inline-flex;align-items:center;gap:8px;margin:8px 0 0;font-size:var(--t-sm);
+  font-weight:400;color:var(--muted);cursor:pointer}
+.no-pat input{width:16px;height:16px;margin:0;accent-color:var(--accent)}

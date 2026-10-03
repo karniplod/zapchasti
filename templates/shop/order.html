@@ -68,9 +68,12 @@
     <section>
       <h3>Получатель</h3>
       <div class="oe-grid">
-        <div><label for="oeName">Имя и фамилия</label>
+        <div><label for="oeName">ФИО</label>
           <input class="field" id="oeName" maxlength="80" autocomplete="name"
-                 value="{{ order.contact_name or '' }}"></div>
+                 placeholder="Иванов Иван Иванович" value="{{ order.contact_name or '' }}">
+          {# Сейчас в ФИО два слова — скорее всего, отчества нет #}
+          <label class="no-pat"><input type="checkbox" id="oeNoPat"
+            {% if (order.contact_name or '').split() | length == 2 %}checked{% endif %}> Нет отчества</label></div>
         <div><label for="oePhone">Телефон</label>
           <input class="field" id="oePhone" type="tel" autocomplete="tel"
                  value="{{ order.contact_phone | phone if order.contact_phone else '' }}"></div>
