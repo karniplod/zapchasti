@@ -476,12 +476,12 @@ class PasswordIn(BaseModel):
 @router.post("/api/account/password")
 async def password_change(payload: PasswordIn, session: AsyncSession = Depends(get_session),
                           customer: dict = Depends(ca.current_customer)):
-    """Сменить пароль — с нынешним; вошли через соцсеть и пароля нет —
+    """Сменить пароль — с текущим; вошли через соцсеть и пароля нет —
     задать новый, тогда можно входить и по телефону или email."""
     stored = (await session.execute(text("SELECT password_hash FROM customers WHERE id = :c"),
                                     {"c": customer["id"]})).scalar()
     if stored and not verify_password(payload.current or "", stored):
-        raise HTTPException(422, "Нынешний пароль не подходит")
+        raise HTTPException(422, "Текущий пароль не подходит")
     require(people.check_new_password(payload.new))
     await session.execute(text("UPDATE customers SET password_hash = :h WHERE id = :c"),
                           {"h": hash_password(payload.new), "c": customer["id"]})

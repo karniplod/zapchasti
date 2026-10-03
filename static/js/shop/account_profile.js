@@ -44,7 +44,7 @@ if ($('resend')) $('resend').onclick = async () => {
 // ── Пароль ──────────────────────────────────────────────────
 const has = $('pwForm').dataset.has === '1';
 const wrules = [
-  ...(has ? [[$('pwCur'), v => v ? '' : 'Введите нынешний пароль']] : []),
+  ...(has ? [[$('pwCur'), v => v ? '' : 'Введите текущий пароль']] : []),
   [$('pwNew'), v => Check.newPassword(v)],
   [$('pwNew2'), v => v === $('pwNew').value ? '' : 'Пароли не совпадают'],
 ];

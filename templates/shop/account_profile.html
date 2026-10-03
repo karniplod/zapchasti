@@ -49,7 +49,7 @@
     <form class="prof-form" id="pwForm" novalidate data-has="{{ 1 if profile.has_password else 0 }}">
       <div class="oe-grid prof-grid">
         {% if profile.has_password %}
-        <div><label for="pwCur">Нынешний пароль</label>
+        <div><label for="pwCur">Текущий пароль</label>
           <input class="field" id="pwCur" type="password" autocomplete="current-password"></div>
         {% endif %}
         <div><label for="pwNew">Новый пароль</label>
