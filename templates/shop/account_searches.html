@@ -1,0 +1,53 @@
+{% extends "shop/_account.html" %}
+{% block title %}История поиска{% endblock %}
+{% block description %}Что вы искали по VIN, названию и номеру.{% endblock %}
+{% set section = 'searches' %}
+
+{% block account %}
+  <section class="block">
+    <div class="block-head">
+      <h2>Что вы искали</h2>
+      {% if vins or searches %}
+      <button class="linkish" id="clearHist">Очистить историю</button>
+      {% endif %}
+    </div>
+    {% if not vins and not searches %}
+      <p class="hint">Поиски сохраняются, когда вы вошли в кабинет.
+        Так проще вернуться к тому, что не нашлось с первого раза.</p>
+    {% endif %}
+
+    {% if vins %}
+    <h3>По VIN</h3>
+    <ul class="hist">
+      {% for q in vins %}
+      <li>
+        <a class="mono" href="/catalog?vin={{ q.vin }}">{{ q.vin }}</a>
+        <span class="what">
+          {%- if q.brand %}{{ q.brand }} {{ q.model }}, {{ q.generation }}
+          {%- elif q.resolution == 'brand_year' %}определилась только марка
+          {%- else %}машина не определилась{% endif %}</span>
+        <span class="n">{{ q.results_count }} дет.</span>
+        <span class="date">{{ q.created_at.strftime('%d.%m.%Y') }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if searches %}
+    <h3>По названию и номеру</h3>
+    <ul class="hist">
+      {% for s in searches %}
+      <li>
+        <a class="what" href="/catalog?q={{ s.query | urlencode }}">{{ s.query }}</a>
+        <span class="n">{{ s.results_count }} дет.</span>
+        <span class="date">{{ s.created_at.strftime('%d.%m.%Y') }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ asset('js/shop/account.js') }}"></script>
+{% endblock %}

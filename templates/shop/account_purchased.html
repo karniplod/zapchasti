@@ -1,0 +1,55 @@
+{% extends "shop/_account.html" %}
+{% block title %}Купленные товары{% endblock %}
+{% block description %}Детали, которые вы покупали: найти снова и купить ещё.{% endblock %}
+{% set section = 'purchased' %}
+{% macro rub(v) %}{{ "{:,.0f}".format(v).replace(",", " ") }} ₽{% endmacro %}
+
+{#
+  Всё, что куплено (оплаченные, отправленные и выданные заказы). Детали с
+  разборки обычно штучные: есть ещё — «В корзину», нет — «Похожие» ведут
+  в каталог на поиск по названию.
+#}
+{% block account %}
+  <section class="block">
+    <div class="block-head">
+      <h2>Купленные товары</h2>
+      <span class="hint">{{ items | length }} {{ items | length | plural('позиция', 'позиции', 'позиций') }}</span>
+    </div>
+    {% if not items %}
+      <div class="empty">
+        <h3>Пока ничего не куплено</h3>
+        <p>Здесь будут все детали из оплаченных заказов — найти и купить снова в пару кликов.</p>
+        <p><a class="btn btn-primary" href="/catalog">В каталог</a></p>
+      </div>
+    {% else %}
+      <input class="field pur-q" id="purQ" type="search" autocomplete="off"
+             placeholder="Найти среди купленного: название, артикул, машина">
+      <ul class="pur-list" id="purList">
+        {% for i in items %}
+        <li data-text="{{ (i.name ~ ' ' ~ i.sku ~ ' ' ~ (i.car or '')) | lower }}">
+          <a class="pic" href="/p/{{ i.sku }}">
+            {% if i.photo %}<img src="{{ i.photo }}" alt="" loading="lazy">{% else %}<span class="none"></span>{% endif %}</a>
+          <span class="nm"><a href="/p/{{ i.sku }}">{{ i.name }}</a>
+            <small><span class="mono">{{ i.sku }}</span>{% if i.car %} · {{ i.car }}{% endif %}</small>
+            <small>{{ i.created_at.strftime('%d.%m.%Y') }} · <a href="/account/orders/{{ i.number }}">заказ № {{ i.number }}</a>
+              · {{ i.qty }} шт × {{ rub(i.price) }}</small></span>
+          <span class="pur-act">
+            {% if i.available %}
+              <small class="ok">в наличии {{ i.quantity }} шт · {{ rub(i.price_now) }}</small>
+              <button type="button" class="btn btn-primary btn-sm buy" data-sku="{{ i.sku }}">В корзину</button>
+            {% else %}
+              <small>уже продана</small>
+              <a class="btn btn-ghost btn-sm" href="/catalog?q={{ i.name | urlencode }}">Похожие</a>
+            {% endif %}
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+      <p class="hint" id="purNone" hidden>Ничего не нашлось</p>
+    {% endif %}
+  </section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ asset('js/shop/account.js') }}"></script>
+{% endblock %}

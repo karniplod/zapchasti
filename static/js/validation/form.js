@@ -48,9 +48,12 @@ function validate(rules){
 function live(rules){
   for (const [input, rule] of rules){
     if (!input) continue;
-    input.addEventListener('blur', () => {
+    // С задержкой: человек уходит с поля нажатием на кнопку — ошибка,
+    // появившись сразу, сдвигала кнопку вниз, и клик приходился мимо.
+    // Первое нажатие «Сохранить» ничего не делало
+    input.addEventListener('blur', () => setTimeout(() => {
       if (input.value !== '') fieldError(input, rule(input.value));
-    });
+    }, 200));
     input.addEventListener('input', () => {
       if (input.classList.contains('is-bad') && !rule(input.value)) fieldError(input, '');
     });

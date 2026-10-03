@@ -1,130 +1,89 @@
-{% extends "_base.html" %}
-{% block title %}Личный кабинет{% endblock %}
-{% block description %}История покупок, заказы и история поиска.{% endblock %}
+{% extends "shop/_account.html" %}
+{% block title %}Мои заказы{% endblock %}
+{% block description %}Текущие и прошлые заказы, статусы и доставка.{% endblock %}
+{% set section = 'orders' %}
+{% macro rub(v) %}{{ "{:,.0f}".format(v).replace(",", " ") }} ₽{% endmacro %}
+{% set SHIP = {'assembling': 'собирается', 'sent': 'в пути', 'delivered': 'доставлена', 'cancelled': 'отменена'} %}
 
-{% block head %}
-<link rel="stylesheet" href="{{ asset('css/shop.css') }}">
-{% endblock %}
-
-{% block content %}
-<div class="wrap shop">
-  <div class="acct-head">
-    <div>
-      <h1>{{ customer.name or 'Кабинет' }}</h1>
-      <p class="hint">{{ [customer.phone | phone, customer.email] | select | join(' · ') }}</p>
-    </div>
-    <a class="btn btn-ghost btn-sm" href="/account/logout">Выйти</a>
-  </div>
-
+{% block account %}
   {% if request.query_params.get('verified') %}
   <div class="notice notice-ok">Email подтверждён — добро пожаловать!</div>
   {% endif %}
 
   <div class="figures">
-    <div><b>{{ orders | length }}</b><span>{{ orders | length | plural('заказ', 'заказа', 'заказов') }}</span></div>
-    <div><b>{{ "{:,.0f}".format(spent).replace(",", " ") }} ₽</b><span>на покупки</span></div>
-    <div><b>{{ (vins | length) + (searches | length) }}</b><span>поисков сохранено</span></div>
+    <div><b>{{ all_count }}</b><span>{{ all_count | plural('заказ', 'заказа', 'заказов') }}</span></div>
+    <div><b>{{ rub(spent) }}</b><span>на покупки</span></div>
+    <div><b>{{ bonus_balance }}</b><span>{{ bonus_balance | plural('балл', 'балла', 'баллов') }}</span></div>
   </div>
 
-  <section class="block">
-    <h2>Покупки</h2>
-    {% if not orders %}
-      <div class="empty">
-        <h3>Покупок пока нет</h3>
-        <p>Здесь появится каждая покупка: что взяли, за сколько и когда.</p>
-        <p><a class="btn btn-primary" href="/catalog">В каталог</a></p>
-      </div>
-    {% else %}
-      <div class="orders">
-        {% for o in orders %}
-        <article class="order">
-          <header>
-            <a class="num mono" href="/account/orders/{{ o.number }}">№ {{ o.number }}</a>
-            <span class="date">{{ o.created_at.strftime('%d.%m.%Y') }}</span>
-            <span class="st st-{{ o.status }}">{{ o.label }}</span>
-            <span class="total">{{ "{:,.0f}".format(o.total).replace(",", " ") }} ₽</span>
-          </header>
+  <div class="acct-tabs" role="tablist">
+    <a href="/account" {% if not f %}aria-current="page"{% endif %}>Все <i>{{ all_count }}</i></a>
+    <a href="/account?f=current" {% if f == 'current' %}aria-current="page"{% endif %}>Текущие <i>{{ counts.current }}</i></a>
+    <a href="/account?f=done" {% if f == 'done' %}aria-current="page"{% endif %}>Завершённые <i>{{ counts.done }}</i></a>
+    <a href="/account?f=cancelled" {% if f == 'cancelled' %}aria-current="page"{% endif %}>Отменённые <i>{{ counts.cancelled }}</i></a>
+  </div>
 
-          {# Состав показываем сразу: «подробная история» — это когда
-             не надо кликать, чтобы вспомнить, что именно ты покупал #}
-          <ul class="items">
-            {% for i in o.lines %}
-            <li>
-              <a class="pic" href="/p/{{ i.sku }}">
-                {% if i.photo %}<img src="{{ i.photo }}" alt="" loading="lazy">
-                {% else %}<span class="none"></span>{% endif %}
-              </a>
-              <span class="nm"><a href="/p/{{ i.sku }}">{{ i.name }}</a>
-                <small class="mono">{{ i.sku }}</small></span>
-              <span class="cond">{{ i.condition }}</span>
-              <span class="sum">{{ "{:,.0f}".format(i.sum).replace(",", " ") }} ₽
-          {%- if i.qty > 1 %}<small>{{ i.qty }} шт × {{ "{:,.0f}".format(i.price).replace(",", " ") }} ₽</small>{% endif %}</span>
-            </li>
-            {% endfor %}
-          </ul>
-
-          <footer>
-            {% if o.delivery_method == 'shipping' %}
-              Доставка{% if o.delivery_address %}: {{ o.delivery_address }}{% endif %}
-              {%- if o.shipments | length > 1 %}
-              · {{ o.shipments | length }} посылки, в пути или доставлено
-                {{ o.shipments | selectattr('status', 'in', ['sent', 'delivered']) | list | length }}
-                из {{ o.shipments | length }}{% endif %}
-            {% else %}Самовывоз{% endif %}
-            {% if o.paid_at %} · оплачен {{ o.paid_at.strftime('%d.%m.%Y') }}{% endif %}
-            <a class="more" href="/account/orders/{{ o.number }}">Подробнее</a>
-          </footer>
-        </article>
-        {% endfor %}
-      </div>
-    {% endif %}
-  </section>
-
-  <section class="block">
-    <div class="block-head">
-      <h2>Что вы искали</h2>
-      {% if vins or searches %}
-      <button class="linkish" id="clearHist">Очистить историю</button>
-      {% endif %}
+  {% if not orders %}
+    <div class="empty">
+      <h3>{{ 'Покупок пока нет' if not all_count else 'Таких заказов нет' }}</h3>
+      <p>Здесь появится каждая покупка: что взяли, за сколько и когда.</p>
+      <p><a class="btn btn-primary" href="/catalog">В каталог</a></p>
     </div>
-    {% if not vins and not searches %}
-      <p class="hint">Поиски сохраняются, когда вы вошли в кабинет.
-        Так проще вернуться к тому, что не нашлось с первого раза.</p>
-    {% endif %}
+  {% else %}
+    <div class="orders">
+      {% for o in orders %}
+      <article class="order">
+        <header>
+          <a class="num mono" href="/account/orders/{{ o.number }}">№ {{ o.number }}</a>
+          <span class="date">{{ o.created_at.strftime('%d.%m.%Y') }}</span>
+          <span class="st st-{{ o.status }}">{{ o.label }}</span>
+          <span class="total">{{ rub(o.total) }}</span>
+        </header>
 
-    {% if vins %}
-    <h3>По VIN</h3>
-    <ul class="hist">
-      {% for q in vins %}
-      <li>
-        <span class="mono">{{ q.vin }}</span>
-        <span class="what">
-          {%- if q.brand %}{{ q.brand }} {{ q.model }}, {{ q.generation }}
-          {%- elif q.resolution == 'brand_year' %}определилась только марка
-          {%- else %}машина не определилась{% endif %}</span>
-        <span class="n">{{ q.results_count }} дет.</span>
-        <span class="date">{{ q.created_at.strftime('%d.%m.%Y') }}</span>
-      </li>
+        {# Состав показываем сразу: «подробная история» — это когда
+           не надо кликать, чтобы вспомнить, что именно ты покупал #}
+        <ul class="items">
+          {% for i in o.lines %}
+          <li>
+            <a class="pic" href="/p/{{ i.sku }}">
+              {% if i.photo %}<img src="{{ i.photo }}" alt="" loading="lazy">
+              {% else %}<span class="none"></span>{% endif %}
+            </a>
+            <span class="nm"><a href="/p/{{ i.sku }}">{{ i.name }}</a>
+              <small class="mono">{{ i.sku }}</small></span>
+            <span class="cond">{{ i.condition }}</span>
+            <span class="sum">{{ rub(i.sum) }}
+              {%- if i.qty > 1 %}<small>{{ i.qty }} шт × {{ rub(i.price) }}</small>{% endif %}</span>
+          </li>
+          {% endfor %}
+        </ul>
+
+        {# Где посылки — главное, что ищут в текущем заказе #}
+        {% if o.shipments and o.status not in ('cancelled', 'completed') %}
+        <ul class="ship-line">
+          {% for sh in o.shipments %}
+          <li><span class="st st-ship-{{ sh.status }}">{{ SHIP.get(sh.status, sh.status) }}</span>
+            {{ sh.from_city }}{% if sh.days and sh.status == 'assembling' %}, {{ sh.days }}{% endif %}
+            {%- if sh.track_number %} · {% if sh.track_url %}<a href="{{ sh.track_url }}" target="_blank" rel="noopener">{{ sh.track_number }}</a>{% else %}<span class="mono">{{ sh.track_number }}</span>{% endif %}{% endif %}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+
+        <footer>
+          {% if o.delivery_method == 'shipping' %}
+            Доставка{% if o.delivery_address %}: {{ o.delivery_address }}{% endif %}
+          {% else %}Самовывоз{% if o.pickup_branch %}: {{ o.pickup_branch }}{% endif %}{% endif %}
+          {% if o.paid_at %} · оплачен {{ o.paid_at.strftime('%d.%m.%Y') }}{% endif %}
+          {% if o.bonus_accrued %} · +{{ o.bonus_accrued }} баллов{% endif %}
+          <span class="o-acts">
+            {% if o.repeatable %}<button type="button" class="linkish repeat" data-number="{{ o.number }}">Повторить заказ</button>{% endif %}
+            <a class="more" href="/account/orders/{{ o.number }}">Подробнее</a>
+          </span>
+        </footer>
+      </article>
       {% endfor %}
-    </ul>
-    {% endif %}
-
-    {% if searches %}
-    <h3>По названию и номеру</h3>
-    <ul class="hist">
-      {% for s in searches %}
-      <li>
-        <a class="what" href="/catalog?q={{ s.query | urlencode }}">{{ s.query }}</a>
-        <span class="n">{{ s.results_count }} дет.</span>
-        <span class="date">{{ s.created_at.strftime('%d.%m.%Y') }}</span>
-      </li>
-      {% endfor %}
-    </ul>
-    {% endif %}
-  </section>
-</div>
-
-<div class="toast" id="toast"></div>
+    </div>
+  {% endif %}
 {% endblock %}
 
 {% block scripts %}

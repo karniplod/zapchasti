@@ -145,11 +145,6 @@
 .donor-link{margin-top:20px;font-size:var(--t-sm);color:var(--muted)}
 .donor-link a{color:var(--accent);text-decoration:underline}
 
-/* ── Всплывающее уведомление ───────────────────────────── */
-.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:26px;
-  background:var(--ink);color:#fff;border-radius:var(--r);padding:13px 20px;
-  font-size:var(--t-sm);opacity:0;transition:.2s;pointer-events:none;z-index:60}
-.toast.show{opacity:1}
 
 /* Открыт просмотр фото на весь экран — фон не прокручивается */
 body.no-scroll{overflow:hidden}

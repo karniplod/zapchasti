@@ -439,6 +439,39 @@ if (form && $('cname')){
   }
   sync();
 
+  // ── Мои адреса ──────────────────────────────────────────────
+  // Кнопка адреса заполняет город, улицу, дом и индекс сразу. Основной
+  // подставляется сам, если он в городе из шапки (или город не выбран).
+  // Выбрали сохранённый — «Запомнить адрес» не нужен; поправили поле —
+  // это уже новый адрес
+  const saved = $('savedAddr') ? JSON.parse($('savedAddr').dataset.list) : [];
+  const ADDR_IDS = ['aStreet', 'aHouse', 'aBlock', 'aFlat', 'dPost'];
+  const markSaved = on => { if ($('saveAddrBox')) $('saveAddrBox').hidden = on; };
+  function applySaved(a, i){
+    $('dCountry').value = a.country || 'RU';
+    $('dCity').value = a.city; D.cdek_code = a.cdek_code; D.street_fias = '';
+    $('aStreet').value = a.street; $('aHouse').value = a.house;
+    $('aBlock').value = a.block || ''; $('aFlat').value = a.flat || '';
+    $('dPost').value = a.postcode || ''; $('dPost').dataset.manual = a.postcode ? '1' : '';
+    ['dCity', ...ADDR_IDS].forEach(id => fieldError($(id), ''));
+    $('savedAddr').querySelectorAll('.chip-btn').forEach(b => b.classList.toggle('on', +b.dataset.i === i));
+    markSaved(true);
+    if (val('dm') === 'shipping' && hasCarriers) loadQuotes();
+  }
+  if (saved.length){
+    $('savedAddr').addEventListener('click', e => {
+      const b = e.target.closest('.chip-btn');
+      if (b) applySaved(saved[+b.dataset.i], +b.dataset.i);
+    });
+    ['dCity', ...ADDR_IDS].forEach(id => $(id).addEventListener('input', () => {
+      $('savedAddr').querySelectorAll('.chip-btn.on').forEach(b => b.classList.remove('on'));
+      markSaved(false);
+    }));
+    const def = saved.findIndex(a => a.is_default);
+    const head = window.siteCity ? window.siteCity.get().city : '';
+    if (def >= 0 && (!head || head === saved[def].city)) applySaved(saved[def], def);
+  }
+
   // ── Скидка и баллы ──────────────────────────────────────────
   // Сервер считает скидку по корзине (/api/cart/promo): с промокодом
   // или без — персональная скидка есть и без него. Баллы — до 30%
@@ -561,6 +594,7 @@ if (form && $('cname')){
           delivery_flat: addr ? $('aFlat').value.trim() || null : null,
           delivery_postcode: ship ? postcode() : null,
           promo_code: L.code,
+          save_address: !!($('saveAddr') && $('saveAddr').checked && !$('saveAddrBox').hidden),
           bonus: L.bonus,
           payment_method: pm === 'on_receipt' ? 'on_receipt' : 'online',
           pay_with: pm === 'on_receipt' ? null : pm,

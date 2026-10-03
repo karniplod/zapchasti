@@ -1,0 +1,71 @@
+{% extends "shop/_account.html" %}
+{% block title %}Мои адреса{% endblock %}
+{% block description %}Адреса доставки для быстрого оформления заказов.{% endblock %}
+{% set section = 'addresses' %}
+
+{#
+  Сохранённые адреса доставки (app/routers/cabinet.py). При оформлении
+  заказа их предлагают одной кнопкой, основной — подставляется сам.
+#}
+{% block account %}
+  <section class="block">
+    <div class="block-head">
+      <h2>Мои адреса</h2>
+      {% if addresses | length < limit %}
+      <button type="button" class="btn btn-primary btn-sm" id="addrNew">Добавить адрес</button>
+      {% endif %}
+    </div>
+    {% if not addresses %}
+      <p class="hint" id="addrEmpty">Сохраните адрес — при оформлении заказа он подставится сам,
+        и вводить улицу и дом заново не придётся.</p>
+    {% endif %}
+    <ul class="addr-list" id="addrList">
+      {% for a in addresses %}
+      <li data-id="{{ a.id }}" data-addr='{{ a | tojson }}'>
+        <div>
+          <b>{{ a.title or a.city }}</b>{% if a.is_default %}<span class="chip">основной</span>{% endif %}
+          <p>{{ a.line }}</p>
+        </div>
+        <div class="addr-acts">
+          {% if not a.is_default %}<button type="button" class="linkish make-default">Сделать основным</button>{% endif %}
+          <button type="button" class="linkish edit">Изменить</button>
+          <button type="button" class="linkish del">Удалить</button>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+
+    <form class="addr-form" id="addrForm" hidden novalidate>
+      <h3 id="addrFormTitle">Новый адрес</h3>
+      <div class="oe-grid">
+        <div><label for="fTitle">Название</label>
+          <input class="field" id="fTitle" maxlength="40" placeholder="Дом, Работа, Гараж"></div>
+        <div class="city-fld"><label for="fCity">Город</label>
+          <input class="field" id="fCity" maxlength="120" autocomplete="off" placeholder="Начните вводить: Самара">
+          <div class="suggest" id="fCityList" role="listbox" hidden></div></div>
+      </div>
+      <div class="addr-grid">
+        <div class="a-street sug-fld"><label for="fStreet">Улица</label>
+          <input class="field" id="fStreet" maxlength="120" autocomplete="off">
+          <div class="suggest" id="fStreetList" role="listbox" hidden></div></div>
+        <div class="sug-fld"><label for="fHouse">Дом</label>
+          <input class="field" id="fHouse" maxlength="20" autocomplete="off">
+          <div class="suggest" id="fHouseList" role="listbox" hidden></div></div>
+        <div><label for="fBlock">Корпус</label><input class="field" id="fBlock" maxlength="20"></div>
+        <div><label for="fFlat">Кв. / офис</label><input class="field" id="fFlat" maxlength="20"></div>
+        <div><label for="fPost">Индекс</label><input class="field" id="fPost" inputmode="numeric" maxlength="6"></div>
+      </div>
+      <label class="no-pat"><input type="checkbox" id="fDefault"> Основной адрес — подставлять при оформлении</label>
+      <div class="oe-btns">
+        <button type="submit" class="btn btn-primary" id="fSave">Сохранить адрес</button>
+        <button type="button" class="btn btn-ghost" id="fCancel">Отмена</button>
+      </div>
+    </form>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+{% include "_validation.html" %}
+<script src="{{ asset('js/addr_suggest.js') }}"></script>
+<script src="{{ asset('js/shop/account_addresses.js') }}"></script>
+{% endblock %}

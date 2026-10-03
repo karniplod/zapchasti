@@ -214,6 +214,17 @@
           </div>
           {% endif %}
 
+          {# Мои адреса — одной кнопкой: город, улица, дом, индекс сразу #}
+          {% if saved_addresses %}
+          <div class="saved-addr" id="savedAddr" data-list='{{ saved_addresses | tojson }}'>
+            <span>Мои адреса:</span>
+            {% for a in saved_addresses %}
+            <button type="button" class="chip-btn" data-i="{{ loop.index0 }}"
+                    title="{{ a.city }}, {{ a.street }}, {{ a.house }}">{{ a.title or (a.city ~ ', ' ~ a.street ~ ', ' ~ a.house) }}</button>
+            {% endfor %}
+          </div>
+          {% endif %}
+
           <div id="addrBox" class="addr-grid" hidden>
             <div class="fld sug-fld a-street">
               <label for="aStreet">Улица</label>
@@ -241,6 +252,10 @@
               <p class="hint" id="postHint">{{ 'Подставится сам, когда адрес введён полностью'
                  if address_hints else 'Шесть цифр — нужен для Почты России' }}</p>
             </div>
+            {% if customer %}
+            <label class="no-pat save-addr" id="saveAddrBox"><input type="checkbox" id="saveAddr" checked>
+              Запомнить адрес в «Мои адреса»</label>
+            {% endif %}
           </div>
         </div>
       </section>

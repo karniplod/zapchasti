@@ -141,6 +141,11 @@ async def cart_page(
             "methods": payments.methods(),
             "carriers": ship_services.enabled(),
             "address_hints": addr.enabled(),
+            # Мои адреса — кнопками над полями адреса (app/routers/cabinet.py)
+            "saved_addresses": [dict(r._mapping) for r in await session.execute(text("""
+                SELECT id, title, country, city, cdek_code, postcode, street, house, block, flat,
+                       is_default FROM customer_addresses WHERE customer_id = :c
+                 ORDER BY is_default DESC, created_at"""), {"c": customer["id"]})] if customer else [],
             # Деталь могли продать, пока она лежала в корзине
             "gone": [i for i in items if i["status"] != "in_stock"],
             "no_price": [i for i in items if i["price"] is None],
@@ -519,6 +524,8 @@ class OrderIn(BaseModel):
     # и пересчитает сам (app/loyalty.py)
     promo_code: str | None = Field(default=None, max_length=40)
     bonus: int = Field(default=0, ge=0, le=10_000_000)
+    # «Запомнить адрес» — в «Мои адреса», если такого там ещё нет
+    save_address: bool = False
     contact_phone: str = Field(min_length=10, max_length=40)
     delivery_method: str = Field(default="pickup", max_length=32)
     pickup_branch_id: int | None = None
@@ -729,6 +736,9 @@ async def create_order(
     if bonus:
         await loyalty.move(session, customer["id"], -bonus, "spend", f"Оплата заказа № {number}",
                            order_id)
+    if (payload.save_address and payload.delivery_method == "shipping"
+            and payload.delivery_street and payload.delivery_mode != "pvz"):
+        await remember_address(session, customer["id"], payload)
 
     # Из корзины — только у этого покупателя: остаток мог остаться, и
     # у других та же деталь лежит законно
@@ -760,6 +770,31 @@ async def create_order(
         except payments.PaymentError as e:
             out["payment_error"] = str(e)
     return out
+
+
+async def remember_address(session: AsyncSession, customer_id: int, payload: "OrderIn") -> None:
+    """Адрес из заказа — в «Мои адреса», если такого ещё нет и место есть.
+    Не получилось — заказ всё равно оформлен: это удобство, не условие."""
+    # cabinet импортирует shop — поэтому здесь, а не наверху
+    from .cabinet import MAX_ADDRESSES, save_address
+    same = (await session.execute(text("""
+        SELECT 1 FROM customer_addresses
+         WHERE customer_id = :c AND lower(city) = lower(:city) AND lower(street) = lower(:street)
+           AND lower(house) = lower(:house) AND coalesce(lower(flat), '') = coalesce(lower(:flat), '')"""),
+        {"c": customer_id, "city": (payload.delivery_city or "").strip(),
+         "street": payload.delivery_street.strip(), "house": (payload.delivery_house or "").strip(),
+         "flat": (payload.delivery_flat or "").strip() or None})).first()
+    count = (await session.execute(text("SELECT count(*) FROM customer_addresses WHERE customer_id = :c"),
+                                   {"c": customer_id})).scalar()
+    if same or count >= MAX_ADDRESSES:
+        return
+    await save_address(session, customer_id, {
+        "title": None, "country": payload.delivery_country or "RU",
+        "city": (payload.delivery_city or "").strip(), "cdek_code": payload.delivery_cdek_code,
+        "postcode": payload.delivery_postcode, "street": payload.delivery_street.strip(),
+        "house": (payload.delivery_house or "").strip(),
+        "block": (payload.delivery_block or "").strip() or None,
+        "flat": (payload.delivery_flat or "").strip() or None, "is_default": False})
 
 
 async def shipping_choice(session: AsyncSession, request: Request, customer: dict,
@@ -995,54 +1030,40 @@ async def orders_of(session: AsyncSession, customer_id: int, number: str | None 
     return orders
 
 
+# Фильтр заказов в кабинете: текущие — в работе, завершённые — выданы
+ORDER_FILTERS = {
+    "current": ("new", "confirmed", "paid", "shipped"),
+    "done": ("completed",),
+    "cancelled": ("cancelled",),
+}
+
+
 @router.get("/account", response_class=HTMLResponse)
 async def account(
     request: Request,
+    f: str = "",
     session: AsyncSession = Depends(get_session),
     customer: dict = Depends(ca.current_customer),
 ):
+    """Мои заказы. История поиска — /account/searches (app/routers/cabinet.py)."""
     orders = await orders_of(session, customer["id"])
-
-    # История поиска: по VIN и по строке — это разные таблицы,
-    # но для человека это один список «что я искал»
-    vins = [
-        dict(r._mapping)
-        for r in await session.execute(
-            text("""
-        SELECT q.vin, q.resolution, q.results_count, q.created_at,
-               b.name AS brand, m.name AS model, g.name AS generation
-          FROM vin_queries q
-          LEFT JOIN generations g ON g.id = q.generation_id
-          LEFT JOIN models m      ON m.id = g.model_id
-          LEFT JOIN brands b      ON b.id = m.brand_id
-         WHERE q.customer_id = :c
-         ORDER BY q.created_at DESC LIMIT 30
-    """),
-            {"c": customer["id"]},
-        )
-    ]
-    searches = [
-        dict(r._mapping)
-        for r in await session.execute(
-            text("""
-        SELECT query, results_count, created_at
-          FROM search_queries
-         WHERE customer_id = :c
-         ORDER BY created_at DESC LIMIT 30
-    """),
-            {"c": customer["id"]},
-        )
-    ]
-
+    counts = {k: sum(o["status"] in v for o in orders) for k, v in ORDER_FILTERS.items()}
+    shown = [o for o in orders if o["status"] in ORDER_FILTERS[f]] if f in ORDER_FILTERS else orders
+    # «Повторить заказ» — если хоть одна деталь из него ещё продаётся
+    for o in orders:
+        o["repeatable"] = any(i["status"] == "in_stock" and (i["stock"] or 0) > 0 for i in o["lines"])
     return templates.TemplateResponse(
         "shop/account.html",
         {
             "request": request,
             "user": None,
             "customer": customer,
-            "orders": orders,
-            "vins": vins,
-            "searches": searches,
+            "section": "orders",
+            "orders": shown,
+            "all_count": len(orders),
+            "counts": counts,
+            "f": f if f in ORDER_FILTERS else "",
+            "bonus_balance": await loyalty.balance(session, customer["id"]),
             "spent": sum(o["total"] for o in orders if o["status"] in
                          ("paid", "shipped", "completed")),
         },

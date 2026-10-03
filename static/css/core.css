@@ -378,3 +378,12 @@ label{display:block;font-size:var(--t-xs);font-weight:500;color:var(--muted);
   .ask-btns{flex-direction:column-reverse}
   .ask-btns button{width:100%}
 }
+
+/* ── Всплывающее уведомление ───────────────────────────── */
+/* Общее для всей витрины: раньше стиль жил только у страницы детали,
+   и в корзине, заказе и кабинете сообщение выглядело простым текстом
+   внизу страницы */
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:26px;max-width:calc(100vw - 32px);
+  background:var(--ink);color:#fff;border-radius:var(--r);padding:13px 20px;
+  font-size:var(--t-sm);opacity:0;transition:.2s;pointer-events:none;z-index:60}
+.toast.show{opacity:1}

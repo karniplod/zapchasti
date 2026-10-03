@@ -1,0 +1,74 @@
+{% extends "shop/_account.html" %}
+{% block title %}Профиль{% endblock %}
+{% block description %}Личные данные, пароль и уведомления.{% endblock %}
+{% set section = 'profile' %}
+{% set PROVIDERS = {'google': 'Google', 'vk': 'VK ID', 'yandex': 'Яндекс ID', 'telegram': 'Telegram', 'max': 'MAX'} %}
+
+{% block account %}
+  {# Личные данные: телефон и email — логины, чужой занять нельзя #}
+  <section class="block">
+    <h2>Личные данные</h2>
+    <form class="prof-form" id="profForm" novalidate>
+      <div class="oe-grid prof-grid">
+        <div><label for="pName">Имя</label>
+          <input class="field" id="pName" maxlength="80" autocomplete="name" value="{{ profile.name or '' }}"></div>
+        <div><label for="pPhone">Телефон</label>
+          <input class="field" id="pPhone" type="tel" autocomplete="tel"
+                 value="{{ profile.phone | phone if profile.phone else '' }}"></div>
+        <div><label for="pEmail">Email</label>
+          <input class="field" id="pEmail" type="email" autocomplete="email" value="{{ profile.email or '' }}">
+          {% if profile.email %}
+          <p class="hint mail-st">{% if profile.email_verified_at %}<span class="ok">подтверждён</span>
+            {% else %}не подтверждён · <button type="button" class="linkish" id="resend">прислать письмо ещё раз</button>{% endif %}</p>
+          {% endif %}</div>
+      </div>
+      <div class="oe-btns"><button type="submit" class="btn btn-primary" id="profSave">Сохранить</button></div>
+    </form>
+    {% if profile.identities %}
+    <p class="hint">Вход через: {% for i in profile.identities %}{{ PROVIDERS.get(i.provider, i.provider) }}{% if i.display %} ({{ i.display }}){% endif %}{{ ', ' if not loop.last }}{% endfor %}</p>
+    {% endif %}
+  </section>
+
+  <section class="block">
+    <h2>{{ 'Сменить пароль' if profile.has_password else 'Задать пароль' }}</h2>
+    {% if not profile.has_password %}
+    <p class="hint">Вы входите через соцсеть. Задайте пароль — тогда можно будет входить и по телефону или email.</p>
+    {% endif %}
+    <form class="prof-form" id="pwForm" novalidate data-has="{{ 1 if profile.has_password else 0 }}">
+      <div class="oe-grid prof-grid">
+        {% if profile.has_password %}
+        <div><label for="pwCur">Нынешний пароль</label>
+          <input class="field" id="pwCur" type="password" autocomplete="current-password"></div>
+        {% endif %}
+        <div><label for="pwNew">Новый пароль</label>
+          <input class="field" id="pwNew" type="password" autocomplete="new-password"></div>
+        <div><label for="pwNew2">Ещё раз</label>
+          <input class="field" id="pwNew2" type="password" autocomplete="new-password"></div>
+      </div>
+      <p class="hint">Не короче шести символов, нужны и буквы, и цифры.</p>
+      <div class="oe-btns"><button type="submit" class="btn btn-primary" id="pwSave">
+        {{ 'Сменить пароль' if profile.has_password else 'Задать пароль' }}</button></div>
+    </form>
+  </section>
+
+  {# Уведомления на email. «Баллы и промокоды» — реклама: только с согласия #}
+  <section class="block">
+    <h2>Уведомления на email</h2>
+    {% if not profile.email %}
+    <p class="notice notice-warn">Укажите email выше — уведомления приходят на него.</p>
+    {% elif not profile.email_verified_at %}
+    <p class="notice notice-warn">Подтвердите email — до этого письма не приходят.</p>
+    {% endif %}
+    <div class="notify">
+      <label class="switch"><input type="checkbox" id="nOrders" {% if profile.notify_orders %}checked{% endif %}>
+        <span><b>Статус заказа</b><small>подтверждён, отправлен с номером отслеживания, готов к выдаче, выдан, отменён</small></span></label>
+      <label class="switch"><input type="checkbox" id="nPromo" {% if profile.notify_promo %}checked{% endif %}>
+        <span><b>Баллы и промокоды</b><small>начисления баллов, персональные скидки и промокоды. Это рекламная рассылка — отправляем только с вашего согласия</small></span></label>
+    </div>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+{% include "_validation.html" %}
+<script src="{{ asset('js/shop/account_profile.js') }}"></script>
+{% endblock %}

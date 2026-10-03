@@ -1,0 +1,65 @@
+{% extends "shop/_account.html" %}
+{% block title %}Бонусы и скидки{% endblock %}
+{% block description %}Баланс баллов, персональная скидка, промокоды и история начислений.{% endblock %}
+{% set section = 'bonus' %}
+{% macro rub(v) %}{{ "{:,.0f}".format(v).replace(",", " ") }} ₽{% endmacro %}
+
+{# Правила — app/loyalty.py; здесь их пересказ для покупателя #}
+{% block account %}
+  <div class="bonus-cards">
+    <div class="bonus-card main">
+      <span>Бонусные баллы</span>
+      <b>{{ bonus_balance }}</b>
+      <small>1 балл = 1 ₽{% if waiting %} · ещё {{ waiting }} придут за заказы в работе{% endif %}</small>
+    </div>
+    <div class="bonus-card">
+      <span>Персональная скидка</span>
+      <b>{{ personal or '—' }}</b>
+      <small>{{ 'на все детали, кроме доставки' if personal else 'назначает магазин постоянным покупателям' }}</small>
+    </div>
+  </div>
+
+  <section class="block">
+    <h2>Как это работает</h2>
+    <ul class="rules">
+      <li><b>{{ accrual }}% баллами</b> возвращаются за каждую покупку — когда заказ выдан.
+        Считаются от того, что заплачено за детали деньгами; за доставку не начисляются.</li>
+      <li><b>До {{ limit }}% стоимости деталей</b> можно оплатить баллами при оформлении заказа.</li>
+      <li><b>Скидки не суммируются:</b> из персональной скидки и промокода работает бо́льшая.
+        Промокод вводится при оформлении.</li>
+      <li>Отменили заказ — потраченные на него баллы возвращаются. Баллы не сгорают.</li>
+    </ul>
+  </section>
+
+  {% if promos %}
+  <section class="block">
+    <h2>Промокоды, которые вы применяли</h2>
+    <ul class="hist">
+      {% for p in promos %}
+      <li><span class="mono">{{ p.code }}</span>
+        <a class="what" href="/account/orders/{{ p.number }}">заказ № {{ p.number }}</a>
+        <span class="n">−{{ rub(p.discount_amount) }}</span>
+        <span class="date">{{ p.created_at.strftime('%d.%m.%Y') }}</span></li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <section class="block">
+    <h2>История начислений</h2>
+    {% if not history %}
+      <p class="hint">Баллов ещё не было — они придут за первый выданный заказ.</p>
+    {% else %}
+    <ul class="hist bonus-hist">
+      {% for h in history %}
+      <li>
+        <span class="amt {{ 'plus' if h.amount > 0 else 'minus' }}">{{ '+' if h.amount > 0 }}{{ h.amount }}</span>
+        <span class="what">{{ h.label }}{% if h.number %} · <a href="/account/orders/{{ h.number }}">№ {{ h.number }}</a>{% endif %}
+          {%- if h.kind == 'manual' and h.comment %}<small>{{ h.comment }}</small>{% endif %}</span>
+        <span class="date">{{ h.created_at.strftime('%d.%m.%Y') }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+{% endblock %}

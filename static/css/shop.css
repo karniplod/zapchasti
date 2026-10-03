@@ -535,3 +535,13 @@ button.tile{width:100%;padding:0;border:0;background:none;font:inherit;text-alig
 /* Колонка — сетка: без min-width поля промокода и баллов распирали блок */
 .co-side > *{min-width:0}
 .co-loyal > *{min-width:0}
+
+/* Мои адреса в оформлении — кнопками над полями */
+.saved-addr{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:var(--t-sm);color:var(--muted)}
+.chip-btn{padding:6px 12px;border:1px solid var(--line-2);border-radius:999px;background:var(--surface);
+  font:inherit;font-size:var(--t-sm);color:var(--ink);cursor:pointer;max-width:260px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.chip-btn:hover{border-color:var(--accent);color:var(--accent)}
+.chip-btn.on{border-color:var(--accent);background:var(--accent-bg);color:var(--accent-dk)}
+.save-addr{grid-column:1/-1;margin:2px 0 0}
+.save-addr[hidden]{display:none}
