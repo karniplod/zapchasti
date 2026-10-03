@@ -110,7 +110,10 @@ function contact(o){
       <div class="blk-h"><h2>Покупатель</h2></div>
       <div class="f3">
         <div><label for="eName">ФИО получателя</label>
-          <input id="eName" maxlength="80" autocomplete="off" value="${esc(o.contact_name || '')}"></div>
+          <input id="eName" maxlength="80" autocomplete="off" placeholder="Иванов Иван Иванович"
+                 value="${esc(o.contact_name || '')}">
+          <label class="no-pat"><input type="checkbox" id="eNoPat"
+            ${(o.contact_name || '').trim().split(/\s+/).length === 2 ? 'checked' : ''}> Нет отчества</label></div>
         <div><label for="ePhone">Телефон</label>
           <input id="ePhone" type="tel" autocomplete="off" value="${esc(phoneFmt(o.contact_phone))}"></div>
         <div><label for="eEmail">Email для чека</label>
@@ -140,16 +143,21 @@ function contact(o){
 function setupContact(){
   phoneMask($('ePhone'));
   const rules = [
-    [$('eName'), v => Check.name(v)],
+    [$('eName'), v => Check.fio(v, {noPatronymic: $('eNoPat').checked})],
     [$('ePhone'), v => Check.phoneRule(v)],
     [$('eEmail'), v => Check.emailRule(v, {optional: true})],
   ];
   live(rules);
+  fioCase($('eName'));
+  $('eNoPat').onchange = () => {
+    if ($('eName').value.trim()) fieldError($('eName'), Check.fio($('eName').value, {noPatronymic: $('eNoPat').checked}));
+  };
   $('eName').focus();
   $('saveContact').onclick = async () => {
     if (!validate(rules)) return;
     const ok = await api('PATCH', `/api/manage/orders/${ID}`, {
-      contact_name: $('eName').value.trim(), contact_phone: $('ePhone').value.trim(),
+      contact_name: $('eName').value.trim(), no_patronymic: $('eNoPat').checked,
+      contact_phone: $('ePhone').value.trim(),
       contact_email: $('eEmail').value.trim()});
     if (ok){ edit.contact = false; toast('Сохранено', 'ok'); load(); }
   };

@@ -198,3 +198,7 @@
   .c-head{align-items:flex-start}
   .c-total{text-align:left}
 }
+
+/* «Нет отчества» под полем ФИО */
+.no-pat{display:inline-flex;align-items:center;gap:8px;margin:8px 0 0;font-size:13px;color:var(--muted);cursor:pointer}
+.no-pat input{width:auto;margin:0;accent-color:var(--amber)}

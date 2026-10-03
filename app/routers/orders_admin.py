@@ -279,6 +279,8 @@ class OrderPatch(BaseModel):
     # Приложение сотрудника шлёт только status — остальное необязательно
     status: str | None = None
     contact_name: str | None = Field(default=None, max_length=120)
+    # «Нет отчества» — тогда в ФИО достаточно фамилии и имени
+    no_patronymic: bool = False
     contact_phone: str | None = Field(default=None, max_length=32)
     contact_email: str | None = Field(default=None, max_length=254)
     comment: str | None = Field(default=None, max_length=1000)
@@ -405,9 +407,10 @@ async def patch_order(
         if why := edit_locked(o):
             raise HTTPException(409, why)
     if "contact_name" in sent:
-        name = " ".join((payload.contact_name or "").split())
-        if not ca.NAME_RE.match(name):
-            raise HTTPException(422, "Имя получателя — только буквы, пробел и дефис")
+        # Те же правила, что при оформлении: по ФИО выдают посылку
+        name, err = ca.check_fio(payload.contact_name or "", payload.no_patronymic)
+        if err:
+            raise HTTPException(422, "ФИО получателя: " + err[0].lower() + err[1:])
         upd["contact_name"] = name
     if "contact_phone" in sent:
         phone = ca.normalize_phone(payload.contact_phone or "")
