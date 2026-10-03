@@ -280,8 +280,23 @@
     {% endif %}
     {% if order.paid_at %}
       <div class="notice notice-ok pay-done">
-        <div><b>Оплачен {{ order.paid_at.strftime('%d.%m.%Y') }}.</b> Спасибо! Менеджер
-          свяжется, когда заказ будет готов к выдаче или отправке.</div>
+        {# Что дальше — по тому, где заказ сейчас: оплачен и собирается,
+           в пути или ждёт в филиале, выдан, отменён #}
+        {% set pickup = order.delivery_method == 'pickup' %}
+        <div><b>Оплачен {{ order.paid_at.strftime('%d.%m.%Y') }}.</b>
+          {% if order.status == 'completed' %}
+            Заказ {{ 'выдан' if pickup else 'получен' }} — спасибо за покупку!
+          {% elif order.status == 'shipped' and pickup %}
+            Заказ ждёт вас{% if order.pickup_branch %}: {{ order.pickup_branch }}{% endif %}. Возьмите с собой номер заказа.
+          {% elif order.status == 'shipped' %}
+            Заказ в пути — номера для отслеживания указаны у посылок выше.
+          {% elif order.status == 'cancelled' %}
+            Заказ отменён. Если деньги ещё не вернулись, напишите нам в <a href="/contacts">контактах</a>.
+          {% elif pickup %}
+            Спасибо! Собираем заказ — менеджер свяжется, когда он будет готов к выдаче.
+          {% else %}
+            Спасибо! Собираем заказ — как отправим, пришлём номер для отслеживания.
+          {% endif %}</div>
         <a class="btn btn-ghost btn-sm" href="/account/orders/{{ order.number }}/receipt">Чек об оплате</a>
       </div>
     {% elif not payable %}
