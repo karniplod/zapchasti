@@ -81,6 +81,13 @@ async def _recipient(session: AsyncSession, customer_id: int | None, kind: str,
     return r.email or r.order_email
 
 
+def _points(n: int) -> str:
+    """«1 балл», «3 балла», «25 баллов»."""
+    a, b = n % 10, n % 100
+    w = "балл" if a == 1 and b != 11 else "балла" if 2 <= a <= 4 and not 12 <= b <= 14 else "баллов"
+    return f"{n} {w}"
+
+
 STATUS_TEXT = {
     "confirmed": ("Заказ № {n} подтверждён",
                   "Мы проверили заказ № {n} — детали на месте, собираем его."),
@@ -121,9 +128,9 @@ async def order_status(session: AsyncSession, order_id: int, status: str) -> Non
         return
     subject, body = STATUS_TEXT[key]
     vals = {"n": o.number, "total": f"{o.total:,.0f} ₽".replace(",", " "), "branch": o.branch or "наш филиал",
-            "bonus": f"\n\nЗа него начислено {o.bonus_accrued} баллов — ими можно оплатить следующий заказ."
+            "bonus": f"\n\nЗа него начислено {_points(o.bonus_accrued)} — ими можно оплатить следующий заказ."
                      if o.bonus_accrued else "",
-            "refund": f" Потраченные на него {o.bonus_spent} баллов вернулись на счёт." if o.bonus_spent else ""}
+            "refund": f" Потраченные на него {_points(o.bonus_spent)} вернулись на счёт." if o.bonus_spent else ""}
     _queue(session, to, subject.format(**vals), body.format(**vals), f"/account/orders/{o.number}")
 
 
@@ -155,8 +162,9 @@ async def bonus(session: AsyncSession, customer_id: int, amount: int, comment: s
     if not to or not amount:
         return
     word = "начислено" if amount > 0 else "списано"
-    body = f"Вам {word} {abs(amount)} баллов{': ' + comment if comment else ''}.\n\nНа счету {balance} баллов — ими можно оплатить до 30% следующего заказа."
-    _queue(session, to, f"Вам {word} {abs(amount)} баллов", body, "/account/bonus")
+    body = (f"Вам {word} {_points(abs(amount))}{': ' + comment if comment else ''}.\n\n"
+            f"На счету {_points(balance)} — ими можно оплатить до 30% следующего заказа.")
+    _queue(session, to, f"Вам {word} {_points(abs(amount))}", body, "/account/bonus")
 
 
 async def personal_discount(session: AsyncSession, customer_id: int, percent) -> None:

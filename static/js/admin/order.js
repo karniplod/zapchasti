@@ -26,6 +26,25 @@ const KIND = {created: 'Оформление', status: 'Статус', edit: 'П
 const esc = s => String(s ?? '').replace(/[&<>"]/g,
   c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 const money = v => Math.round(+v || 0).toLocaleString('ru') + ' ₽';
+// «1 посылка, 2 посылки, 5 посылок» — число вместе со словом
+const plural = (n, one, few, many) => {
+  const a = n % 10, b = n % 100;
+  return `${n} ${a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many}`;
+};
+const parcelsN = n => plural(n, 'посылка', 'посылки', 'посылок');
+
+// Что с деталью на складе. Деталь «продана», когда штук не осталось;
+// если остаток есть, штуки заказа уже списаны, а деталь продаётся дальше
+function stockTag(i, o){
+  if (o.status === 'cancelled')
+    return i.status === 'in_stock' ? '<span class="pst">вернулась на склад</span>' : '';
+  if (i.status === 'sold') return '<span class="pst ok">продана</span>';
+  if (i.status === 'reserved') return '<span class="pst">в резерве за заказом</span>';
+  if (i.status === 'written_off') return '<span class="pst bad">списана</span>';
+  if (i.status === 'draft') return '<span class="pst bad">снята с витрины</span>';
+  const done = ['paid', 'shipped', 'completed'].includes(o.status);
+  return `<span class="pst ${done ? 'ok' : ''}">${done ? 'продано' : 'отложено'} ${i.qty} шт · на складе ещё ${i.stock} шт</span>`;
+}
 const date = s => s ? new Date(s).toLocaleDateString('ru') : '';
 const dt = s => s ? new Date(s).toLocaleString('ru', {day: '2-digit', month: '2-digit',
   year: 'numeric', hour: '2-digit', minute: '2-digit'}) : '';
@@ -224,7 +243,7 @@ function receive(o){
       <p class="kind">${esc(title)}</p>
       <p class="big addr">${esc(addr || (ship ? 'адрес не указан' : 'филиал не выбран'))}${addr ? copyBtn(addr, 'Скопировать адрес') : ''}</p>
       <p class="muted">${[ship && o.delivery_city, ship && o.delivery_postcode && 'индекс ' + o.delivery_postcode,
-                          n > 1 && `${n} посылки — придут в разные дни`, o.delivery_days && 'срок ' + o.delivery_days]
+                          n > 1 && `${parcelsN(n)} — придут в разные дни`, o.delivery_days && 'срок ' + o.delivery_days]
                          .filter(Boolean).map(esc).join(' · ')}</p>
       <div class="actions-row">
         ${ship ? `<button type="button" class="btn" data-copy="${esc(courier)}">Скопировать для курьера</button>` : ''}
@@ -451,7 +470,8 @@ function goods(o){
             <small><span class="mono">${esc(i.sku)}</span> · ${esc(i.branch || 'без филиала')}
               ${i.location ? ` · <b class="shelf">полка ${esc(i.location)}</b>` : ''} · сост. ${esc(i.condition || '—')}
               · <span class="src src-${esc(i.source || 'cart')}">${SOURCE[i.source] || SOURCE.cart}</span>
-              ${+i.price_now && +i.price_now !== +i.price ? ` · на витрине ${money(i.price_now)}` : ''}</small></div>
+              ${+i.price_now && +i.price_now !== +i.price ? ` · на витрине ${money(i.price_now)}` : ''}</small>
+            ${stockTag(i, o)}</div>
           ${m ? `<label class="mini">Шт<input class="i-qty" type="number" min="1" max="999" value="${i.qty}"></label>
                  <label class="mini">Цена, ₽<input class="i-price" type="number" min="0" step="1" value="${Math.round(+i.price)}"></label>`
               : `<span class="q">${i.qty} шт × ${money(i.price)}</span>`}
@@ -468,7 +488,7 @@ function goods(o){
             : 'персональная'}${o.discount_kind === 'percent' ? ', ' + Math.round(+o.discount_value) + '%' : ''}</dt>
           <dd class="minus">−${money(o.discount_amount)}</dd>` : ''}
         ${o.bonus_spent ? `<dt>Баллами</dt><dd class="minus">−${money(o.bonus_spent)}</dd>` : ''}
-        <dt>Доставка${n > 1 ? `, ${n} посылки` : ''}</dt><dd>${money(o.delivery_price)}</dd>
+        <dt>Доставка${n > 1 ? `, ${parcelsN(n)}` : ''}</dt><dd>${money(o.delivery_price)}</dd>
         <dt class="t">Итого</dt><dd class="t">${money(o.total)}</dd>
         ${o.bonus_accrued ? `<dt>Начислено баллов</dt><dd>+${o.bonus_accrued}</dd>` : ''}
       </dl>

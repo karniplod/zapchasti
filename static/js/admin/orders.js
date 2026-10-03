@@ -19,6 +19,12 @@ const CARRIERS = {cdek: 'СДЭК', yandex: 'Яндекс', pochta: 'Почта'
 const MODES = {pvz: 'до пункта', door: 'до двери', post: 'до отделения'};
 
 const money = v => Math.round(+v || 0).toLocaleString('ru') + ' ₽';
+// «1 посылка, 2 посылки, 5 посылок» — число вместе со словом
+const plural = (n, one, few, many) => {
+  const a = n % 10, b = n % 100;
+  return `${n} ${a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many}`;
+};
+
 const esc = s => String(s ?? '').replace(/[&<>"]/g,
   c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 const when = s => new Date(s).toLocaleDateString('ru');
@@ -120,7 +126,7 @@ function row(o){
       <small class="o-phone">${esc(phone(o.phone))}</small></span>
     <span class="o-where">${ship
       ? `<b>${esc(o.delivery_address || o.delivery_city || 'адрес не указан')}</b>
-         <small>${o.delivery_carrier ? CARRIERS[o.delivery_carrier] + ' ' + (MODES[o.delivery_mode] || '') : 'доставка ТК'}${n > 1 ? ` · ${n} посылки` : ''}</small>`
+         <small>${o.delivery_carrier ? CARRIERS[o.delivery_carrier] + ' ' + (MODES[o.delivery_mode] || '') : 'доставка ТК'}${n > 1 ? ` · ${plural(n, 'посылка', 'посылки', 'посылок')}` : ''}</small>`
       : `<b>Самовывоз</b><small>${esc(o.pickup_branch || '')}</small>`}</span>
     <span class="o-sum r"><b>${money(o.total)}</b>
       <small class="${paid ? 'ok' : ''}">${paid ? 'оплачен' : o.payment_method === 'online' ? 'ждём оплату' : 'при получении'} · ${qty} шт</small></span>

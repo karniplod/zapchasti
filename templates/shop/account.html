@@ -74,7 +74,7 @@
             Доставка{% if o.delivery_address %}: {{ o.delivery_address }}{% endif %}
           {% else %}Самовывоз{% if o.pickup_branch %}: {{ o.pickup_branch }}{% endif %}{% endif %}
           {% if o.paid_at %} · оплачен {{ o.paid_at.strftime('%d.%m.%Y') }}{% endif %}
-          {% if o.bonus_accrued %} · +{{ o.bonus_accrued }} баллов{% endif %}
+          {% if o.bonus_accrued %} · +{{ o.bonus_accrued }} {{ o.bonus_accrued | plural('балл', 'балла', 'баллов') }}{% endif %}
           <span class="o-acts">
             {% if o.repeatable %}<button type="button" class="linkish repeat" data-number="{{ o.number }}">Повторить заказ</button>{% endif %}
             <a class="more" href="/account/orders/{{ o.number }}">Подробнее</a>

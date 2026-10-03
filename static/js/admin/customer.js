@@ -7,6 +7,11 @@ const ID = +$('card').dataset.id;
 const esc = s => String(s ?? '').replace(/[&<>"]/g,
   c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 const money = v => Math.round(+v || 0).toLocaleString('ru') + ' ₽';
+// Слово к числу: 1 заказ, 2 заказа, 5 заказов
+const word = (n, one, few, many) => {
+  const a = n % 10, b = n % 100;
+  return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many;
+};
 const date = s => s ? new Date(s).toLocaleDateString('ru') : '—';
 const dt = s => s ? new Date(s).toLocaleString('ru', {dateStyle: 'short', timeStyle: 'short'}) : '—';
 const phone = p => {
@@ -48,11 +53,11 @@ function render(){
       ${c.is_blocked ? `<div class="blocked-bar">Заблокирован${c.blocked_reason ? ': ' + esc(c.blocked_reason) : ''}</div>` : ''}
     </div>
     <div class="c-stats">
-      <div><b>${s.orders}</b><small>заказов</small></div>
+      <div><b>${s.orders}</b><small>${word(s.orders, 'заказ', 'заказа', 'заказов')}</small></div>
       <div><b>${s.completed}</b><small>выдано</small></div>
       <div><b>${s.cancelled}</b><small>отменено</small></div>
       <div><b>${money(s.spent)}</b><small>оплачено</small></div>
-      <div><b>${(+D.bonus).toLocaleString('ru')}</b><small>баллов</small></div>
+      <div><b>${(+D.bonus).toLocaleString('ru')}</b><small>${word(+D.bonus, 'балл', 'балла', 'баллов')}</small></div>
       <div><b>${+c.personal_discount ? Math.round(+c.personal_discount * 10) / 10 + '%' : '—'}</b><small>скидка</small></div>
     </div>
     <div class="c-grid">
@@ -102,7 +107,7 @@ function orders(){
       ${D.orders.length ? `<a class="lnk" href="/orders?q=${encodeURIComponent(D.customer.phone || D.customer.email || '')}">Открыть в заказах</a>` : ''}</div>
     ${D.orders.length ? `<div class="c-orders">${D.orders.map(o => `<a class="c-ord" href="/orders/${encodeURIComponent(o.number)}">
         <span class="mono">№ ${esc(o.number)}</span><span>${date(o.created_at)}</span>
-        <span>${o.items} поз. · ${o.delivery_method === 'shipping' ? 'доставка' + (o.delivery_city ? ', ' + esc(o.delivery_city) : '') : 'самовывоз'}</span>
+        <span>${o.items} ${word(o.items, 'позиция', 'позиции', 'позиций')} · ${o.delivery_method === 'shipping' ? 'доставка' + (o.delivery_city ? ', ' + esc(o.delivery_city) : '') : 'самовывоз'}</span>
         <span class="r"><b>${money(o.total)}</b></span><span class="st ${o.status}">${esc(o.label)}</span></a>`).join('')}</div>`
       : '<p class="muted">Заказов пока нет</p>'}
   </section>`;

@@ -22,7 +22,7 @@
       </ol>
       <a class="btn btn-primary" href="{{ link }}" target="_blank" rel="noopener">Открыть MAX</a>
       <p class="max-state" id="maxState" role="status">Ждём подтверждения в MAX…
-        Код действует {{ minutes }} минут.</p>
+        Код действует {{ minutes }} {{ minutes | plural('минуту', 'минуты', 'минут') }}.</p>
     </div>
   </div>
 

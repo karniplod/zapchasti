@@ -30,7 +30,7 @@ import httpx
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from . import notify, order_log
+from . import order_log
 from .config import settings
 
 log = logging.getLogger("razbor.payments")
@@ -241,11 +241,18 @@ async def settle(session: AsyncSession, payment_id: int, status: str) -> None:
          WHERE id = :id AND (status = 'pending' OR (status = 'cancelled' AND :st = 'paid'))
         RETURNING order_id, amount"""), {"st": status, "id": payment_id})).first()
     if row and status == "paid":
-        moved = (await session.execute(text("""
-            UPDATE orders SET status = 'paid', paid_at = now()
-             WHERE id = :o AND status IN ('new', 'confirmed')"""), {"o": row.order_id})).rowcount
-        if moved:
-            await notify.order_status(session, row.order_id, "paid")
+        # Оплачен — через ту же смену статуса, что у менеджера: детали без
+        # остатка становятся проданными, покупателю уходит письмо. Раньше
+        # здесь менялся только статус заказа, и детали оставались в резерве.
+        # orders_admin импортирует этот модуль — поэтому здесь, а не наверху
+        from .routers.orders_admin import set_order_status
+        cur = (await session.execute(text("SELECT status::text FROM orders WHERE id = :o"),
+                                     {"o": row.order_id})).scalar()
+        if cur in ("new", "confirmed"):
+            await set_order_status(session, row.order_id, "paid")
+        else:
+            await session.execute(text("UPDATE orders SET paid_at = coalesce(paid_at, now()) WHERE id = :o"),
+                                  {"o": row.order_id})
     if row and before == "cancelled":
         await order_log.log(session, row.order_id, "payment",
                             f"Пришла оплата {row.amount:.0f} ₽ по аннулированной ссылке — "

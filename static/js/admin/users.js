@@ -6,6 +6,11 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g,
   c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 const money = v => Math.round(+v || 0).toLocaleString('ru') + ' ₽';
+// Слово к числу: 1 заказ, 2 заказа, 5 заказов
+const word = (n, one, few, many) => {
+  const a = n % 10, b = n % 100;
+  return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many;
+};
 const date = s => s ? new Date(s).toLocaleDateString('ru') : '—';
 // +79125554433 → +7 912 555-44-33
 const phone = p => {
@@ -16,7 +21,7 @@ const phone = p => {
 const ago = s => {
   if (!s) return 'не входил';
   const days = Math.floor((Date.now() - new Date(s)) / 864e5);
-  return days < 1 ? 'сегодня' : days === 1 ? 'вчера' : days < 30 ? `${days} дн. назад` : date(s);
+  return days < 1 ? 'сегодня' : days === 1 ? 'вчера' : days < 30 ? `${days} ${word(days, 'день', 'дня', 'дней')} назад` : date(s);
 };
 const PROVIDERS = {google: 'Google', vk: 'VK', yandex: 'Яндекс', telegram: 'Telegram', max: 'MAX'};
 
@@ -74,9 +79,9 @@ async function loadCustomers(more){
       <span class="u-tags">${c.is_blocked ? '<span class="tag bad">заблокирован</span>' : ''}
         ${c.providers ? c.providers.split(',').map(p => `<span class="tag">${esc(PROVIDERS[p] || p)}</span>`).join('') : ''}
         ${+c.personal_discount ? `<span class="tag ok">скидка ${Math.round(+c.personal_discount * 10) / 10}%</span>` : ''}</span>
-      <span class="u-num r"><b>${c.orders}</b><small>заказов</small></span>
+      <span class="u-num r"><b>${c.orders}</b><small>${word(c.orders, 'заказ', 'заказа', 'заказов')}</small></span>
       <span class="u-num r"><b>${money(c.spent)}</b><small>оплачено</small></span>
-      <span class="u-num r"><b>${(+c.bonus).toLocaleString('ru')}</b><small>баллов</small></span>
+      <span class="u-num r"><b>${(+c.bonus).toLocaleString('ru')}</b><small>${word(+c.bonus, 'балл', 'балла', 'баллов')}</small></span>
       <span class="u-when r"><b>${ago(c.last_login_at)}</b><small>с ${date(c.created_at)}</small></span>
     </a>`).join('');
   if (more) $('custList').querySelector('.u-table').insertAdjacentHTML('beforeend', html);

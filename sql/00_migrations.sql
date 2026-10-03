@@ -845,3 +845,11 @@ CREATE INDEX IF NOT EXISTS account_audit_target_idx ON account_audit (target_kin
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS manager_id int REFERENCES users(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS orders_manager_idx ON orders (manager_id);
 ALTER TABLE users  ADD COLUMN IF NOT EXISTS notify_orders boolean NOT NULL DEFAULT false;
+
+-- Онлайн-оплата меняла статус заказа в обход общей логики: детали без
+-- остатка оставались в резерве. Исправлено в app/payments.py; здесь —
+-- детали уже оплаченных, отправленных и выданных заказов
+UPDATE parts p SET status = 'sold', updated_at = now()
+ WHERE p.status = 'reserved' AND p.quantity = 0
+   AND EXISTS (SELECT 1 FROM order_items oi JOIN orders o ON o.id = oi.order_id
+                WHERE oi.part_id = p.id AND o.status IN ('paid', 'shipped', 'completed'));

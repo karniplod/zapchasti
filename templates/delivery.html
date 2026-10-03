@@ -48,7 +48,7 @@
 
     <div class="notice notice-accent">
       Нашли деталь на сайте — оставьте заявку, и мы отложим её
-      на {{ reserve_hours }} часа, пока вы едете.
+      на {{ reserve_hours }} {{ reserve_hours | plural('час', 'часа', 'часов') }}, пока вы едете.
       <a href="/contacts">Оставить заявку</a>
     </div>
   </section>

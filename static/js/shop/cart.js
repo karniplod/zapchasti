@@ -573,6 +573,7 @@ if (form && $('cname')){
       $('promoOk').textContent = note;
       $('bonusRow').hidden = !L.balance;
       $('bonusBal').textContent = L.balance.toLocaleString('ru');
+      $('bonusWord').textContent = plural(L.balance, 'балл', 'балла', 'баллов').split(' ').pop();
       $('bonusHint').textContent = !L.balance ? ''
         : L.max ? `1 балл = 1 ₽. Можно списать до ${L.max.toLocaleString('ru')} — это до 30% стоимости товаров`
         : 'Списать баллы можно, когда в заказе есть товары с ценой';
