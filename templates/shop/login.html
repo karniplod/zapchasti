@@ -115,7 +115,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ asset('js/validate.js') }}"></script>
+{% include "_validation.html" %}
 {% if telegram_bot_id %}
 {# Только ради Telegram.Login.auth: без data-атрибутов скрипт ничего
    на странице не рисует #}

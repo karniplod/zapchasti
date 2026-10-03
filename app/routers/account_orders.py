@@ -31,6 +31,7 @@ from ..auth import current_user
 from ..config import settings
 from ..database import get_session
 from ..templating import templates
+from ..validation import people, require
 from .orders_admin import (_shipment_for, apply_quote, money, quote_order, return_stock,
                            set_order_status, shipping_address, sync_totals, take_stock)
 from .shop import receipt_of, start_payment
@@ -109,12 +110,11 @@ async def apply_edit(session: AsyncSession, o, payload: CustomerEdit) -> dict:
     # --- получатель и комментарий ----------------------------------
     upd: dict = {}
     if "contact_name" in sent:
-        name, err = ca.check_fio(payload.contact_name or "", payload.no_patronymic)
-        if err:
-            raise HTTPException(422, "ФИО получателя: " + err[0].lower() + err[1:])
+        name, err = people.recipient(payload.contact_name or "", payload.no_patronymic)
+        require(err)
         upd["contact_name"] = name
     if "contact_phone" in sent:
-        phone = ca.normalize_phone(payload.contact_phone or "")
+        phone = people.normalize_phone(payload.contact_phone or "")
         if not phone:
             raise HTTPException(422, "Телефон в формате +7 900 000-00-00")
         upd["contact_phone"] = phone

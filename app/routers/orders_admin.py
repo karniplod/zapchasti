@@ -23,17 +23,18 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import address as addr
-from .. import customer_auth as ca
 from .. import delivery as ship_services
 from .. import order_log, payments
 from ..auth import current_user, require_role
 from ..database import get_session
 from ..templating import templates
+from ..validation import address as addr_rules
+from ..validation import people, require
+from ..validation.orders import check_track
 from .shop import ORDER_LABELS, PAYMENT_LABELS, PAYMENT_STATUS, SHIPMENT_LABELS, shipments_of
 
 router = APIRouter(tags=["orders"])
 
-EMAIL_RE = re.compile(r"^[^@\s]{1,64}@[^@\s]+\.[^@\s]{2,}$")
 
 
 def money(v) -> str:
@@ -323,16 +324,13 @@ async def shipping_address(session: AsyncSession, o, payload, sent: set) -> tupl
     → (поля заказа для записи, «было → стало» для ленты, нужен ли пересчёт)."""
     upd: dict = {}
     changes: list[str] = []
-    city = " ".join((payload.delivery_city if "delivery_city" in sent
-                     else o.delivery_city or "").split())
-    if len(city) < 2:
-        raise HTTPException(422, "Укажите город доставки")
-    post = payload.delivery_postcode if "delivery_postcode" in sent else o.delivery_postcode
-    post = (post or "").strip() or None
-    if post and not re.fullmatch(r"\d{6}", post):
-        raise HTTPException(422, "Индекс — шесть цифр")
-    if o.delivery_mode == "post" and not post:
-        raise HTTPException(422, "Для Почты России нужен индекс")
+    city, err = addr_rules.check_city(payload.delivery_city if "delivery_city" in sent
+                                      else o.delivery_city)
+    require(err)
+    post, err = addr_rules.check_postcode(
+        payload.delivery_postcode if "delivery_postcode" in sent else o.delivery_postcode,
+        required=o.delivery_mode == "post")
+    require(err)
     code = payload.delivery_cdek_code if "delivery_cdek_code" in sent else o.delivery_cdek_code
     if city != (o.delivery_city or "") and "delivery_cdek_code" not in sent:
         code = None              # город другой — прежний код СДЭК к нему не относится
@@ -408,18 +406,17 @@ async def patch_order(
             raise HTTPException(409, why)
     if "contact_name" in sent:
         # Те же правила, что при оформлении: по ФИО выдают посылку
-        name, err = ca.check_fio(payload.contact_name or "", payload.no_patronymic)
-        if err:
-            raise HTTPException(422, "ФИО получателя: " + err[0].lower() + err[1:])
+        name, err = people.recipient(payload.contact_name or "", payload.no_patronymic)
+        require(err)
         upd["contact_name"] = name
     if "contact_phone" in sent:
-        phone = ca.normalize_phone(payload.contact_phone or "")
+        phone = people.normalize_phone(payload.contact_phone or "")
         if not phone:
             raise HTTPException(422, "Телефон в формате +7 900 000-00-00")
         upd["contact_phone"] = phone
     if "contact_email" in sent:
-        email = (payload.contact_email or "").strip().lower() or None
-        if email and not EMAIL_RE.match(email):
+        email = (payload.contact_email or "").strip() or None
+        if email and not (email := people.normalize_email(email)):
             raise HTTPException(422, "Email в формате name@example.ru")
         upd["contact_email"] = email
     for f in ("comment", "manager_note"):
@@ -850,7 +847,6 @@ async def add_note(order_id: int, payload: Note, session: AsyncSession = Depends
 # «отправлен», доставлены все — «выдан».
 
 SHIPMENT_FLOW = {"assembling", "sent", "delivered"}
-TRACK_RE = r"^[A-Za-z0-9-]{4,40}$"
 
 
 class ShipmentPatch(BaseModel):
@@ -881,9 +877,8 @@ async def patch_shipment(
         raise HTTPException(422, "Неизвестный статус посылки")
     track = None
     if payload.track_number is not None:
-        track = payload.track_number.strip().replace(" ", "")
-        if track and not re.match(TRACK_RE, track):
-            raise HTTPException(422, "Номер отслеживания: латиница, цифры и дефис, 4–40 знаков")
+        track, err = check_track(payload.track_number)
+        require(err)
     # СДЭК и Почта дают номер при приёме посылки — без него покупатель
     # её не найдёт. Яндекс присылает отслеживание получателю сам
     if (payload.status in ("sent", "delivered") and row.carrier in ("cdek", "pochta")

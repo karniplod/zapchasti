@@ -331,15 +331,16 @@ if (wait){
   if ($('oePointQ')) $('oePointQ').addEventListener('input', drawPoints);
 
   // Проверка и сохранение
-  const SHORT = new RegExp(`^[${LETTERS}\\d/ .-]{1,20}$`);
+  // Правила полей — static/js/validation/rules.js
   const rules = [
     [$('oeName'), v => Check.fio(v, {noPatronymic: $('oeNoPat').checked})],
     [$('oePhone'), v => Check.phoneRule(v)],
-    [$('oeCity'), v => Check.text(v, {min: 2, max: 120, what: 'Город'})],
-    [$('oeStreet'), v => v.trim().length >= 2 ? '' : 'Укажите улицу'],
-    [$('oeHouse'), v => /\d/.test(v) && SHORT.test(v.trim()) ? '' : 'Дом: номер, например 10 или 10/2'],
-    [$('oePost'), v => !v ? (form.dataset.mode === 'post' ? 'Для Почты России нужен индекс' : '')
-                          : /^\d{6}$/.test(v) ? '' : 'Индекс — шесть цифр'],
+    [$('oeCity'), v => Check.city(v)],
+    [$('oeStreet'), v => Check.street(v)],
+    [$('oeHouse'), v => Check.house(v)],
+    [$('oeBlock'), v => Check.addrPart(v)],
+    [$('oeFlat'), v => Check.addrPart(v)],
+    [$('oePost'), v => Check.postcode(v, {required: form.dataset.mode === 'post'})],
   ].filter(r => r[0]);
   live(rules);
 

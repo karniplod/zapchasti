@@ -320,6 +320,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ asset('js/validate.js') }}"></script>
+{% include "_validation.html" %}
 <script src="{{ asset('js/shop/cart.js') }}"></script>
 {% endblock %}

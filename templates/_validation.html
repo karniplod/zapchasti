@@ -1,0 +1,9 @@
+{#
+  Проверка полей ввода — папка static/js/validation/ целиком, одной
+  строкой на странице: {% include "_validation.html" %}.
+  Порядок важен: правила, затем форма, затем поля. Серверные правила —
+  app/validation/.
+#}
+<script src="{{ asset('js/validation/rules.js') }}"></script>
+<script src="{{ asset('js/validation/form.js') }}"></script>
+<script src="{{ asset('js/validation/inputs.js') }}"></script>

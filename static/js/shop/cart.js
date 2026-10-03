@@ -395,25 +395,17 @@ if (form && $('cname')){
   // ── Проверка полей ───────────────────────────────────────────
   // Адресные поля проверяются, только когда они на экране: validate()
   // пропускает спрятанное — для пункта выдачи адрес не нужен
-  // Буквы — из validate.js (LETTERS): латиница и кириллица
-  const ADDR_STREET = new RegExp(`^[${LETTERS}\\d .,'«»"()№/-]{2,120}$`);
-  const ADDR_SHORT = new RegExp(`^[${LETTERS}\\d/ .-]{1,20}$`);
+  // Правила полей — static/js/validation/rules.js
   const rules = [
     [$('cname'), v => Check.fio(v, {noPatronymic: $('cnoPat').checked})],
     [$('cphone'), v => Check.phoneRule(v)],
     [$('branch'), v => v ? '' : 'Выберите филиал'],
-    [$('dCity'), v => Check.text(v, {min: 2, max: 120, what: 'Город'})],
-    [$('aStreet'), v => !v.trim() ? 'Укажите улицу'
-      : ADDR_STREET.test(v.trim()) ? '' : 'Улица: буквы, цифры, точка, дефис'],
-    [$('aHouse'), v => !v.trim() ? 'Укажите дом'
-      : /\d/.test(v) && ADDR_SHORT.test(v.trim()) ? '' : 'Дом: номер, например 10 или 10/2'],
-    [$('aBlock'), v => !v.trim() || ADDR_SHORT.test(v.trim()) ? '' : 'До 20 символов: буквы и цифры'],
-    [$('aFlat'), v => !v.trim() || ADDR_SHORT.test(v.trim()) ? '' : 'До 20 символов: буквы и цифры'],
-    [$('dPost'), v => {
-      const o = opt();
-      if (!v) return o && o.mode === 'post' ? 'Для Почты России нужен индекс' : '';
-      return /^\d{6}$/.test(v) ? '' : 'Индекс — шесть цифр';
-    }],
+    [$('dCity'), v => Check.city(v)],
+    [$('aStreet'), v => Check.street(v)],
+    [$('aHouse'), v => Check.house(v)],
+    [$('aBlock'), v => Check.addrPart(v)],
+    [$('aFlat'), v => Check.addrPart(v)],
+    [$('dPost'), v => { const o = opt(); return Check.postcode(v, {required: !!o && o.mode === 'post'}); }],
     [$('cmt'), v => Check.text(v, {max: 1000, what: 'Комментарий'})],
   ];
   live(rules);

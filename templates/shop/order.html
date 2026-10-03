@@ -329,7 +329,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ asset('js/validate.js') }}"></script>
+{% include "_validation.html" %}
 <script src="{{ asset('js/addr_suggest.js') }}"></script>
 <script src="{{ asset('js/shop/order.js') }}"></script>
 {% endblock %}

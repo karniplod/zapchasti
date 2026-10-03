@@ -23,7 +23,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from .auth import authenticate, current_user, drop_session, issue_app_token, issue_session
 from .config import settings
 from .database import check_connection, dispose, get_session
-from .errors import translate
+from .validation.errors import translate
 from .routers import (
     account_orders,
     admin,

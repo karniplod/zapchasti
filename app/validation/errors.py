@@ -14,7 +14,7 @@ from fastapi.exceptions import RequestValidationError
 LABELS = {
     "login": "Телефон или email", "password": "Пароль", "name": "Название",
     "phone": "Телефон", "email": "Email", "message": "Сообщение",
-    "contact_name": "Имя получателя", "contact_phone": "Телефон получателя",
+    "contact_name": "ФИО получателя", "contact_phone": "Телефон получателя",
     "delivery_address": "Адрес", "comment": "Комментарий",
     "vin": "VIN", "year": "Год", "color": "Цвет", "mileage_km": "Пробег",
     "plate": "Госномер", "purchase_price": "Цена закупки", "accepted_at": "Дата приёмки",

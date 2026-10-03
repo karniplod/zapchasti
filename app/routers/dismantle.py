@@ -37,13 +37,9 @@ ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 EXT_BY_TYPE = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 MAX_PHOTO_BYTES = 12 * 1024 * 1024
 
-ORIGINS = {
-    "original": "Оригинал",
-    "oem": "ОЕМ",
-    "aftermarket": "Аналог",
-}
-
-CONDITIONS = {"A", "B", "C", "D"}
+# Тип детали и состояние — правила в app/validation/catalog.py
+from ..validation import require  # noqa: E402
+from ..validation.catalog import check_condition, check_origin  # noqa: E402
 
 
 # ------------------------------------------------------------------
@@ -303,10 +299,8 @@ async def create_part(
     session: AsyncSession = Depends(get_session),
     user=Depends(require_role("dismantler")),
 ):
-    if condition not in CONDITIONS:
-        raise HTTPException(422, "Состояние должно быть A, B, C или D")
-    if origin not in ORIGINS:
-        raise HTTPException(422, "Тип детали: оригинал, ОЕМ или аналог")
+    require(check_condition(condition))
+    require(check_origin(origin))
 
     key = None
     if client_key:

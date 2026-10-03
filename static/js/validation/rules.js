@@ -1,24 +1,23 @@
-// Проверка полей ввода — одна на все формы сайта.
-//
-// Раньше каждая форма проверяла по-своему, а многие не проверяли вовсе:
-// ошибку человек узнавал от сервера после отправки, одной строкой на всю
-// форму. Здесь правила и показ ошибки у самого поля:
-//
-//   const rules = [
-//     [$('phone'), v => Check.phone(v) ? '' : 'Телефон: +7 900 000-00-00'],
-//     [$('name'),  v => Check.name(v, {optional: true})],
-//   ];
-//   live(rules);                    — проверка при уходе с поля
-//   if (!validate(rules)) return;   — перед отправкой: фокус на первой ошибке
+// Правила проверки полей — одни на все формы сайта и бэкенда.
 //
 // Правило — функция от значения: пустая строка значит «всё в порядке»,
-// иначе это текст ошибки. Сервер проверяет то же самое ещё раз: скрипт
-// может быть выключен, а запрос — отправлен в обход формы.
+// иначе это текст ошибки. Те же правила на сервере — app/validation/:
+// форма подсказывает сразу, а сервер проверяет ещё раз (скрипт можно
+// выключить, а запрос отправить в обход формы). Меняя правило здесь,
+// меняйте и там.
+//
+// Папка static/js/validation/ подключается целиком — шаблоном
+// templates/_validation.html:
+//   rules.js  — Check: телефон, email, ФИО, адрес, VIN, год, числа…
+//   form.js   — ошибка у поля, проверка формы, живая проверка
+//   inputs.js — маски и поведение полей: телефон, ФИО, VIN
 
 // Буквы — латиница с акцентами и кириллица. Через \p{L} было бы короче,
 // но проверка скриптов (tools/check_js.py) понимает язык до ES2017
 const LETTERS = 'A-Za-z\u00C0-\u024F\u0400-\u04FF';
 const LETTER = `[${LETTERS}]`;
+// Дом, корпус, квартира: буквы, цифры, дробь, точка, дефис
+const ADDR_SHORT = new RegExp(`^[${LETTERS}\\d/ .-]{1,20}$`);
 
 const Check = {
   // Телефон России: 10 цифр после кода страны; 8 и 7 в начале — одно и то же
@@ -52,7 +51,7 @@ const Check = {
     return new RegExp(`^${LETTER}[${LETTERS} .'’-]*$`).test(v) ? '' : 'Только буквы, пробел и дефис';
   },
   // ФИО получателя заказа — те же правила, что на сервере
-  // (customer_auth.check_fio): фамилия, имя и отчество полностью;
+  // (app/validation/people.py, check_fio): фамилия, имя и отчество полностью;
   // noPatronymic — «Нет отчества», тогда хватит фамилии и имени
   fio(v, {noPatronymic = false} = {}){
     const words = String(v || '').trim().split(/\s+/).filter(Boolean);
@@ -129,6 +128,33 @@ const Check = {
     if (d > new Date()) return 'Дата не может быть в будущем';
     return d.getFullYear() < 2000 ? 'Дата не раньше 2000 года' : '';
   },
+  // Адрес по полям — те же правила, что на сервере (app/validation/address.py)
+  street(v){
+    v = String(v || '').trim();
+    if (!v) return 'Укажите улицу';
+    return new RegExp(`^[${LETTERS}\\d .,'«»"()№/-]{2,120}$`).test(v) ? '' : 'Улица: буквы, цифры, точка, дефис';
+  },
+  house(v){
+    v = String(v || '').trim();
+    if (!v) return 'Укажите дом';
+    return /\d/.test(v) && ADDR_SHORT.test(v) ? '' : 'Дом: номер, например 10 или 10/2';
+  },
+  // Корпус, строение, квартира, офис — необязательные
+  addrPart(v){
+    v = String(v || '').trim();
+    return !v || ADDR_SHORT.test(v) ? '' : 'До 20 символов: буквы и цифры';
+  },
+  postcode(v, {required = false} = {}){
+    v = String(v || '').trim();
+    if (!v) return required ? 'Для Почты России нужен индекс' : '';
+    return /^\d{6}$/.test(v) ? '' : 'Индекс — шесть цифр';
+  },
+  city(v){ return Check.text(v, {min: 2, max: 120, what: 'Город'}); },
+  // Номер отслеживания посылки (app/validation/orders.py)
+  track(v){
+    v = String(v || '').replace(/\s/g, '');
+    return !v || /^[A-Za-z0-9-]{4,40}$/.test(v) ? '' : 'Номер: латиница, цифры и дефис, 4–40 знаков';
+  },
   money(v, what = 'Цена'){ return Check.number(v, {min: 0, max: 100000000, what}); },
 
   text(v, {max = 1000, min = 0, what = 'Текст'} = {}){
@@ -147,126 +173,3 @@ const Check = {
     return '';
   },
 };
-
-// Ошибка у поля: подпись под ним, красная рамка, aria-invalid для
-// программ чтения с экрана. Место под подпись — <p id="<id>Err">,
-// а если его нет, создаём сразу после поля
-let fieldSeq = 0;
-function fieldError(input, msg){
-  // Поля строк в списках (правка детали, машины) id не имеют — даём свой,
-  // чтобы подпись с ошибкой нашлась при следующей проверке
-  if (!input.id) input.id = 'fld' + (++fieldSeq);
-  let box = document.getElementById(input.id + 'Err');
-  if (!box && msg){
-    box = document.createElement('p');
-    box.className = 'fld-err';
-    box.id = input.id + 'Err';
-    const anchor = input.closest('.pw') || input;
-    anchor.after(box);
-    input.setAttribute('aria-describedby', box.id);
-  }
-  input.classList.toggle('is-bad', !!msg);
-  input.setAttribute('aria-invalid', msg ? 'true' : 'false');
-  if (box){ box.textContent = msg || ''; box.hidden = !msg; }
-}
-
-// Проверка всех правил разом; скрытые поля не в счёт — их не видно,
-// и ругаться на них бессмысленно
-function validate(rules){
-  let first = null;
-  for (const [input, rule] of rules){
-    if (!input || input.closest('[hidden]')) continue;
-    const msg = rule(input.value);
-    fieldError(input, msg);
-    if (msg && !first) first = input;
-  }
-  if (first) first.focus();
-  return !first;
-}
-
-// Живая проверка: ошибка показывается, когда человек ушёл с поля, и
-// исчезает, как только он её исправил — не дожидаясь нового ухода
-function live(rules){
-  for (const [input, rule] of rules){
-    if (!input) continue;
-    input.addEventListener('blur', () => {
-      if (input.value !== '') fieldError(input, rule(input.value));
-    });
-    input.addEventListener('input', () => {
-      if (input.classList.contains('is-bad') && !rule(input.value)) fieldError(input, '');
-    });
-  }
-}
-
-// ФИО с заглавных букв, когда человек ушёл с поля: «иванов иван» →
-// «Иванов Иван». Частицы отчества (оглы, кызы) остаются строчными
-function fioCase(input){
-  if (!input) return;
-  const lower = ['оглы', 'кызы', 'улы', 'гызы', 'уулу'];
-  input.addEventListener('blur', () => {
-    input.value = input.value.trim().split(/\s+/).filter(Boolean).map(w =>
-      lower.includes(w.toLowerCase()) ? w
-        : w.split('-').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('-')).join(' ');
-  });
-}
-
-// Маска телефона: +7 900 000-00-00 по мере набора. Вставка
-// «8 (900) 000 00 00» тоже приводится к этому виду
-function phoneMask(input){
-  if (!input) return;
-  input.addEventListener('input', () => {
-    let d = input.value.replace(/\D/g, '');
-    if (!d){ input.value = ''; return; }
-    if (/^[78]/.test(d)) d = d.slice(1);
-    d = d.slice(0, 10);
-    const p = [d.slice(0, 3), d.slice(3, 6), d.slice(6, 8), d.slice(8, 10)];
-    input.value = '+7 ' + p[0] + (p[1] ? ' ' + p[1] : '') + (p[2] ? '-' + p[2] : '')
-      + (p[3] ? '-' + p[3] : '');
-  });
-}
-
-// Ошибку сервера кладём к полю, если понятно, к какому она: на 422
-// сервер отдаёт errors — список {field, msg} (см. app/errors.py)
-function serverErrors(d, map){
-  if (!Array.isArray(d.errors)) return false;
-  let shown = false;
-  for (const e of d.errors){
-    if (map[e.field]){ fieldError(map[e.field], e.msg); shown = true; }
-  }
-  return shown;
-}
-
-// Поле VIN: только допустимые знаки, верхний регистр, кнопка — при 17.
-// Знаки, которых в VIN не бывает (I, O, Q, кириллица), не пропадают
-// молча: человек видит, почему его буква не набралась
-function vinInput(input, onGo, button){
-  const err = document.getElementById(input.id + 'Err');
-  const say = msg => { if (err){ err.textContent = msg; err.hidden = !msg; } };
-  input.addEventListener('input', () => {
-    const raw = input.value.toUpperCase();
-    const v = raw.replace(/[^A-HJ-NPR-Z0-9]/g, '');
-    input.value = v;
-    input.classList.remove('bad');
-    button.disabled = v.length !== 17;
-    const dropped = raw.replace(/[A-HJ-NPR-Z0-9]/g, '').replace(/\s/g, '');
-    say(/[IOQ]/.test(dropped) ? 'Букв I, O и Q в VIN нет — это цифры 1 и 0'
-      : /[А-ЯЁ]/.test(dropped) ? 'VIN пишется латиницей — переключите раскладку'
-      : dropped ? 'В VIN только латинские буквы и цифры' : '');
-  });
-  input.addEventListener('keydown', e => {
-    if (e.key !== 'Enter') return;
-    if (input.value.length === 17) onGo();
-    else say(`В VIN 17 знаков, сейчас ${input.value.length}`);
-  });
-  button.onclick = onGo;
-}
-
-// Правила по селекторам внутри одного блока — для форм в строках списка:
-//   const rules = bindRules(row, {'.f-price': v => Check.money(v)});
-function bindRules(root, map){
-  const rules = Object.entries(map)
-    .map(([sel, rule]) => [root.querySelector(sel), rule])
-    .filter(([input]) => input);
-  live(rules);
-  return rules;
-}

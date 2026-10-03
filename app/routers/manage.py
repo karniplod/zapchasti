@@ -21,12 +21,13 @@ from ..database import get_session
 from ..services import oem as oem_service
 from ..services.images import save_images
 from ..templating import templates
-from ..vin_decoder import normalize
-from .dismantle import ORIGINS
+from ..validation import require
+from ..validation.catalog import (check_accepted_at, check_condition, check_donor_status,
+                                  check_origin, check_part_status, check_vin, check_weight,
+                                  check_year)
 
 router = APIRouter(tags=["manage"])
 
-STATUSES = ["draft", "in_stock", "reserved", "sold", "written_off"]
 
 
 @router.get("/donors", response_class=HTMLResponse)
@@ -243,8 +244,7 @@ async def patch_part(
         sets.append("price = :price")
         params["price"] = payload.price
     if payload.condition:
-        if payload.condition not in {"A", "B", "C", "D"}:
-            raise HTTPException(422, "Состояние должно быть A, B, C или D")
+        require(check_condition(payload.condition))
         sets.append("condition = CAST(:cond AS part_condition)")
         params["cond"] = payload.condition
     if payload.location is not None:
@@ -262,8 +262,7 @@ async def patch_part(
             payload.status = "sold"
             payload.published = False
     if payload.status:
-        if payload.status not in STATUSES:
-            raise HTTPException(422, "Неизвестный статус")
+        require(check_part_status(payload.status))
         sets.append("status = CAST(:st AS part_status)")
         params["st"] = payload.status
     if payload.published is not None:
@@ -311,8 +310,7 @@ async def patch_part(
         params["oems"] = "manual" if oem else None
 
     if payload.origin is not None:
-        if payload.origin not in ORIGINS:
-            raise HTTPException(422, "Тип детали: оригинал, ОЕМ или аналог")
+        require(check_origin(payload.origin))
         sets.append("origin = :origin")
         params["origin"] = payload.origin
         # У оригинала своего бренда нет — он равен марке машины
@@ -328,8 +326,7 @@ async def patch_part(
         params["note"] = payload.condition_note.strip() or None
 
     if payload.weight_kg is not None:
-        if payload.weight_kg < 0:
-            raise HTTPException(422, "Вес не может быть отрицательным")
+        require(check_weight(payload.weight_kg))
         sets.append("weight_kg = :weight")
         params["weight"] = payload.weight_kg
 
@@ -347,7 +344,6 @@ async def patch_part(
     return {"ok": True}
 
 
-DONOR_STATUSES = {"accepted", "dismantling", "dismantled", "scrapped"}
 
 
 @router.patch("/api/manage/donors/{donor_id}")
@@ -368,10 +364,9 @@ async def patch_donor(
     sets, params = [], {"id": donor_id}
 
     if payload.vin is not None:
-        vin = normalize(payload.vin) or None
+        vin, err = check_vin(payload.vin)
+        require(err)
         if vin:
-            if len(vin) != 17:
-                raise HTTPException(422, "VIN должен быть из 17 символов")
             dup = (
                 await session.execute(
                     text("SELECT code FROM donors WHERE vin = :v AND id <> :id"),
@@ -384,8 +379,7 @@ async def patch_donor(
         params["vin"] = vin
 
     if payload.status is not None:
-        if payload.status not in DONOR_STATUSES:
-            raise HTTPException(422, "Неизвестный статус машины")
+        require(check_donor_status(payload.status))
         sets.append("status = CAST(:st AS donor_status)")
         params["st"] = payload.status
 
@@ -412,15 +406,12 @@ async def patch_donor(
         params["branch"] = payload.branch_id
 
     if payload.year is not None:
-        top = date.today().year + 1
-        if not (1950 <= payload.year <= top):
-            raise HTTPException(422, f"Год: от 1950 до {top}")
+        require(check_year(payload.year))
         sets.append("year = :year")
         params["year"] = payload.year
 
     if payload.accepted_at is not None:
-        if payload.accepted_at.year < 2000 or payload.accepted_at > date.today():
-            raise HTTPException(422, "Дата приёмки: с 2000 года и не позже сегодня")
+        require(check_accepted_at(payload.accepted_at))
         sets.append("accepted_at = :acc")
         params["acc"] = payload.accepted_at
 

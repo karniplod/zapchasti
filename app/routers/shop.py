@@ -21,6 +21,8 @@ from .. import address as addr
 from .. import customer_auth as ca
 from .. import delivery as ship_services
 from .. import mailer, order_log, payments
+from ..validation import address as addr_rules
+from ..validation import people, require
 from ..config import settings
 from ..database import get_session
 from ..templating import templates
@@ -29,7 +31,6 @@ router = APIRouter(tags=["shop"])
 
 CART_COOKIE = "razbor_cart"
 
-NAME_RE = ca.NAME_RE
 
 # Способы онлайн-оплаты — из app/payments.py: без ключей ЮKassa список
 # пуст, и заказ оплачивается при получении, а менеджер отмечает оплату
@@ -338,15 +339,11 @@ async def register(
     response: Response,
     session: AsyncSession = Depends(get_session),
 ):
-    who = ca.parse_login(payload.login)
+    who = people.parse_login(payload.login)
     if not who:
         raise HTTPException(422, "Укажите телефон в формате +7 900 000-00-00 или email")
-    if payload.name and not NAME_RE.match(payload.name.strip()):
-        raise HTTPException(422, "В имени — только буквы, пробел и дефис")
-    # Пароль из одних цифр подбирается за минуты
-    if not (any(c.isalpha() for c in payload.password)
-            and any(c.isdigit() for c in payload.password)):
-        raise HTTPException(422, "В пароле нужны и буквы, и цифры")
+    require(people.check_name(payload.name))
+    require(people.check_new_password(payload.password))
     kind, value = who
 
     customer = await ca.register(
@@ -419,7 +416,7 @@ async def resend_verification(
 ):
     """Ещё одно письмо. Отвечает одинаково, есть такой адрес или нет:
     иначе по ответу можно было бы перебирать, чьи адреса у нас есть."""
-    email = ca.normalize_email(payload.login)
+    email = people.normalize_email(payload.login)
     if not email:
         raise HTTPException(422, "Проверьте email: mail@example.ru")
     row = (await session.execute(text("""
@@ -469,7 +466,7 @@ async def login(
     response: Response,
     session: AsyncSession = Depends(get_session),
 ):
-    who = ca.parse_login(payload.login)
+    who = people.parse_login(payload.login)
     if not who:
         raise HTTPException(422, "Укажите телефон в формате +7 900 000-00-00 или email")
 
@@ -558,10 +555,9 @@ async def create_order(
         )
 
     # Проверка полей — та же, что в форме: скрипт можно выключить
-    name, err = ca.check_fio(payload.contact_name, payload.no_patronymic)
-    if err:
-        raise HTTPException(422, "ФИО получателя: " + err[0].lower() + err[1:])
-    phone = ca.normalize_phone(payload.contact_phone)
+    name, err = people.recipient(payload.contact_name, payload.no_patronymic)
+    require(err)
+    phone = people.normalize_phone(payload.contact_phone)
     if not phone:
         raise HTTPException(422, "Телефон получателя в формате +7 900 000-00-00")
     if payload.delivery_method not in ("pickup", "shipping"):
@@ -577,8 +573,7 @@ async def create_order(
             payload.delivery_house or "", payload.delivery_block, payload.delivery_flat)
         if err:
             raise HTTPException(422, err)
-        if len((payload.delivery_city or "").strip()) < 2:
-            raise HTTPException(422, "Укажите город доставки")
+        require(addr_rules.check_city(payload.delivery_city)[1])
     branch = None
     if payload.delivery_method == "pickup":
         branch = (await session.execute(
@@ -737,9 +732,8 @@ async def shipping_choice(session: AsyncSession, request: Request, customer: dic
     delivery = ship_services
     if payload.delivery_carrier not in delivery.enabled():
         raise HTTPException(422, "Эта служба доставки сейчас недоступна")
-    city = (payload.delivery_city or "").strip()
-    if len(city) < 2:
-        raise HTTPException(422, "Укажите город доставки")
+    city, err = addr_rules.check_city(payload.delivery_city)
+    require(err)
     mode = payload.delivery_mode
     point_addr = None
     if mode == "pvz":

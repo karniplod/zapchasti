@@ -22,6 +22,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth import require_role
 from ..database import get_session
 from ..templating import templates
+from ..validation import require
+from ..validation.catalog import check_condition
 
 router = APIRouter(tags=["stock"])
 
@@ -30,7 +32,6 @@ SOURCES = {
     "purchased": "Куплена б/у",
     "new": "Новая",
 }
-CONDITIONS = {"A", "B", "C", "D"}
 
 
 @router.get("/stock/new", response_class=HTMLResponse)
@@ -84,8 +85,7 @@ async def create_standalone(
     user=Depends(require_role("manager")),
     session: AsyncSession = Depends(get_session),
 ):
-    if condition not in CONDITIONS:
-        raise HTTPException(422, "Состояние должно быть A, B, C или D")
+    require(check_condition(condition))
     if source not in SOURCES:
         raise HTTPException(422, "Неизвестный источник поступления")
 

@@ -338,7 +338,6 @@ function drawPoints(){
   });
 }
 
-const ADDR_SHORT = new RegExp(`^[${LETTERS}\\d/ .-]{1,20}$`);
 async function saveReceive(){
   const o = D.order;
   let body;
@@ -349,12 +348,14 @@ async function saveReceive(){
                              {title: 'Перевести на самовывоз?', ok: 'Перевести'})) return;
     body = {delivery_method: 'pickup', pickup_branch_id: +$('eBranch').value};
   } else {
-    const rules = [[$('eCity'), v => Check.text(v, {min: 2, max: 120, what: 'Город'})]];
+    // Правила полей — static/js/validation/rules.js
+    const rules = [[$('eCity'), v => Check.city(v)]];
     if ($('eStreet')) rules.push(
-      [$('eStreet'), v => v.trim().length >= 2 ? '' : 'Укажите улицу'],
-      [$('eHouse'), v => /\d/.test(v) && ADDR_SHORT.test(v.trim()) ? '' : 'Дом: номер, например 10 или 10/2'],
-      [$('ePost'), v => !v ? (o.delivery_mode === 'post' ? 'Для Почты нужен индекс' : '')
-                           : /^\d{6}$/.test(v) ? '' : 'Индекс — шесть цифр']);
+      [$('eStreet'), v => Check.street(v)],
+      [$('eHouse'), v => Check.house(v)],
+      [$('eBlock'), v => Check.addrPart(v)],
+      [$('eFlat'), v => Check.addrPart(v)],
+      [$('ePost'), v => Check.postcode(v, {required: o.delivery_mode === 'post'})]);
     if (!validate(rules)) return;
     body = {delivery_method: 'shipping', delivery_city: $('eCity').value.trim(),
             delivery_cdek_code: R.cdek_code || null};
@@ -568,6 +569,7 @@ $('card').addEventListener('click', async e => {
   }
   if (t.classList.contains('ship-save')){
     const box = t.closest('[data-ship]');
+    if (!validate([[box.querySelector('.f-track'), v => Check.track(v)]])) return;
     const body = {status: box.querySelector('.f-ship').value,
                   track_number: box.querySelector('.f-track').value.trim()};
     const pr = box.querySelector('.f-sprice');

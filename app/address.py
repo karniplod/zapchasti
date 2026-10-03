@@ -16,11 +16,11 @@ import time
 import httpx
 
 from .config import settings
+from .validation.address import COUNTRIES, check_address
 
 log = logging.getLogger("razbor.address")
 
 DADATA_URL = "https://suggestions.dadata.ru/suggestions/api/4_1/rs/suggest/address"
-COUNTRIES = {"RU": "Россия", "BY": "Беларусь", "KZ": "Казахстан"}
 
 _cache: dict = {}
 
@@ -84,32 +84,17 @@ async def suggest(level: str, q: str, city: str = "", street_fias: str = "",
 
 
 # ------------------------------------------------------------------
-# Проверка и сборка адреса
+# Сборка адреса (правила полей — app/validation/address.py)
 # ------------------------------------------------------------------
-
-STREET_RE = re.compile(r"^[\w .,'«»\"()№/-]{2,120}$")
-HOUSE_RE = re.compile(r"^[\w/ .-]{1,20}$")
-FLAT_RE = re.compile(r"^[\w/ .-]{1,20}$")
-
 
 def compose(country: str, postcode: str | None, city: str, street: str, house: str,
             block: str | None, flat: str | None) -> tuple[str | None, str | None]:
     """→ (адрес одной строкой, текст ошибки). Индекс для России — шесть
     цифр; для Беларуси и Казахстана тоже шесть, но свой."""
-    street, house = (street or "").strip(), (house or "").strip()
+    if err := check_address(country, postcode, street, house, block, flat):
+        return None, err
+    street, house = street.strip(), house.strip()
     block, flat = (block or "").strip(), (flat or "").strip()
-    if country not in COUNTRIES:
-        return None, "Выберите страну"
-    if not STREET_RE.match(street):
-        return None, "Улица: от 2 символов — буквы, цифры, точка, дефис"
-    if not HOUSE_RE.match(house) or not re.search(r"\d", house):
-        return None, "Дом: номер, например 10 или 10/2"
-    if block and not FLAT_RE.match(block):
-        return None, "Корпус или строение: до 20 символов"
-    if flat and not FLAT_RE.match(flat):
-        return None, "Квартира или офис: до 20 символов"
-    if postcode and not re.fullmatch(r"\d{6}", postcode):
-        return None, "Индекс — шесть цифр"
     parts = [COUNTRIES[country], postcode, city.strip(), street,
              house if re.match(r"^(д|дом)\b", house, re.I) else f"д. {house}",
              block or None, f"кв. {flat}" if flat and not re.match(r"^(кв|оф)", flat, re.I) else flat or None]
