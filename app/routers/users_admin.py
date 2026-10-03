@@ -137,7 +137,7 @@ async def customer_card(customer_id: int, session: AsyncSession = Depends(get_se
     c = await _customer(session, customer_id)
     orders = [{**dict(r._mapping), "label": ORDER_LABELS.get(r.status, r.status)}
               for r in await session.execute(text("""
-        SELECT o.number, o.status::text AS status, o.total, o.created_at, o.paid_at,
+        SELECT o.id, o.number, o.status::text AS status, o.total, o.created_at, o.paid_at,
                o.delivery_method, o.delivery_city,
                (SELECT count(*) FROM order_items oi WHERE oi.order_id = o.id) AS items
           FROM orders o WHERE o.customer_id = :c ORDER BY o.created_at DESC LIMIT 100"""), {"c": customer_id})]

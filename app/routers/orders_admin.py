@@ -235,7 +235,7 @@ async def orders_list(
           FROM orders o LEFT JOIN customers c ON c.id = o.customer_id
          {where}"""), params)).first()
     return {"items": orders, "page": page, "pages": max(1, -(-tot.n // size)),
-            "total": tot.n, "sum": str(tot.sum), "paid_sum": str(tot.paid)}
+            "total": tot.n, "sum": float(tot.sum), "paid_sum": float(tot.paid)}
 
 
 @router.get("/api/manage/orders/counts")
