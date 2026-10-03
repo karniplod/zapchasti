@@ -558,6 +558,7 @@ if (form && $('cname')){
       L.balance = d.bonus_balance; L.max = d.bonus_max;
       // Код применён — поле прячем, показываем плашку с кодом и крестиком
       const applied = d.source === 'promo';
+      if (applied || (code && d.error)) promoShow(true);
       $('promoBox').hidden = applied;
       $('promoTag').hidden = !applied;
       if (applied){
@@ -591,6 +592,13 @@ if (form && $('cname')){
     $('promoGo').disabled = true; $('promoGo').textContent = 'Проверяем…';
     loyalty(code);
   };
+  // «Есть промокод?» раскрывает поле; код применён — поле видно и так
+  function promoShow(on){
+    $('promoFld').hidden = !on;
+    $('promoOpen').hidden = on;
+    $('promoOpen').setAttribute('aria-expanded', String(on));
+  }
+  $('promoOpen').onclick = () => { promoShow(true); $('promoCode').focus(); };
   $('promoDrop').onclick = () => {
     $('promoCode').value = '';
     loyalty('');
@@ -665,7 +673,7 @@ if (form && $('cname')){
   };
   $('agree').onchange = () => { if ($('agree').checked) fieldError($('agree'), ''); };
   // Промокод ввели, но не применили — не теряем его молча при оформлении
-  const promoPending = () => !$('promoBox').hidden && $('promoCode').value.trim() && !L.code;
+  const promoPending = () => !$('promoFld').hidden && !$('promoBox').hidden && $('promoCode').value.trim() && !L.code;
 
   form.onsubmit = async e => {
     e.preventDefault();
@@ -741,3 +749,12 @@ if (form && $('cname')){
     $('place').disabled = false;
   };
 }
+
+// Сводка справа прилипает к экрану. Помещается — держится сверху под
+// шапкой; выше экрана (ноутбук, крупный масштаб) — держится низом, и
+// кнопка «Оформить» видна всегда, а не только в самом конце страницы
+(function(){
+  const side = document.querySelector('.co-side');
+  if (!side || !window.ResizeObserver) return;
+  new ResizeObserver(() => side.style.setProperty('--side-h', side.offsetHeight + 'px')).observe(side);
+})();

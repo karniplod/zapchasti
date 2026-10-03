@@ -340,7 +340,12 @@
         {# Скидка и баллы (app/loyalty.py): промокод проверяет сервер,
            баллами — до 30% товаров после скидки #}
         <div class="co-loyal" id="loyalBox">
-          <div class="loyal-fld" id="promoFld">
+          {# Промокод свёрнут в ссылку: он есть у немногих, а место в
+             колонке нужно кнопке «Оформить» — на невысоком экране она
+             иначе уезжала вниз #}
+          <button type="button" class="linkish promo-open" id="promoOpen" aria-expanded="false"
+                  aria-controls="promoFld">Есть промокод?</button>
+          <div class="loyal-fld" id="promoFld" hidden>
             <label for="promoCode" class="loyal-l">Промокод</label>
             {# Код применён — вместо поля плашка с кодом и крестиком #}
             <div class="promo-box" id="promoBox">
