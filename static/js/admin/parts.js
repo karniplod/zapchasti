@@ -139,9 +139,10 @@ async function load(){
     }, true);
 
     const sold = el.querySelector('.sold');
-    if (sold) sold.onclick = () => {
+    if (sold) sold.onclick = async () => {
       // Продажа снимает деталь с витрины: она штучная, второй такой нет
-      if (!confirm('Отметить проданной? Деталь исчезнет из каталога.')) return;
+      if (!await askConfirm('Деталь исчезнет из каталога.',
+                            {title: 'Отметить проданной?', ok: 'Отметить проданной'})) return;
       patch(id, {status: 'sold', published: false}, true);
     };
 
@@ -153,7 +154,8 @@ async function load(){
 
     el.querySelector('.del').onclick = async () => {
       const sku = el.querySelector('.sku').textContent;
-      if (!confirm(`Удалить ${sku} без возможности восстановить?`)) return;
+      if (!await askConfirm('Восстановить деталь будет нельзя.',
+                            {title: `Удалить ${sku}?`, ok: 'Удалить', danger: true})) return;
       const r = await fetch(`/api/manage/parts/${id}`, {method: 'DELETE'});
       if (r.ok){ toast('Удалено', 'ok'); load(); }
       else { const d = await r.json(); toast(d.detail || 'Не удалось удалить', 'err'); }
@@ -196,7 +198,8 @@ async function loadPhotos(box){
          accept="image/*" multiple hidden></label>`;
 
   box.querySelectorAll('.ph-del').forEach(b => b.onclick = async () => {
-    if (!confirm('Удалить это фото?')) return;
+    if (!await askConfirm('Фото пропадёт из карточки и с витрины.',
+                          {title: 'Удалить это фото?', ok: 'Удалить', danger: true})) return;
     const r = await fetch(`/api/manage/photos/${b.dataset.photo}`, {method:'DELETE'});
     if (r.ok){ toast('Фото удалено', 'ok'); loadPhotos(box); load(); }
     else toast('Не удалось удалить', 'err');

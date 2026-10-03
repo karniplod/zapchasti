@@ -328,7 +328,8 @@ async function saveReceive(){
   if (R.method === 'pickup'){
     if (!$('eBranch').value){ fieldError($('eBranch'), 'Выберите филиал'); return; }
     if (o.delivery_method === 'shipping' && D.shipments.length
-        && !confirm('Перевести заказ на самовывоз? Посылки отменятся, доставка уйдёт из суммы.')) return;
+        && !await askConfirm('Посылки отменятся, доставка уйдёт из суммы заказа.',
+                             {title: 'Перевести на самовывоз?', ok: 'Перевести'})) return;
     body = {delivery_method: 'pickup', pickup_branch_id: +$('eBranch').value};
   } else {
     const rules = [[$('eCity'), v => Check.text(v, {min: 2, max: 120, what: 'Город'})]];
@@ -502,14 +503,17 @@ $('card').addEventListener('click', async e => {
     const st = t.dataset.st, o = D.order;
     if (st === o.status) return;
     const title = t.textContent.trim();
-    const paidNote = ['paid', 'shipped', 'completed'].includes(st) && !o.paid_at
-      ? '\nЗаказ будет отмечен оплаченным, детали без остатка — проданными.' : '';
-    if (!confirm(`Перевести заказ в «${title}»?${paidNote}`)) return;
+    const text = ['paid', 'shipped', 'completed'].includes(st) && !o.paid_at
+      ? 'Заказ будет отмечен оплаченным, детали без остатка — проданными.'
+      : 'Покупатель увидит новый статус в личном кабинете.';
+    if (!await askConfirm(text, {title: `Перевести заказ в «${title}»?`, ok: 'Перевести'})) return;
     if (await api('PATCH', `/api/manage/orders/${ID}`, {status: st})){ toast('Статус изменён', 'ok'); load(); }
     return;
   }
   if (t.id === 'cancelOrder'){
-    if (!confirm('Отменить заказ? Детали вернутся на склад и витрину, посылки отменятся. Вернуть заказ будет нельзя.')) return;
+    if (!await askConfirm('Детали вернутся на склад и витрину, посылки отменятся. Вернуть заказ будет нельзя.',
+                          {title: 'Отменить заказ?', ok: 'Отменить заказ', cancel: 'Не отменять',
+                           danger: true})) return;
     if (await api('PATCH', `/api/manage/orders/${ID}`, {status: 'cancelled'})){ toast('Заказ отменён', 'ok'); load(); }
     return;
   }
@@ -518,7 +522,8 @@ $('card').addEventListener('click', async e => {
   if (t.id === 'recalcHide'){ recalc = null; render(); return; }
   if (t.classList.contains('del')){
     const it = D.items.find(i => i.id === +t.closest('[data-item]').dataset.item);
-    if (!confirm(`Убрать из заказа ${it.sku} ${it.name}? Штуки вернутся на склад.`)) return;
+    if (!await askConfirm(`${it.sku} ${it.name}. Штуки вернутся на склад, сумма заказа пересчитается.`,
+                          {title: 'Убрать деталь из заказа?', ok: 'Убрать', danger: true})) return;
     if (await api('DELETE', `/api/manage/orders/${ID}/items/${it.id}`)){ toast('Убрано', 'ok'); load(); }
     return;
   }

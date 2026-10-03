@@ -297,7 +297,8 @@ async function loadParts(){
       </a>
       <button class="del" aria-label="Удалить деталь">×</button>`;
     el.querySelector('.del').onclick = async () => {
-      if (!confirm(`Удалить ${p.sku}?`)) return;
+      if (!await askConfirm('Восстановить деталь будет нельзя.',
+                            {title: `Удалить ${p.sku}?`, ok: 'Удалить', danger: true})) return;
       const r = await fetch(`/api/parts/${p.id}`, {method:'DELETE'});
       if (r.ok) loadParts();
       else toast((await r.json()).detail, 'err');
@@ -310,7 +311,8 @@ async function loadParts(){
 $('labels').onclick = () => window.open(`/donors/${DONOR_ID}/labels`, '_blank');
 
 $('finish').onclick = async () => {
-  if (!confirm('Закрыть разбор? Машина уйдёт в статус «разобрана».')) return;
+  if (!await askConfirm('Машина уйдёт в статус «разобрана».',
+                        {title: 'Закрыть разбор?', ok: 'Закрыть разбор'})) return;
   const r = await fetch(`/api/donors/${DONOR_ID}/finish`, {method:'POST'});
   const d = await r.json();
   if (!r.ok) toast(d.detail, 'err');
@@ -319,8 +321,8 @@ $('finish').onclick = async () => {
 
 // Вернуть в разбор: страница перезагружается уже с формой
 $('reopen').onclick = async () => {
-  if (!confirm('Вернуть машину в разбор? Она снова станет «в разборе», '
-             + 'и её нужно будет закрыть заново.')) return;
+  if (!await askConfirm('Она снова станет «в разборе», и её нужно будет закрыть заново.',
+                        {title: 'Вернуть машину в разбор?', ok: 'Вернуть в разбор'})) return;
   const r = await fetch(`/api/donors/${DONOR_ID}/reopen`, {method:'POST'});
   const d = await r.json().catch(() => ({}));
   if (!r.ok) toast(d.detail || 'Не удалось', 'err');

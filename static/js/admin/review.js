@@ -82,8 +82,9 @@ async function openMerge(el, g){
 async function doMerge(el){
   const into = el.querySelector('.f-into').value;
   if (!into) return;
-  if (!confirm('Машины и модификации переедут в выбранное поколение, '
-             + 'а это будет удалено. Отменить будет нельзя.')) return;
+  if (!await askConfirm('Машины и модификации переедут в выбранное поколение, '
+                        + 'а это будет удалено. Отменить будет нельзя.',
+                        {title: 'Объединить поколения?', ok: 'Объединить', danger: true})) return;
 
   const b = el.querySelector('.go');
   b.disabled = true;
