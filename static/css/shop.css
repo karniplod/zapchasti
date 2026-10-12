@@ -28,12 +28,18 @@
 .acct-head > div:first-child{flex:1;min-width:0}
 .acct-head .hint{margin:4px 0 0}
 
-.figures{display:flex;gap:28px;flex-wrap:wrap;padding:16px 18px;
-  background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
-.figures div{display:flex;flex-direction:column;gap:2px}
-.figures b{font-family:var(--display);font-size:var(--t-xl);font-weight:600;
-  font-variant-numeric:tabular-nums;line-height:1.1}
-.figures span{font-size:var(--t-xs);color:var(--muted)}
+/* Цифры кабинета — три плитки: число крупно, подпись под ним */
+.figures{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.fig{display:flex;flex-direction:column;gap:4px;min-width:0;padding:18px 22px;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  color:var(--ink);text-decoration:none}
+.fig b{font-family:var(--display);font-size:var(--t-xl);font-weight:600;
+  font-variant-numeric:tabular-nums;line-height:1.1;white-space:nowrap}
+.fig span{font-size:var(--t-xs);color:var(--muted)}
+/* Баллы — оранжевой плиткой: это деньги на следующий заказ */
+.fig-bonus{background:var(--accent-bg);border-color:#FBD3C2;transition:border-color .13s}
+.fig-bonus b{color:var(--accent-dk)}
+.fig-bonus:hover{border-color:var(--accent)}
 
 /* ── Оформление заказа ─────────────────────────────────────
    Две колонки: слева разделы по шагам, справа сводка, которая едет
@@ -721,3 +727,10 @@ button.tile{width:100%;padding:0;border:0;background:none;font:inherit;text-alig
 
 /* «выдан» у товара выданного заказа */
 .order .items small.got{color:var(--ok);font-weight:600}
+
+/* Телефон: заказы и сумма — в ряд, баллы — во всю ширину под ними */
+@media(max-width:560px){
+  .figures{grid-template-columns:1fr 1fr;gap:10px}
+  .fig{padding:14px 16px}
+  .fig-bonus{grid-column:1/-1;flex-direction:row;align-items:baseline;gap:10px}
+}

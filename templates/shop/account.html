@@ -10,10 +10,12 @@
   <div class="notice notice-ok">Email подтверждён — добро пожаловать!</div>
   {% endif %}
 
+  {# Цифры кабинета — плитками: у каждой свои поля, баллы ведут в «Бонусы и скидки» #}
   <div class="figures">
-    <div><b>{{ all_count }}</b><span>{{ all_count | plural('заказ', 'заказа', 'заказов') }}</span></div>
-    <div><b>{{ rub(spent) }}</b><span>на покупки</span></div>
-    <div><b>{{ bonus_balance }}</b><span>{{ bonus_balance | plural('балл', 'балла', 'баллов') }}</span></div>
+    <div class="fig"><b>{{ all_count }}</b><span>{{ all_count | plural('заказ', 'заказа', 'заказов') }}</span></div>
+    <div class="fig"><b>{{ rub(spent) }}</b><span>на покупки</span></div>
+    <a class="fig fig-bonus" href="/account/bonus"><b>{{ bonus_balance }}</b>
+      <span>{{ bonus_balance | plural('балл', 'балла', 'баллов') }} · 1 балл = 1 ₽</span></a>
   </div>
 
   <div class="acct-tabs" role="tablist">

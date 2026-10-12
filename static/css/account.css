@@ -11,7 +11,7 @@
 .acct-nav .n{padding:1px 8px;border-radius:999px;background:var(--accent);color:#fff;font-size:var(--t-xs);
   font-weight:600}
 .acct-main{min-width:0}
-.acct-main > .block:first-child,.acct-main > .figures:first-child{padding-top:0}
+.acct-main > .block:first-child{padding-top:0}
 @media(max-width:860px){
   .acct-layout{grid-template-columns:1fr;gap:14px}
   /* На телефоне меню — лента вкладок, листается пальцем */
