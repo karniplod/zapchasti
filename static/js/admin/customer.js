@@ -14,10 +14,8 @@ const word = (n, one, few, many) => {
 };
 const date = s => s ? new Date(s).toLocaleDateString('ru') : '—';
 const dt = s => s ? new Date(s).toLocaleString('ru', {dateStyle: 'short', timeStyle: 'short'}) : '—';
-const phone = p => {
-  const d = String(p || '').replace(/\D/g, '');
-  return d.length === 11 ? `+7 ${d.slice(1, 4)} ${d.slice(4, 7)}-${d.slice(7, 9)}-${d.slice(9)}` : (p || '');
-};
+// Номер по формату его страны (Phone в static/js/validation/rules.js)
+const phone = p => Phone.format(p);
 
 let tt;
 function toast(m, k = ''){ const el = $('toast'); el.textContent = m;

@@ -29,11 +29,8 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g,
   c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 const when = s => new Date(s).toLocaleDateString('ru');
 const time = s => new Date(s).toLocaleTimeString('ru', {hour: '2-digit', minute: '2-digit'});
-// +79125554433 → +7 912 555-44-33
-const phone = p => {
-  const d = String(p || '').replace(/\D/g, '');
-  return d.length === 11 ? `+7 ${d.slice(1, 4)} ${d.slice(4, 7)}-${d.slice(7, 9)}-${d.slice(9)}` : (p || '');
-};
+// Номер по формату его страны (Phone в static/js/validation/rules.js)
+const phone = p => Phone.format(p);
 
 $('mode').onclick = e => {
   const b = e.target.closest('button'); if (!b) return;

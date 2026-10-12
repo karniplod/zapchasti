@@ -50,11 +50,8 @@ function stockTag(i, o){
 const date = s => s ? new Date(s).toLocaleDateString('ru') : '';
 const dt = s => s ? new Date(s).toLocaleString('ru', {day: '2-digit', month: '2-digit',
   year: 'numeric', hour: '2-digit', minute: '2-digit'}) : '';
-// +79125554433 → +7 912 555-44-33
-const phoneFmt = p => {
-  const d = String(p || '').replace(/\D/g, '');
-  return d.length === 11 ? `+7 ${d.slice(1, 4)} ${d.slice(4, 7)}-${d.slice(7, 9)}-${d.slice(9)}` : (p || '');
-};
+// Номер по формату его страны (Phone в static/js/validation/rules.js)
+const phoneFmt = p => Phone.format(p);
 const COPY_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"
   fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16 8V5a1 1 0 00-1-1H5a1 1 0 00-1 1v10a1 1 0 001 1h3"
   fill="none" stroke="currentColor" stroke-width="1.8"/></svg>`;

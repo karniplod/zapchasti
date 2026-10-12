@@ -149,7 +149,7 @@ async def create_lead(
     # 89123456789. Храним одним видом — менеджеру проще найти повтор
     phone = people.normalize_phone(payload.phone)
     if not phone:
-        raise HTTPException(422, "Телефон в формате +7 900 000-00-00")
+        raise HTTPException(422, people.phone_problem(payload.phone))
     name = (payload.name or "").strip()
     require(people.check_name(name))
     message = (payload.message or "").strip()

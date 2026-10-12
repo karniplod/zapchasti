@@ -11,6 +11,8 @@ const rules = {
   password2: [$('password2'), v => v === $('password').value ? '' : 'Пароли не совпадают'],
 };
 live(Object.values(rules));
+// Телефон — с выбором страны; начали вводить email — поле обычное
+phoneMask($('login'), {mixed: true});
 
 $('tabs').onclick = e => {
   const b = e.target.closest('button'); if (!b) return;

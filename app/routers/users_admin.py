@@ -197,7 +197,7 @@ async def customer_patch(customer_id: int, payload: CustomerPatch,
         raw = (payload.phone or "").strip()
         phone = people.normalize_phone(raw) if raw else None
         if raw and not phone:
-            raise HTTPException(422, "Телефон в формате +7 900 000-00-00")
+            raise HTTPException(422, people.phone_problem(raw))
         upd["phone"] = phone
     if "email" in sent:
         raw = (payload.email or "").strip()
@@ -338,7 +338,7 @@ async def _staff_fields(session: AsyncSession, p: StaffIn, sent: set) -> dict:
         raw = (p.phone or "").strip()
         phone = people.normalize_phone(raw) if raw else None
         if raw and not phone:
-            raise HTTPException(422, "Телефон в формате +7 900 000-00-00")
+            raise HTTPException(422, people.phone_problem(raw))
         upd["phone"] = phone
     if "notify_orders" in sent and p.notify_orders is not None:
         upd["notify_orders"] = p.notify_orders

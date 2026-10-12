@@ -12,11 +12,8 @@ const word = (n, one, few, many) => {
   return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many;
 };
 const date = s => s ? new Date(s).toLocaleDateString('ru') : '—';
-// +79125554433 → +7 912 555-44-33
-const phone = p => {
-  const d = String(p || '').replace(/\D/g, '');
-  return d.length === 11 ? `+7 ${d.slice(1, 4)} ${d.slice(4, 7)}-${d.slice(7, 9)}-${d.slice(9)}` : (p || '');
-};
+// Номер по формату его страны (Phone в static/js/validation/rules.js)
+const phone = p => Phone.format(p);
 // «3 дня назад» — когда последний раз заходил
 const ago = s => {
   if (!s) return 'не входил';

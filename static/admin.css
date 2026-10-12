@@ -409,3 +409,7 @@ button{font-family:inherit}
   linear-gradient(transparent 40%,#ff0000 40% 60%,transparent 60%),#fff}
 .flag-MD{background:linear-gradient(90deg,#0046ae 33.3%,#ffd200 33.3% 66.6%,#cc092f 66.6%)}
 .flag-TM{background:linear-gradient(90deg,#28ae66 0 20%,#c8102e 20% 32%,#28ae66 32%)}
+
+/* «Телефон или email»: пошёл email — кнопка страны не нужна */
+.phone-fld.is-text .phone-cc{display:none}
+.phone-fld.is-text > input{border-radius:inherit}

@@ -116,7 +116,7 @@ async def apply_edit(session: AsyncSession, o, payload: CustomerEdit) -> dict:
     if "contact_phone" in sent:
         phone = people.normalize_phone(payload.contact_phone or "")
         if not phone:
-            raise HTTPException(422, "Телефон в формате +7 900 000-00-00")
+            raise HTTPException(422, people.phone_problem(payload.contact_phone or ""))
         upd["contact_phone"] = phone
     if "comment" in sent:
         upd["comment"] = (payload.comment or "").strip() or None

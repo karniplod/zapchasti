@@ -547,7 +547,7 @@ async def patch_order(
     if "contact_phone" in sent:
         phone = people.normalize_phone(payload.contact_phone or "")
         if not phone:
-            raise HTTPException(422, "Телефон в формате +7 900 000-00-00")
+            raise HTTPException(422, people.phone_problem(payload.contact_phone or ""))
         upd["contact_phone"] = phone
     if "contact_email" in sent:
         email = (payload.contact_email or "").strip() or None

@@ -5,8 +5,10 @@
 // Телефон с выбором страны: слева от поля кнопка «флаг +код», по ней —
 // список стран (PHONE_COUNTRIES в rules.js). Номер набирается по маске
 // страны: +7 912 345-67-89, +375 29 123-45-67. Вставили номер с «+» —
-// страна выбирается сама; «8 (912) …» без «+» — это Россия
-function phoneMask(input){
+// страна выбирается сама; «8 (912) …» без «+» — это Россия.
+// mixed — поле «Телефон или email»: пошли буквы или @ — это email,
+// кнопка страны прячется и маска не трогает набранное
+function phoneMask(input, {mixed = false} = {}){
   if (!input || input.dataset.phone) return;
   input.dataset.phone = '1';
   const wrap = document.createElement('div');
@@ -33,7 +35,7 @@ function phoneMask(input){
     btn.innerHTML = `<span class="flag flag-${c.iso}"></span>`
       + '<svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none"/></svg>';
     btn.setAttribute('aria-label', `Страна: ${c.name}, +${c.code}`);
-    input.placeholder = `+${c.code} ${c.sample}`;
+    input.placeholder = `+${c.code} ${c.sample}` + (mixed ? ' или mail@example.ru' : '');
     list.querySelectorAll('[role=option]').forEach(o =>
       o.setAttribute('aria-selected', String(PHONE_COUNTRIES[+o.dataset.i] === c)));
   };
@@ -48,8 +50,11 @@ function phoneMask(input){
     if (on) (list.querySelector('[aria-selected=true]') || list.querySelector('button')).focus();
   };
 
+  const isText = v => mixed && /[^\d\s()+-]/.test(v);
   input.addEventListener('input', e => {
     const raw = input.value.trim();
+    wrap.classList.toggle('is-text', isText(raw));
+    if (isText(raw)) return;
     let d = raw.replace(/\D/g, '');
     // Стирают — не мешаем: иначе «+375 » возвращался бы на каждое нажатие
     const erasing = (e.inputType || '').startsWith('delete');
@@ -100,9 +105,10 @@ function phoneMask(input){
   document.addEventListener('click', e => { if (!wrap.contains(e.target)) open(false); });
 
   // Номер уже есть (профиль, правка заказа) — страна по нему
-  const norm = Check.phone(input.value);
+  const norm = isText(input.value) ? null : Check.phone(input.value);
   show((norm && Phone.country(norm.slice(1))) || PHONE_COUNTRIES[0]);
   if (norm) input.value = Phone.format(norm);
+  wrap.classList.toggle('is-text', isText(input.value));
 }
 
 // ФИО с заглавных букв, когда человек ушёл с поля: «иванов иван» →

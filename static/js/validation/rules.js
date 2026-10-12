@@ -139,7 +139,7 @@ const Check = {
   loginRule(v){
     if (!String(v || '').trim()) return 'Укажите телефон или email';
     if (String(v).includes('@')) return Check.email(v) ? '' : 'Проверьте email: mail@example.ru';
-    return Check.phone(v) ? '' : 'Телефон в формате +7 900 000-00-00 или email';
+    return Check.phone(v) ? '' : Check.phoneRule(v).replace('Телефон в формате', 'Телефон или email: например,');
   },
   password(v){
     if (!v) return 'Введите пароль';

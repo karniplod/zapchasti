@@ -178,9 +178,9 @@ async def personal_discount(session: AsyncSession, customer_id: int, percent) ->
 
 
 def _phone(p: str) -> str:
-    """+79125554433 → +7 912 555-44-33 — как в бэкенде."""
-    d = "".join(ch for ch in p if ch.isdigit())
-    return f"+7 {d[1:4]} {d[4:7]}-{d[7:9]}-{d[9:]}" if len(d) == 11 else p
+    """+79125554433 → +7 912 555-44-33 — как в бэкенде, по формату страны."""
+    from .validation.people import format_phone
+    return format_phone(p)
 
 
 async def staff_new_order(session: AsyncSession, order_id: int) -> None:

@@ -23,7 +23,7 @@ from .. import customer_auth as ca
 from .. import delivery as ship_services
 from .. import loyalty, mailer, notify, order_log, payments
 from ..validation import address as addr_rules
-from ..validation import people, require
+from ..validation import FieldError, people, require
 from ..config import settings
 from ..database import get_session
 from ..templating import templates
@@ -613,7 +613,7 @@ async def create_order(
     require(err)
     phone = people.normalize_phone(payload.contact_phone)
     if not phone:
-        raise HTTPException(422, "Телефон получателя в формате +7 900 000-00-00")
+        raise FieldError("contact_phone", people.phone_problem(payload.contact_phone))
     if payload.delivery_method not in ("pickup", "shipping"):
         raise HTTPException(422, "Выберите способ получения")
     address = (payload.delivery_address or "").strip()
