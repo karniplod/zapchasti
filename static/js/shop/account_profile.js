@@ -5,12 +5,14 @@ let t;
 function toast(m){ $('toast').textContent = m; $('toast').classList.add('show');
   clearTimeout(t); t = setTimeout(() => $('toast').classList.remove('show'), 3200); }
 
-async function send(method, url, body){
+// fields — куда класть ошибки сервера: {phone: поле, …}; ошибка, которую
+// не к чему привязать, — всплывашкой
+async function send(method, url, body, fields = {}){
   try {
     const r = await fetch(url, {method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
     const d = await r.json().catch(() => ({}));
     if (r.ok) return d;
-    toast(typeof d.detail === 'string' ? d.detail : 'Не получилось сохранить');
+    if (!serverErrors(d, fields)) toast(typeof d.detail === 'string' ? d.detail : 'Не получилось сохранить');
   } catch { toast('Нет связи с сервером'); }
   return null;
 }
@@ -24,12 +26,17 @@ const prules = [
   [$('pEmail'), v => Check.emailRule(v, {optional: !!$('pPhone').value.trim()})],
 ];
 live(prules);
+['pPhone', 'pEmail'].forEach(id => $(id).addEventListener('input', () => {
+  const other = id === 'pPhone' ? $('pEmail') : $('pPhone');
+  if (other.classList.contains('is-bad')) fieldError(other, prules.find(r => r[0] === other)[1](other.value));
+}));
 $('profForm').onsubmit = async e => {
   e.preventDefault();
   if (!validate(prules)) return;
   $('profSave').disabled = true;
   const d = await send('PATCH', '/api/account/profile', {
-    name: $('pName').value.trim(), phone: $('pPhone').value.trim() || null, email: $('pEmail').value.trim() || null});
+    name: $('pName').value.trim(), phone: $('pPhone').value.trim() || null, email: $('pEmail').value.trim() || null},
+    {name: $('pName'), phone: $('pPhone'), email: $('pEmail')});
   $('profSave').disabled = false;
   if (!d) return;
   if (d.verify_sent){ toast('Сохранено. На новый email ушло письмо — подтвердите его'); setTimeout(() => location.reload(), 2500); }

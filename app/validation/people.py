@@ -7,21 +7,87 @@ newPassword в static/js/validation/rules.js.
 import re
 
 
+# Страны для телефона: код, сколько цифр после него, с чего начинается
+# номер и как его делить на группы для показа. Тот же список — в браузере
+# (PHONE_COUNTRIES в static/js/validation/rules.js): меняя здесь, меняйте там.
+# У России и Казахстана общий код +7: российские номера начинаются с 3–5,
+# 8, 9, казахстанские — с 6 и 7
+PHONE_COUNTRIES = [
+    ("RU", "Россия", "7", 10, r"[3-589]", (3, 3, 2, 2)),
+    ("KZ", "Казахстан", "7", 10, r"[67]", (3, 3, 2, 2)),
+    ("BY", "Беларусь", "375", 9, r"(?:1[5-7]|2[1-59]|33|44)", (2, 3, 2, 2)),
+    ("UA", "Украина", "380", 9, r"[3-9]", (2, 3, 2, 2)),
+    ("UZ", "Узбекистан", "998", 9, r"[2-9]", (2, 3, 2, 2)),
+    ("KG", "Киргизия", "996", 9, r"[2-9]", (3, 3, 3)),
+    ("TJ", "Таджикистан", "992", 9, r"[3-9]", (2, 3, 2, 2)),
+    ("AM", "Армения", "374", 8, r"[1-9]", (2, 3, 3)),
+    ("AZ", "Азербайджан", "994", 9, r"[1-9]", (2, 3, 2, 2)),
+    ("GE", "Грузия", "995", 9, r"[3-9]", (3, 2, 2, 2)),
+    ("MD", "Молдова", "373", 8, r"[2-9]", (2, 3, 3)),
+    ("TM", "Туркменистан", "993", 8, r"[1-9]", (2, 3, 3)),
+]
+
+
+def phone_country(e164: str) -> tuple | None:
+    """+375291234567 → строка страны из PHONE_COUNTRIES, если номер ей подходит."""
+    digits = re.sub(r"\D", "", e164 or "")
+    for row in PHONE_COUNTRIES:
+        code, length, first = row[2], row[3], row[4]
+        rest = digits[len(code):]
+        if digits.startswith(code) and len(rest) == length and re.match(first, rest):
+            return row
+    return None
+
+
 def normalize_phone(raw: str) -> str | None:
-    """К одному виду: +79123456789.
+    """К одному виду: +79123456789, +375291234567.
 
     Один и тот же человек напишет 8 912…, +7 912… и 7(912)… — без
     приведения в таблице окажется три покупателя с одним телефоном,
-    а UNIQUE на phone этого не заметит.
+    а UNIQUE на phone этого не заметит. Без «+» и кода — номер России:
+    так его пишет почти каждый покупатель.
     """
-    digits = re.sub(r"\D", "", raw or "")
-    if len(digits) == 11 and digits[0] in "78":
-        digits = "7" + digits[1:]
-    elif len(digits) == 10:
-        digits = "7" + digits
-    else:
-        return None
-    return "+" + digits
+    raw = (raw or "").strip()
+    digits = re.sub(r"\D", "", raw)
+    if not raw.startswith("+"):
+        if len(digits) == 11 and digits[0] in "78":
+            digits = "7" + digits[1:]
+        elif len(digits) == 10:
+            digits = "7" + digits
+    return "+" + digits if phone_country(digits) else None
+
+
+def phone_problem(raw: str) -> str:
+    """Почему номер не подошёл — как phoneRule в браузере: страна понятна —
+    её формат и сколько цифр не хватает."""
+    raw = (raw or "").strip()
+    digits = re.sub(r"\D", "", raw)
+    if raw.startswith("+"):
+        for name_ru, row in ((r[1], r) for r in PHONE_COUNTRIES):
+            code, length = row[2], row[3]
+            if not digits.startswith(code) or (code == "7" and not re.match(row[4], digits[1:2] or "x")):
+                continue
+            rest = digits[len(code):]
+            if len(rest) < length:
+                return f"{name_ru}: не хватает цифр — нужно {length} после +{code}"
+            if len(rest) > length:
+                return f"{name_ru}: лишние цифры — нужно {length} после +{code}"
+            return f"{name_ru}: такого номера нет"
+    return "Телефон в формате +7 912 345-67-89"
+
+
+def format_phone(e164: str | None) -> str:
+    """+79123456789 → +7 912 345-67-89; +375291234567 → +375 29 123-45-67."""
+    row = phone_country(e164 or "")
+    if not row:
+        return e164 or ""
+    rest = re.sub(r"\D", "", e164)[len(row[2]):]
+    parts, i = [], 0
+    for n in row[5]:
+        parts.append(rest[i:i + n])
+        i += n
+    head = parts[0] + (" " + parts[1] if len(parts) > 1 else "")
+    return f"+{row[2]} {head}" + "".join("-" + p for p in parts[2:])
 
 
 # Простая проверка формы: «что-то@что-то.зона». Полная по RFC пропускает

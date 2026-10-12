@@ -268,7 +268,11 @@ async def robots():
 async def http_error(request: Request, exc: StarletteHTTPException):
     # API отвечает JSON, страницы — человеческой страницей
     if request.url.path.startswith("/api/"):
-        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+        body = {"detail": exc.detail}
+        # Ошибка у поля (FieldError) — форма покажет её под этим полем
+        if field := getattr(exc, "field", None):
+            body["errors"] = [{"field": field, "msg": exc.detail}]
+        return JSONResponse(body, status_code=exc.status_code)
 
     if exc.status_code == 401:
         # У покупателя и у сотрудника разные входы. Без этой развилки

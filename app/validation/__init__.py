@@ -22,6 +22,16 @@
 from fastapi import HTTPException
 
 
+class FieldError(HTTPException):
+    """Ошибка у конкретного поля формы: ответ {"detail", "errors": [{field, msg}]}
+    — форма покажет её под полем (serverErrors в static/js/validation/form.js),
+    а не всплывашкой. Обработчик — в app/main.py."""
+
+    def __init__(self, field: str, msg: str, status: int = 422):
+        super().__init__(status, msg)
+        self.field = field
+
+
 def require(err: str | None, status: int = 422) -> None:
     """Ошибка проверки → ответ 422 с её текстом."""
     if err:

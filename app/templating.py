@@ -58,11 +58,9 @@ templates.env.globals["role_info"] = ROLE_INFO
 
 def _phone(v: str | None) -> str:
     """+79123456789 → +7 912 345-67-89: в базе номер хранится одним видом,
-    а читать его человеку удобнее по группам."""
-    if not v or len(v) != 12 or not v.startswith("+7"):
-        return v or ""
-    d = v[2:]
-    return f"+7 {d[:3]} {d[3:6]}-{d[6:8]}-{d[8:]}"
+    а читать его человеку удобнее по группам (по правилам его страны)."""
+    from .validation.people import format_phone
+    return format_phone(v)
 
 
 templates.env.filters["phone"] = _phone

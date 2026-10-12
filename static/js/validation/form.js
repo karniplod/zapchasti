@@ -20,7 +20,8 @@ function fieldError(input, msg){
     box = document.createElement('p');
     box.className = 'fld-err';
     box.id = input.id + 'Err';
-    const anchor = input.closest('.pw') || input;
+    // Поле в обёртке (пароль с «глазом», телефон с выбором страны) — ошибка под обёрткой
+    const anchor = input.closest('.pw, .phone-fld') || input;
     anchor.after(box);
     input.setAttribute('aria-describedby', box.id);
   }
@@ -52,6 +53,9 @@ function live(rules){
     // появившись сразу, сдвигала кнопку вниз, и клик приходился мимо.
     // Первое нажатие «Сохранить» ничего не делало
     input.addEventListener('blur', () => setTimeout(() => {
+      // Ошибку сервера («телефон уже занят») формат не отменяет — её
+      // снимает только новое значение
+      if (input.dataset.serverErr === input.value) return;
       if (input.value !== '') fieldError(input, rule(input.value));
     }, 200));
     input.addEventListener('input', () => {
@@ -66,7 +70,11 @@ function serverErrors(d, map){
   if (!Array.isArray(d.errors)) return false;
   let shown = false;
   for (const e of d.errors){
-    if (map[e.field]){ fieldError(map[e.field], e.msg); shown = true; }
+    if (map[e.field]){
+      fieldError(map[e.field], e.msg);
+      map[e.field].dataset.serverErr = map[e.field].value;
+      shown = true;
+    }
   }
   return shown;
 }

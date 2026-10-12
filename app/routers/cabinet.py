@@ -22,7 +22,7 @@ from ..database import get_session
 from ..templating import _phone as phone_fmt
 from ..templating import templates
 from ..validation import address as addr_rules
-from ..validation import people, require
+from ..validation import FieldError, people, require
 from .shop import CART_COOKIE, cart_rows, cart_token
 
 router = APIRouter(tags=["cabinet"])
@@ -427,31 +427,33 @@ async def profile_save(payload: ProfileIn, request: Request, session: AsyncSessi
     cur = await profile_of(session, customer["id"])
     sent = payload.model_fields_set
     upd: dict = {}
+    # Ошибки — у своих полей: форма покажет их под полем, а не всплывашкой
     if "name" in sent:
-        require(people.check_name(payload.name, optional=False))
+        if err := people.check_name(payload.name, optional=False):
+            raise FieldError("name", err)
         upd["name"] = " ".join((payload.name or "").split())
     if "phone" in sent:
         phone = people.normalize_phone(payload.phone or "") if (payload.phone or "").strip() else None
         if (payload.phone or "").strip() and not phone:
-            raise HTTPException(422, "Телефон в формате +7 900 000-00-00")
-        if not phone and not cur["email"]:
-            raise HTTPException(422, "Нужен телефон или email — по ним вы входите")
+            raise FieldError("phone", people.phone_problem(payload.phone))
+        if not phone and not (payload.email if "email" in sent else cur["email"]):
+            raise FieldError("phone", "Нужен телефон или email — по ним вы входите")
         if phone and phone != cur["phone"] and (await session.execute(text(
                 "SELECT 1 FROM customers WHERE phone = :p AND id <> :c"), {"p": phone, "c": cur["id"]})).first():
-            raise HTTPException(409, "Этот телефон уже у другого аккаунта")
+            raise FieldError("phone", "Этот телефон уже у другого аккаунта", 409)
         upd["phone"] = phone
     new_email = None
     if "email" in sent:
         email = people.normalize_email(payload.email or "") if (payload.email or "").strip() else None
         if (payload.email or "").strip() and not email:
-            raise HTTPException(422, "Проверьте email: mail@example.ru")
+            raise FieldError("email", "Проверьте email: mail@example.ru")
         if not email and not upd.get("phone", cur["phone"]):
-            raise HTTPException(422, "Нужен телефон или email — по ним вы входите")
+            raise FieldError("email", "Нужен телефон или email — по ним вы входите")
         if email and email != (cur["email"] or "").lower():
             if (await session.execute(text(
                     "SELECT 1 FROM customers WHERE lower(email) = :e AND id <> :c"),
                     {"e": email, "c": cur["id"]})).first():
-                raise HTTPException(409, "Этот email уже у другого аккаунта")
+                raise FieldError("email", "Этот email уже у другого аккаунта", 409)
             new_email = email
         upd["email"] = email
     if not upd:

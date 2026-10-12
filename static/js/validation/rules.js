@@ -19,13 +19,63 @@ const LETTER = `[${LETTERS}]`;
 // Дом, корпус, квартира: буквы, цифры, дробь, точка, дефис
 const ADDR_SHORT = new RegExp(`^[${LETTERS}\\d/ .-]{1,20}$`);
 
+// Страны для телефона: код, сколько цифр после него, с чего начинается
+// номер, группы для показа. Тот же список на сервере —
+// PHONE_COUNTRIES в app/validation/people.py. У России и Казахстана общий
+// код +7: российские номера начинаются с 3–5, 8, 9, казахстанские — с 6, 7
+const PHONE_COUNTRIES = [
+  {iso: 'RU', name: 'Россия', code: '7', len: 10, first: /^[3-589]/, groups: [3, 3, 2, 2], sample: '912 345-67-89'},
+  {iso: 'KZ', name: 'Казахстан', code: '7', len: 10, first: /^[67]/, groups: [3, 3, 2, 2], sample: '701 234-56-78'},
+  {iso: 'BY', name: 'Беларусь', code: '375', len: 9, first: /^(1[5-7]|2[1-59]|33|44)/, groups: [2, 3, 2, 2], sample: '29 123-45-67'},
+  {iso: 'UA', name: 'Украина', code: '380', len: 9, first: /^[3-9]/, groups: [2, 3, 2, 2], sample: '50 123-45-67'},
+  {iso: 'UZ', name: 'Узбекистан', code: '998', len: 9, first: /^[2-9]/, groups: [2, 3, 2, 2], sample: '90 123-45-67'},
+  {iso: 'KG', name: 'Киргизия', code: '996', len: 9, first: /^[2-9]/, groups: [3, 3, 3], sample: '555 123-456'},
+  {iso: 'TJ', name: 'Таджикистан', code: '992', len: 9, first: /^[3-9]/, groups: [2, 3, 2, 2], sample: '93 123-45-67'},
+  {iso: 'AM', name: 'Армения', code: '374', len: 8, first: /^[1-9]/, groups: [2, 3, 3], sample: '91 123-456'},
+  {iso: 'AZ', name: 'Азербайджан', code: '994', len: 9, first: /^[1-9]/, groups: [2, 3, 2, 2], sample: '50 123-45-67'},
+  {iso: 'GE', name: 'Грузия', code: '995', len: 9, first: /^[3-9]/, groups: [3, 2, 2, 2], sample: '555 12-34-56'},
+  {iso: 'MD', name: 'Молдова', code: '373', len: 8, first: /^[2-9]/, groups: [2, 3, 3], sample: '69 123-456'},
+  {iso: 'TM', name: 'Туркменистан', code: '993', len: 8, first: /^[1-9]/, groups: [2, 3, 3], sample: '65 123-456'},
+];
+
+const Phone = {
+  // Страна по цифрам с кодом: '375291234567' → Беларусь. Для +7 решает
+  // первая цифра номера; пока её нет — null
+  country(digits){
+    for (const c of PHONE_COUNTRIES){
+      if (!digits.startsWith(c.code)) continue;
+      const rest = digits.slice(c.code.length);
+      if (c.code !== '7' || (rest && c.first.test(rest))) return c;
+    }
+    return null;
+  },
+  // Национальная часть по группам: 912 345-67-89
+  group(d, c){
+    const out = []; let i = 0;
+    for (const n of c.groups){ if (i >= d.length) break; out.push(d.slice(i, i + n)); i += n; }
+    return out.length > 2 ? out.slice(0, 2).join(' ') + '-' + out.slice(2).join('-') : out.join(' ');
+  },
+  format(e164){
+    const d = String(e164 || '').replace(/\D/g, '');
+    const c = Phone.country(d);
+    return c ? '+' + c.code + ' ' + Phone.group(d.slice(c.code.length), c) : String(e164 || '');
+  },
+};
+
 const Check = {
-  // Телефон России: 10 цифр после кода страны; 8 и 7 в начале — одно и то же
+  // Телефон: +код и номер страны из PHONE_COUNTRIES → +79123456789,
+  // +375291234567. Без «+» — номер России: 8 и 7 в начале одно и то же
   phone(v){
-    let d = String(v || '').replace(/\D/g, '');
-    if (d.length === 11 && /^[78]/.test(d)) d = d.slice(1);
-    // Коды в России начинаются с 3–9: 9xx — мобильные, остальные — города
-    return /^[3-9]\d{9}$/.test(d) ? '+7' + d : null;
+    const raw = String(v || '').trim();
+    let d = raw.replace(/\D/g, '');
+    if (!raw.startsWith('+')){
+      if (d.length === 11 && /^[78]/.test(d)) d = '7' + d.slice(1);
+      else if (d.length === 10) d = '7' + d;
+    }
+    const c = Phone.country(d);
+    if (!c) return null;
+    const rest = d.slice(c.code.length);
+    return rest.length === c.len && c.first.test(rest) ? '+' + d : null;
   },
   email(v){
     v = String(v || '').trim().toLowerCase();
@@ -71,7 +121,16 @@ const Check = {
   },
   phoneRule(v, {optional = false} = {}){
     if (!String(v || '').trim()) return optional ? '' : 'Укажите телефон';
-    return Check.phone(v) ? '' : 'Телефон в формате +7 900 000-00-00';
+    if (Check.phone(v)) return '';
+    // Страна понятна — подсказываем её формат и сколько цифр не хватает
+    const d = String(v).replace(/\D/g, '');
+    const c = String(v).trim().startsWith('+') ? Phone.country(d)
+      || PHONE_COUNTRIES.find(x => d.startsWith(x.code) && x.code !== '7') : null;
+    if (!c) return 'Телефон в формате +7 912 345-67-89';
+    const rest = d.slice(c.code.length);
+    if (rest.length < c.len) return `${c.name}: не хватает цифр — нужно ${c.len} после +${c.code}`;
+    if (rest.length > c.len) return `${c.name}: лишние цифры — нужно ${c.len} после +${c.code}`;
+    return `${c.name}: такого номера нет — например, +${c.code} ${c.sample}`;
   },
   emailRule(v, {optional = false} = {}){
     if (!String(v || '').trim()) return optional ? '' : 'Укажите email';
