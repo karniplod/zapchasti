@@ -105,6 +105,28 @@ async def cart_rows(session: AsyncSession, token: str | None, customer: dict | N
     return out
 
 
+async def recipient_prefill(session: AsyncSession, customer: dict | None) -> dict:
+    """Что подставить в «ФИО» при оформлении. Имя аккаунта — это часто ник
+    («Jojo») или имя из соцсети, получателем посылки оно быть не может.
+    Поэтому: ФИО из последнего заказа (вместе с «Нет отчества», если тогда
+    его не было), иначе имя аккаунта — только полное, из трёх слов, иначе
+    пусто: человек впишет сам."""
+    if not customer:
+        return {"name": "", "no_patronymic": False}
+    last = (await session.execute(text("""
+        SELECT contact_name FROM orders WHERE customer_id = :c AND contact_name IS NOT NULL
+         ORDER BY created_at DESC LIMIT 1"""), {"c": customer["id"]})).scalar()
+    if last:
+        name, err = people.check_fio(last)
+        if not err:
+            return {"name": name, "no_patronymic": False}
+        name, err = people.check_fio(last, no_patronymic=True)
+        if not err:
+            return {"name": name, "no_patronymic": True}
+    name, err = people.check_fio(customer.get("name") or "")
+    return {"name": name if not err else "", "no_patronymic": False}
+
+
 @router.get("/cart", response_class=HTMLResponse)
 async def cart_page(
     request: Request,
@@ -136,6 +158,8 @@ async def cart_page(
             "request": request,
             "user": None,
             "customer": customer,
+            # ФИО получателя — из прошлого заказа или полное имя аккаунта, не ник
+            "recipient": await recipient_prefill(session, customer),
             "items": items,
             "branches": branches,
             "pickup": pickup,

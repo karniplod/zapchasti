@@ -120,8 +120,8 @@
           <div class="fld">
             <label for="cname">ФИО</label>
             <input class="field" id="cname" autocomplete="name" maxlength="80"
-                   placeholder="Иванов Иван Иванович" value="{{ customer.name or '' }}" required>
-            <label class="no-pat"><input type="checkbox" id="cnoPat"> Нет отчества</label>
+                   placeholder="Иванов Иван Иванович" value="{{ recipient.name }}" required>
+            <label class="no-pat"><input type="checkbox" id="cnoPat" {% if recipient.no_patronymic %}checked{% endif %}> Нет отчества</label>
           </div>
           <div class="fld">
             <label for="cphone">Телефон</label>
